@@ -1,0 +1,209 @@
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React from "react";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { useApp } from "@/src/contexts/AppContext";
+import type { Lang } from "@/src/data/places";
+import { t } from "@/src/i18n/strings";
+import { palette, radii, shadow } from "@/src/theme";
+
+const LANGS: { code: Lang; label: string; flag: string }[] = [
+  { code: "en", label: "English", flag: "🇬🇧" },
+  { code: "de", label: "Deutsch", flag: "🇩🇪" },
+  { code: "fr", label: "Français", flag: "🇫🇷" },
+];
+
+export default function Profile() {
+  const router = useRouter();
+  const { lang, setLang, user, signOutUser, bookings, saved } = useApp();
+  const initial = (user?.name?.[0] ?? "U").toUpperCase();
+
+  return (
+    <SafeAreaView style={styles.safe} edges={["top"]}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <Text style={styles.h1}>{t("profile", lang)}</Text>
+
+        <View style={styles.userCard}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarTxt}>{initial}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.userName}>{user?.name ?? t("myAccount", lang)}</Text>
+            <Text style={styles.userSub}>{user?.email ?? t("familyInLuxembourg", lang)}</Text>
+          </View>
+        </View>
+
+        <View style={styles.statsRow}>
+          <View style={styles.stat}>
+            <Text style={styles.statVal}>{saved.length}</Text>
+            <Text style={styles.statLabel}>{t("saved", lang)}</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.stat}>
+            <Text style={styles.statVal}>{bookings.length}</Text>
+            <Text style={styles.statLabel}>{t("yourBooking", lang)}</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.stat}>
+            <Text style={styles.statVal}>3</Text>
+            <Text style={styles.statLabel}>{t("itineraries", lang)}</Text>
+          </View>
+        </View>
+
+        <Text style={styles.sectionLabel}>{t("language", lang)}</Text>
+        <View style={styles.langCard}>
+          {LANGS.map((l) => (
+            <TouchableOpacity
+              key={l.code}
+              onPress={() => setLang(l.code)}
+              style={[styles.langRow, lang === l.code && styles.langRowActive]}
+              testID={`profile-lang-${l.code}`}
+            >
+              <Text style={styles.langFlag}>{l.flag}</Text>
+              <Text style={styles.langLabel}>{l.label}</Text>
+              <View style={{ flex: 1 }} />
+              {lang === l.code ? (
+                <Ionicons name="checkmark-circle" size={22} color={palette.primary} />
+              ) : (
+                <Ionicons name="ellipse-outline" size={22} color={palette.border} />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={styles.sectionLabel}>Settings</Text>
+        <View style={styles.settingsCard}>
+          {[
+            { icon: "settings-outline" as const, label: t("preferencesFilters", lang) },
+            { icon: "card-outline" as const, label: t("subscription", lang) },
+            { icon: "leaf-outline" as const, label: t("savedInterests", lang) },
+            { icon: "notifications-outline" as const, label: "Notifications" },
+          ].map((row) => (
+            <TouchableOpacity key={row.label} style={styles.settingsRow}>
+              <View style={styles.settingsIcon}>
+                <Ionicons name={row.icon} size={18} color={palette.primary} />
+              </View>
+              <Text style={styles.settingsTxt}>{row.label}</Text>
+              <View style={{ flex: 1 }} />
+              <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <TouchableOpacity
+          onPress={() => {
+            signOutUser();
+            router.replace("/login");
+          }}
+          style={styles.signOutBtn}
+          testID="sign-out-btn"
+        >
+          <Ionicons name="log-out-outline" size={18} color={palette.red} />
+          <Text style={styles.signOutTxt}>{t("signOut", lang)}</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: palette.background },
+  scroll: { padding: 20, paddingBottom: 36 },
+  h1: { fontSize: 30, fontWeight: "800", color: palette.textPrimary, letterSpacing: -0.5 },
+  userCard: {
+    marginTop: 18,
+    backgroundColor: palette.surface,
+    borderRadius: radii.xl,
+    padding: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    ...shadow.soft,
+  },
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: palette.primaryLight,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarTxt: { color: palette.primaryDark, fontWeight: "800", fontSize: 22 },
+  userName: { fontSize: 17, fontWeight: "700", color: palette.textPrimary },
+  userSub: { fontSize: 13, color: palette.textSecondary, marginTop: 2 },
+  statsRow: {
+    marginTop: 14,
+    flexDirection: "row",
+    backgroundColor: palette.surface,
+    borderRadius: radii.xl,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "space-around",
+    ...shadow.soft,
+  },
+  stat: { alignItems: "center", flex: 1 },
+  statVal: { fontSize: 22, fontWeight: "800", color: palette.textPrimary },
+  statLabel: { fontSize: 11, color: palette.textSecondary, marginTop: 2 },
+  statDivider: { width: 1, height: 32, backgroundColor: palette.borderSoft },
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: palette.textSecondary,
+    marginTop: 24,
+    marginBottom: 10,
+    paddingLeft: 4,
+  },
+  langCard: {
+    backgroundColor: palette.surface,
+    borderRadius: radii.xl,
+    overflow: "hidden",
+    ...shadow.soft,
+  },
+  langRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.borderSoft,
+  },
+  langRowActive: { backgroundColor: palette.primaryLight + "55" },
+  langFlag: { fontSize: 22 },
+  langLabel: { fontSize: 15, fontWeight: "600", color: palette.textPrimary },
+  settingsCard: {
+    backgroundColor: palette.surface,
+    borderRadius: radii.xl,
+    overflow: "hidden",
+    ...shadow.soft,
+  },
+  settingsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.borderSoft,
+  },
+  settingsIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: palette.primaryLight,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  settingsTxt: { fontSize: 14, fontWeight: "600", color: palette.textPrimary },
+  signOutBtn: {
+    marginTop: 28,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 14,
+  },
+  signOutTxt: { color: palette.red, fontWeight: "700", fontSize: 14 },
+});

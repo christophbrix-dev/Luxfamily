@@ -1,0 +1,41 @@
+{
+  "summary": "Frontend-only Expo/React Native web preview testing of Luxembourg Family Activities app. All 16 requested features verified end-to-end: login (lang chips EN/DE/FR + Sign in/Create account tabs), guest entry, email sign-in persists user, Home weather widget (real Open-Meteo data showing '20°C · Clear · Luxembourg'), greeting, horizontal scrollable category chips (All/Outdoor/Indoor/0-3/4-6/7-12) filter featured cards, large + near-you cards open Detail, Detail shows hero/badges/4 stat cards/Location map (OSM WebView)/About/sticky footer with Open in Maps + Book now or Save, save heart toggle persists to Saved tab via AsyncStorage, BottomTabBar has 5 tabs with active emerald color, Explore has sticky search + filter btn + quick-access chips + filter sheet (age/type/category/date with Reset + Show results), Calendar chips work (Weekend/Next 7 days/June/Your booking), full booking flow (Detail -> Book -> date scroller + adults/children steppers + live total EUR 26.00 for 3A+2C -> Confirm -> Booking confirmed! -> Back to home navigates to Calendar with new booking listed), Profile shows user/stats/language selector (EN/DE/FR) - switching to Deutsch immediately updates tab labels to Start/Entdecken/Favoriten/Kalender/Profil, greeting to 'Guten Morgen!', and card titles ('Besuch auf dem Bauernhof'), Sign out returns to /login. No React Native red screens. No deprecated Expo packages detected (no expo-av/expo-barcode-scanner/expo-background-fetch).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Weather widget (Open-Meteo)",
+        "issue": "Intermittent ERR_NAME_NOT_RESOLVED observed in console on some loads; widget gracefully falls back to '--°C · ...' as designed. Live test displayed real '20°C · Clear · Luxembourg' on first attempt, so working - just noting transient DNS failures from the preview environment.",
+        "affected_testIDs": ["weather-widget"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": [
+      {
+        "component": "Multiple components (theme.ts shadow*)",
+        "issue": "React Native Web deprecation warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Triggered by styles using shadowColor/shadowOpacity/shadowRadius/shadowOffset across the app (e.g. /app/frontend/src/theme.ts shadow.card/shadow.soft/shadow.emerald, /app/frontend/src/components/BottomTabBar.tsx, login.tsx). Functional but should migrate web styles or use platform-specific shadows for cleaner console. Reference: /app/frontend/src/theme.ts"
+      }
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_1.json"],
+  "action_items": [
+    "(Minor) Migrate shadow* style props to boxShadow for web, or wrap shadow styles in Platform.select to suppress RNW deprecation warning. Reference: /app/frontend/src/theme.ts.",
+    "(Minor) Rename testID 'explore-quick-Indoor/Outdoor' (contains '/') to e.g. 'explore-quick-type'. The '/' confuses CSS attribute selectors in some test runners. UI label can remain 'Indoor / Outdoor'. File: /app/frontend/app/(tabs)/explore.tsx line ~88.",
+    "(Optional) Add testID on Open-Meteo failure state so tests can assert fallback UI; currently the widget shows '--°C' silently."
+  ],
+  "critical_code_review_comments": [
+    "All files modular and under 700 lines. Clean separation between contexts, components, screens.",
+    "AsyncStorage usage is consistent and keys are documented (lux.lang, lux.saved, lux.user, lux.bookings).",
+    "Weather fetch correctly handles non-ok and exceptions returning null. No API key leakage.",
+    "Bottom tab uses pathname.includes(tab.key) — works but slightly fragile if a future route name collides (e.g. 'home' substring). Consider exact match.",
+    "Stack animation='fade' inside (tabs)/_layout leaves previous screen briefly mounted, causing locators to resolve to 2 elements during transition. Not a bug but tests must use .first."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (no backend by design)", "frontend": "100% (all 16 requested features verified working)"},
+  "seed_data_creation": "None. Static data lives in /app/frontend/src/data/places.ts. Test ran AsyncStorage-backed user/saved/bookings via the UI itself (family@test.com sign-in, 1 saved place, 1 booking).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login screen testIDs: lang-{en|de|fr}, tab-{signin|signup}, input-{name|email|password}, continue-btn, guest-btn. Tabs: tab-{home|explore|saved|calendar|profile} (Stack keeps prev screen mounted during fade animation -> use .first). Cards: place-card-{id}, save heart: save-btn-{id}. Detail: detail-back-btn, detail-save-btn, footer-book-btn, footer-open-maps-btn, footer-save-btn (only when not yet saved). Book: date-chip-{i}, adults-plus/minus/val, children-plus/minus/val, book-total, confirm-booking-btn, booking-done-btn. Explore: explore-search-input, explore-filter-btn, explore-quick-{Age|Indoor/Outdoor|Category|Date}. Filter sheet: filter-sheet, filter-{age|type|category|date}-X, filter-reset-btn, filter-show-results-btn, filter-close-btn. Calendar: cal-chip-{weekend|7days|june|bookings}, booking-card-{id}. Profile: profile-lang-{en|de|fr}, sign-out-btn. Weather widget: weather-widget. All real third-party endpoints (Open-Meteo + OSM tiles) reachable from preview env in this run.",
+  "rca_of_issue": "N/A — no functional bugs found. Only two minor cleanup items (RNW shadow* deprecation warning and testID containing '/')."
+}

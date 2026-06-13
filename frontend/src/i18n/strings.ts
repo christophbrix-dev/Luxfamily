@@ -1,0 +1,118 @@
+// Tiny translation dictionary; no runtime dep on i18next to keep the bundle lean.
+import type { Lang } from "@/src/data/places";
+
+type Dict = Record<string, Record<Lang, string>>;
+
+export const STRINGS: Dict = {
+  appTitle: { en: "Family Luxembourg", de: "Familie Luxemburg", fr: "Famille Luxembourg" },
+  goodMorning: { en: "Good morning!", de: "Guten Morgen!", fr: "Bonjour !" },
+  goodAfternoon: { en: "Good afternoon!", de: "Guten Tag!", fr: "Bon apres-midi !" },
+  goodEvening: { en: "Good evening!", de: "Guten Abend!", fr: "Bonsoir !" },
+  ideasForToday: {
+    en: "Here are ideas for today",
+    de: "Hier sind Ideen fuer heute",
+    fr: "Voici des idees pour aujourd'hui",
+  },
+  home: { en: "Home", de: "Start", fr: "Accueil" },
+  explore: { en: "Explore", de: "Entdecken", fr: "Explorer" },
+  saved: { en: "Saved", de: "Favoriten", fr: "Favoris" },
+  calendar: { en: "Calendar", de: "Kalender", fr: "Agenda" },
+  profile: { en: "Profile", de: "Profil", fr: "Profil" },
+  search: {
+    en: "Search for places, events...",
+    de: "Suche Orte, Events...",
+    fr: "Chercher lieux, evenements...",
+  },
+  nearYou: { en: "Near you", de: "In deiner Naehe", fr: "Pres de vous" },
+  seeAll: { en: "See all", de: "Alle anzeigen", fr: "Voir tout" },
+  filter: { en: "Filter", de: "Filter", fr: "Filtres" },
+  reset: { en: "Reset", de: "Zuruecksetzen", fr: "Reinitialiser" },
+  age: { en: "Age", de: "Alter", fr: "Age" },
+  indoorOutdoor: { en: "Indoor / Outdoor", de: "Drinnen / Draussen", fr: "Interieur / Exterieur" },
+  category: { en: "Category", de: "Kategorie", fr: "Categorie" },
+  date: { en: "Date", de: "Datum", fr: "Date" },
+  showResults: { en: "Show results", de: "Ergebnisse zeigen", fr: "Voir les resultats" },
+  places: { en: "Places", de: "Orte", fr: "Lieux" },
+  events: { en: "Events", de: "Events", fr: "Evenements" },
+  itineraries: { en: "Itineraries", de: "Routen", fr: "Itineraires" },
+  thisWeekend: { en: "This weekend", de: "Dieses Wochenende", fr: "Ce week-end" },
+  next7Days: { en: "Next 7 days", de: "Naechste 7 Tage", fr: "7 prochains jours" },
+  june: { en: "June", de: "Juni", fr: "Juin" },
+  myAccount: { en: "My account", de: "Mein Konto", fr: "Mon compte" },
+  familyInLuxembourg: {
+    en: "Family in Luxembourg",
+    de: "Familie in Luxemburg",
+    fr: "Famille au Luxembourg",
+  },
+  preferencesFilters: {
+    en: "Preferences & filters",
+    de: "Einstellungen & Filter",
+    fr: "Preferences & filtres",
+  },
+  subscription: { en: "Subscription", de: "Abonnement", fr: "Abonnement" },
+  savedInterests: { en: "Saved interests", de: "Gespeicherte Interessen", fr: "Centres d'interet" },
+  language: { en: "Language", de: "Sprache", fr: "Langue" },
+  signOut: { en: "Sign out", de: "Abmelden", fr: "Se deconnecter" },
+  openInMaps: { en: "Open in Maps", de: "In Karten oeffnen", fr: "Ouvrir dans Maps" },
+  save: { en: "Save", de: "Speichern", fr: "Enregistrer" },
+  unsave: { en: "Saved", de: "Gespeichert", fr: "Enregistre" },
+  about: { en: "About", de: "Ueber", fr: "A propos" },
+  location: { en: "Location", de: "Standort", fr: "Lieu" },
+  fromYou: { en: "from you", de: "von dir", fr: "de vous" },
+  greatForToday: {
+    en: "Great for today",
+    de: "Perfekt fuer heute",
+    fr: "Parfait pour aujourd'hui",
+  },
+  bookNow: { en: "Book now", de: "Jetzt buchen", fr: "Reserver" },
+  bookActivity: { en: "Book activity", de: "Aktivitaet buchen", fr: "Reserver l'activite" },
+  yourBooking: { en: "Your booking", de: "Deine Buchung", fr: "Votre reservation" },
+  selectDate: { en: "Select date", de: "Datum waehlen", fr: "Choisir la date" },
+  numAdults: { en: "Adults", de: "Erwachsene", fr: "Adultes" },
+  numChildren: { en: "Children", de: "Kinder", fr: "Enfants" },
+  total: { en: "Total", de: "Gesamt", fr: "Total" },
+  confirmBooking: { en: "Confirm booking", de: "Buchung bestaetigen", fr: "Confirmer" },
+  bookingConfirmed: {
+    en: "Booking confirmed!",
+    de: "Buchung bestaetigt!",
+    fr: "Reservation confirmee !",
+  },
+  bookingConfirmedSub: {
+    en: "We have sent the details to your email.",
+    de: "Wir haben die Details an deine E-Mail gesendet.",
+    fr: "Nous avons envoye les details par email.",
+  },
+  backToHome: { en: "Back to home", de: "Zurueck zum Start", fr: "Retour a l'accueil" },
+  signIn: { en: "Sign in", de: "Anmelden", fr: "Se connecter" },
+  createAccount: { en: "Create account", de: "Konto erstellen", fr: "Creer un compte" },
+  email: { en: "Email", de: "E-Mail", fr: "Email" },
+  password: { en: "Password", de: "Passwort", fr: "Mot de passe" },
+  yourName: { en: "Your name", de: "Dein Name", fr: "Votre nom" },
+  continueWithEmail: {
+    en: "Continue with email",
+    de: "Mit E-Mail fortfahren",
+    fr: "Continuer avec email",
+  },
+  skip: { en: "Continue as guest", de: "Als Gast fortfahren", fr: "Continuer en invite" },
+  welcomeTitle: {
+    en: "Family adventures in Luxembourg",
+    de: "Familienabenteuer in Luxemburg",
+    fr: "Aventures familiales au Luxembourg",
+  },
+  welcomeSub: {
+    en: "Discover places, events and workshops curated for your kids.",
+    de: "Entdecke Orte, Events und Workshops fuer deine Kinder.",
+    fr: "Decouvrez des lieux et ateliers pour vos enfants.",
+  },
+  noResults: { en: "No results", de: "Keine Ergebnisse", fr: "Aucun resultat" },
+  noSaved: {
+    en: "Nothing saved yet. Tap the heart to save your favourites.",
+    de: "Noch nichts gespeichert. Tippe das Herz, um Favoriten zu speichern.",
+    fr: "Rien d'enregistre. Touchez le coeur pour ajouter.",
+  },
+  loading: { en: "Loading...", de: "Laedt...", fr: "Chargement..." },
+};
+
+export function t(key: keyof typeof STRINGS, lang: Lang): string {
+  return STRINGS[key]?.[lang] ?? STRINGS[key]?.en ?? key;
+}
