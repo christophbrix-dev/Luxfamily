@@ -5,6 +5,35 @@ export type Lang = "en" | "de" | "fr";
 
 export type LocalizedString = Record<Lang, string>;
 
+export type Canton =
+  | "Capellen"
+  | "Clervaux"
+  | "Diekirch"
+  | "Echternach"
+  | "Esch-sur-Alzette"
+  | "Grevenmacher"
+  | "Luxembourg"
+  | "Mersch"
+  | "Redange"
+  | "Remich"
+  | "Vianden"
+  | "Wiltz";
+
+export const CANTONS: Canton[] = [
+  "Capellen",
+  "Clervaux",
+  "Diekirch",
+  "Echternach",
+  "Esch-sur-Alzette",
+  "Grevenmacher",
+  "Luxembourg",
+  "Mersch",
+  "Redange",
+  "Remich",
+  "Vianden",
+  "Wiltz",
+];
+
 export type Place = {
   id: number;
   title: LocalizedString;
@@ -15,6 +44,7 @@ export type Place = {
   ageMax: number;
   distanceKm: number;
   town: string;
+  canton: Canton;
   category: string[];
   weatherFit: LocalizedString;
   image: string;
@@ -50,6 +80,7 @@ export const PLACES: Place[] = [
     ageMax: 10,
     distanceKm: 2.4,
     town: "Walferdange",
+    canton: "Luxembourg",
     category: ["Animals", "Nature"],
     weatherFit: {
       en: "Sunny & 18 degrees",
@@ -100,6 +131,7 @@ export const PLACES: Place[] = [
     ageMax: 12,
     distanceKm: 1.8,
     town: "Luxembourg City",
+    canton: "Luxembourg",
     category: ["Culture", "Workshops"],
     weatherFit: {
       en: "Perfect for rainy afternoons",
@@ -154,6 +186,7 @@ export const PLACES: Place[] = [
     ageMax: 99,
     distanceKm: 3.1,
     town: "Kirchberg",
+    canton: "Luxembourg",
     category: ["Festivals"],
     weatherFit: {
       en: "Best on dry evenings",
@@ -204,6 +237,7 @@ export const PLACES: Place[] = [
     ageMax: 10,
     distanceKm: 2.0,
     town: "Strassen",
+    canton: "Luxembourg",
     category: ["Playgrounds"],
     weatherFit: {
       en: "Great when it rains",
@@ -254,6 +288,7 @@ export const PLACES: Place[] = [
     ageMax: 12,
     distanceKm: 1.6,
     town: "Luxembourg City",
+    canton: "Luxembourg",
     category: ["Culture", "Nature"],
     weatherFit: {
       en: "Excellent indoor backup",
@@ -304,6 +339,7 @@ export const PLACES: Place[] = [
     ageMax: 12,
     distanceKm: 14.0,
     town: "Bettembourg",
+    canton: "Esch-sur-Alzette",
     category: ["Animals", "Nature", "Playgrounds"],
     weatherFit: {
       en: "Best on sunny days",
@@ -358,6 +394,7 @@ export const PLACES: Place[] = [
     ageMax: 12,
     distanceKm: 28.0,
     town: "Echternach",
+    canton: "Echternach",
     category: ["Nature"],
     weatherFit: {
       en: "Cool forest, great on hot days",
@@ -404,6 +441,7 @@ export const PLACES: Place[] = [
     ageMax: 12,
     distanceKm: 18.0,
     town: "Oberkorn",
+    canton: "Esch-sur-Alzette",
     category: ["Water"],
     weatherFit: {
       en: "Any weather",

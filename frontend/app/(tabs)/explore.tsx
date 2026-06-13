@@ -7,7 +7,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { AppCard } from "@/src/components/AppCard";
 import { Chip } from "@/src/components/Chip";
 import { DEFAULT_FILTERS, FilterSheet, Filters } from "@/src/components/FilterSheet";
+import { LuxembourgMap } from "@/src/components/LuxembourgMap";
 import { useApp } from "@/src/contexts/AppContext";
+import type { Canton } from "@/src/data/places";
 import { PLACES } from "@/src/data/places";
 import { t } from "@/src/i18n/strings";
 import { palette } from "@/src/theme";
@@ -18,9 +20,18 @@ export default function Explore() {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [canton, setCanton] = useState<Canton | null>(null);
+
+  // Pre-compute count of activities per canton for the map badges.
+  const cantonCounts = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const p of PLACES) out[p.canton] = (out[p.canton] ?? 0) + 1;
+    return out;
+  }, []);
 
   const list = useMemo(() => {
     return PLACES.filter((p) => {
+      if (canton && p.canton !== canton) return false;
       if (filters.type !== "All" && p.type !== filters.type) return false;
       if (filters.age !== "All") {
         const [min, max] = filters.age.split("-").map(Number);
@@ -35,13 +46,14 @@ export default function Explore() {
       }
       return true;
     });
-  }, [filters, query, lang]);
+  }, [filters, query, lang, canton]);
 
   const activeFilterCount =
     (filters.age !== "All" ? 1 : 0) +
     (filters.type !== "All" ? 1 : 0) +
     filters.category.length +
-    (filters.date !== "Anytime" ? 1 : 0);
+    (filters.date !== "Anytime" ? 1 : 0) +
+    (canton ? 1 : 0);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -99,6 +111,34 @@ export default function Explore() {
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.mapCard} testID="canton-map-card">
+          <View style={styles.mapHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.mapTitle}>Browse by canton</Text>
+              <Text style={styles.mapSub}>
+                {canton
+                  ? `Showing ${canton}`
+                  : "Tap a canton to filter activities"}
+              </Text>
+            </View>
+            {canton ? (
+              <TouchableOpacity
+                onPress={() => setCanton(null)}
+                style={styles.mapClear}
+                testID="canton-clear-btn"
+              >
+                <Ionicons name="close" size={14} color={palette.primaryDark} />
+                <Text style={styles.mapClearTxt}>Clear</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          <LuxembourgMap
+            selected={canton}
+            counts={cantonCounts}
+            onSelect={setCanton}
+          />
+        </View>
+
         <Text style={styles.sectionTitle}>
           {list.length} {list.length === 1 ? "result" : "results"}
         </Text>
@@ -189,6 +229,34 @@ const styles = StyleSheet.create({
   quickRowOuter: { marginTop: 14, maxHeight: 56 },
   quickRow: { gap: 8, alignItems: "center", height: 56 },
   list: { padding: 20, paddingBottom: 28, gap: 14 },
+  mapCard: {
+    backgroundColor: palette.surface,
+    borderRadius: 24,
+    padding: 14,
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
+  },
+  mapHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 6,
+    paddingBottom: 8,
+  },
+  mapTitle: { fontSize: 15, fontWeight: "700", color: palette.textPrimary },
+  mapSub: { fontSize: 12, color: palette.textSecondary, marginTop: 2 },
+  mapClear: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: palette.primaryLight,
+  },
+  mapClearTxt: { color: palette.primaryDark, fontSize: 11, fontWeight: "700" },
   sectionTitle: { fontSize: 14, fontWeight: "700", color: palette.textSecondary, marginBottom: 4 },
   empty: { alignItems: "center", padding: 40, gap: 10 },
   emptyTxt: { color: palette.textSecondary, fontSize: 14 },

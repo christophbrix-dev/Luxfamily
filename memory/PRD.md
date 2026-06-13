@@ -29,7 +29,8 @@ Native Expo mobile app for families in Luxembourg to discover places, events, an
 - Multilingual UI (EN/DE/FR) — switchable from login + profile
 - Real-time Luxembourg weather widget (Open-Meteo)
 - 5-tab navigation: Home / Explore / Saved / Calendar / Profile
-- Filterable explore feed (age / type / category / date) via bottom sheet
+- **Canton map header on Explore** — interactive SVG silhouette of Luxembourg with all 12 clickable cantons; activity-count badges; selecting a canton filters the list, "Clear" resets
+- Filterable explore feed (canton / age / type / category / date) via bottom sheet
 - Save / unsave activities (persisted in AsyncStorage)
 - Booking flow with date picker, guest stepper, total computation, confirmation
 - Detail screen with embedded OpenStreetMap + "Open in Maps" deep link
