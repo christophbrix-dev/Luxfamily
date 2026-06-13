@@ -5,6 +5,7 @@ type Dict = Record<string, Record<Lang, string>>;
 
 export const STRINGS: Dict = {
   appTitle: { en: "Family Luxembourg", de: "Familie Luxemburg", fr: "Famille Luxembourg" },
+  events: { en: "Events", de: "Events", fr: "Events" },
   goodMorning: { en: "Good morning!", de: "Guten Morgen!", fr: "Bonjour !" },
   goodAfternoon: { en: "Good afternoon!", de: "Guten Tag!", fr: "Bon apres-midi !" },
   goodEvening: { en: "Good evening!", de: "Guten Abend!", fr: "Bonsoir !" },

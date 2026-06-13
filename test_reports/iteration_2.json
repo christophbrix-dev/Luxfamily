@@ -1,0 +1,72 @@
+{
+  "summary": "Full backend + frontend testing of the new admin CMS (Phase 2). Backend pytest suite: 18/18 PASSED including auth (login/me/wrong-password/missing-token/invalid-token), public events (list with ?upcoming, detail, 404 on unpublished), admin event CRUD (create/list/patch/delete with auth gate 401), draft toggle hides from public + public detail 404, admin update/delete 404, and slowapi rate limit on /api/auth/login (saw HTTP 429 within 15 wrong-pass attempts). Admin seeding is idempotent (backend restart logs 'Admin user already exists'; unique index on users.email). Admin web UI at /admin (desktop 1280x900): login renders, wrong password shows error, correct creds redirect to /admin/events, 3 seeded events render with publish/draft toggle (verified state changes Published<->Draft), edit screen pre-fills multilingual EN/DE/FR title/short/description and other fields, New event editor renders with Save, logout clears token and returns to /admin login. Mobile Events tab (412x900): bottom nav has all 6 tabs (home/explore/events/saved/calendar/profile), Events tab loads /api/events?upcoming=false and renders 3 events grouped by month (MAY 2026, JUNE 2026, AUGUST 2026) with date box + thumbnail + title + location + time + chevron; tapping an event opens /event/{id} detail with hero image, weather pill, 4-stat grid, Location card with OSM map, Open in Maps + Save sticky footer. Integration verified: events created by admin via /api/admin/events appear immediately in public GET /api/events (pytest test_admin_create_update_delete_flow). Deprecated style warnings detected: 'shadow*' style props (RN Web deprecation) and 'props.pointerEvents is deprecated' — non-blocking, also flagged in iteration_1. No deprecated Expo packages (expo-av/expo-barcode-scanner/expo-background-fetch) detected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Events tab",
+        "issues": [
+          "Subtitle hard-codes 'X upcoming activities' but the list is fetched with upcoming=false, so it can also include past events. Either rename to 'activities' or filter client-side. Reference: /app/frontend/app/(tabs)/events.tsx:71."
+        ]
+      }
+    ],
+    "react_native_issues": [
+      {
+        "component": "Multiple components (theme.ts shadow.*)",
+        "issue": "React Native Web deprecation warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Triggered by shadowColor/shadowOpacity/shadowRadius/shadowOffset across the app (e.g. /app/frontend/src/theme.ts shadow.card/shadow.soft/shadow.emerald used in admin/index.tsx:155, admin/events/index.tsx:170, etc.)."
+      },
+      {
+        "component": "Some TouchableOpacity/Pressable",
+        "issue": "RNW warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Likely coming from a third-party RN library; functional but noisy in console."
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_2.json",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/backend/tests/conftest.py",
+    "/app/backend/tests/test_health.py",
+    "/app/backend/tests/test_auth.py",
+    "/app/backend/tests/test_events_public.py",
+    "/app/backend/tests/test_admin_events.py",
+    "/app/backend/tests/test_rate_limit.py"
+  ],
+  "action_items": [
+    "(Minor) Events tab subtitle wrongly says 'upcoming activities' while the API call is upcoming=false. Either change copy to '{n} activities' or pass upcoming=true. File: /app/frontend/app/(tabs)/events.tsx:71.",
+    "(Minor / carry-over) Migrate shadow* style props to boxShadow for web or wrap in Platform.select to silence RNW warning. File: /app/frontend/src/theme.ts.",
+    "(Minor) Rate-limit on /api/auth/login is global per IP — running pytest and then using the admin web UI from the same egress can briefly lock out real admins. Consider lifting limit to 20/min in non-prod or keying by email+IP. File: /app/backend/server.py:295.",
+    "(Optional) Backend reload triggers on /app/backend/tests changes because uvicorn watches the whole /app/backend dir. Not a functional bug but slows tests. Consider adding tests/ to reload_excludes."
+  ],
+  "critical_code_review_comments": [
+    "server.py is clean and under 410 lines. Pydantic models exclude _id from responses; uses uuid for ids; unique indexes on users.email/id and events.id.",
+    "JWT verification correctly handles ExpiredSignatureError vs InvalidTokenError; OAuth2PasswordBearer with auto_error=False + manual raise gives correct 401 (instead of 403).",
+    "Admin gate via require_admin returns 403 if non-admin (correct). With no token it returns 401 (correct).",
+    "Public GET /api/events filters published=True; GET /api/events/{id} also requires published — verified by pytest.",
+    "Frontend src/utils/api.ts is well-typed and uses EXPO_PUBLIC_BACKEND_URL — no hard-coded host.",
+    "Admin list calls api.adminEvents on useFocusEffect; after creating/toggling, list refreshes correctly on focus.",
+    "All interactive elements have testID (admin-email, admin-password, admin-submit, admin-new-event, admin-row-{id}, admin-toggle-{id}, admin-edit-{id}, admin-delete-{id}, admin-logout, event-row-{id})."
+  ],
+  "updated_files": [
+    "/app/backend/tests/__init__.py",
+    "/app/backend/tests/conftest.py",
+    "/app/backend/tests/test_health.py",
+    "/app/backend/tests/test_auth.py",
+    "/app/backend/tests/test_events_public.py",
+    "/app/backend/tests/test_admin_events.py",
+    "/app/backend/tests/test_rate_limit.py"
+  ],
+  "success_rate": {
+    "backend": "100% (18/18 pytest passing)",
+    "frontend": "100% functional (admin web UI + mobile Events tab + detail screen all working). Two minor non-blocking issues (RNW shadow* warning carried over from iter1, and Events subtitle copy mismatch)."
+  },
+  "seed_data_creation": "None permanently — pytest test_admin_create_update_delete_flow creates a TEST_Event_* and deletes it in a finally block. Existing 3 seeded events untouched: Echternach Hop Procession (2026-05-26), Family Sunday at Mudam (2026-06-21), Schueberfouer 2026 (2026-08-22).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Admin testIDs: admin-login-card, admin-email, admin-password, admin-submit, admin-new-event, admin-logout, admin-row-{id}, admin-toggle-{id}, admin-edit-{id}, admin-delete-{id}. Mobile Events testIDs: tab-events (in 6-tab BottomTabBar tab-{home|explore|events|saved|calendar|profile}), event-row-{id}, events-retry-btn. Event detail screen reuses the same detail-* testIDs from iteration_1 plus footer-open-maps-btn / footer-save-btn. Backend rate limit is 10/min per IP on /api/auth/login — wait 60s between rate-limit tests and real UI logins to avoid 429. Test credentials in /app/memory/test_credentials.md.",
+  "rca_of_issue": "No bugs requiring RCA. The only non-blocking discrepancy is Events tab subtitle text: '{n} upcoming activities' is displayed regardless of the underlying query (upcoming=false), which can be misleading if past events are present. Fix is a one-line copy change in /app/frontend/app/(tabs)/events.tsx:71."
+}

@@ -1,49 +1,66 @@
 # Luxembourg Family Activities — Mobile App PRD
 
 ## Overview
-Native Expo mobile app for families in Luxembourg to discover places, events, and workshops for kids. Converted from the user-provided React web prototype, with the requested feature extensions.
+Native Expo mobile app for families in Luxembourg to discover places, events, and workshops for kids. Now backed by a FastAPI/MongoDB backend for event content management.
 
 ## Tech Stack
-- Expo SDK 54 + expo-router (file-based)
-- React Native (View/Text/TouchableOpacity/ScrollView/Image)
-- `@expo/vector-icons` Ionicons (Lucide-equivalents)
-- `expo-linear-gradient`, `react-native-webview` (map embed)
-- `react-native-safe-area-context`
-- Local-only persistence via `@/src/utils/storage` (no backend)
+- **Frontend**: Expo SDK 54 + expo-router (file-based)
+- **Backend**: FastAPI + Motor (async MongoDB) + bcrypt + PyJWT + slowapi
+- **Persistence**: MongoDB for events/users; AsyncStorage for client-side prefs/saved/bookings
+- **Maps**: OpenStreetMap embed (no API key)
+- **Weather**: Open-Meteo (no API key)
 
 ## Architecture
-- `/app/_layout.tsx` — Root: SafeAreaProvider + GestureHandlerRootView + AppProvider + Stack
-- `/app/index.tsx` — Auth gate (Redirect to login or tabs)
-- `/app/login.tsx` — Sign in / Sign up / Guest, with language picker
-- `/app/(tabs)/_layout.tsx` — Custom bottom tab bar
-- `/app/(tabs)/{home,explore,saved,calendar,profile}.tsx`
-- `/app/detail/[id].tsx` — Place detail with embedded OpenStreetMap
-- `/app/book/[id].tsx` — Multi-step booking flow + confirmation
-- `/src/components/{AppCard,Chip,FilterSheet,WeatherWidget,MapPreview,BottomTabBar}.tsx`
-- `/src/contexts/AppContext.tsx` — Language, user, saved, bookings (AsyncStorage)
-- `/src/data/places.ts` — 8 seeded Luxembourg activities with EN/DE/FR strings
-- `/src/i18n/strings.ts` — Translation dictionary (EN/DE/FR)
-- `/src/utils/weather.ts` — Open-Meteo API (no key needed)
+### Backend (`/app/backend/server.py`)
+- JWT auth with bcrypt password hashing
+- Idempotent admin seeding on startup (from `.env`)
+- slowapi rate limit on `/api/auth/login` (10/min)
+- Indexes: `users.email` unique, `users.id` unique, `events.id` unique, `events.start_date`
+- Endpoints
+  - `POST /api/auth/login` → JWT + user
+  - `GET /api/auth/me`
+  - `GET /api/events` (public, filters: canton, upcoming)
+  - `GET /api/events/{id}` (public)
+  - `GET|POST /api/admin/events` (admin)
+  - `PATCH|DELETE /api/admin/events/{id}` (admin)
+  - `GET /api/health`
+
+### Frontend
+- `/app/_layout.tsx` — Root: SafeAreaProvider + GestureHandler + AppProvider + Stack
+- `/app/index.tsx` — Auth gate
+- `/app/login.tsx` — Local user login (Email/Pwd/Guest, language picker)
+- `/app/(tabs)/_layout.tsx` — Custom bottom tab bar (6 tabs)
+- `/app/(tabs)/{home,explore,events,saved,calendar,profile}.tsx`
+- `/app/detail/[id].tsx` — Static place detail
+- `/app/event/[id].tsx` — Backend-loaded event detail with OSM map
+- `/app/book/[id].tsx` — Booking flow + confirmation
+- `/app/admin/_layout.tsx` — Admin stack
+- `/app/admin/index.tsx` — Admin login (Bcrypt + JWT)
+- `/app/admin/events/index.tsx` — Admin events list (publish toggle, edit, delete)
+- `/app/admin/events/[id].tsx` — Admin editor (handles `new` and existing IDs)
+- `/src/utils/api.ts` — Typed API client with admin JWT injection
+- `/src/components/LuxembourgMap.tsx` — Canton map header
+- `/src/data/places.ts` — Static seed places (museums/parks, ~8 entries, EN/DE/FR)
 
 ## Features
-- Multilingual UI (EN/DE/FR) — switchable from login + profile
-- Real-time Luxembourg weather widget (Open-Meteo)
-- 5-tab navigation: Home / Explore / Saved / Calendar / Profile
-- **Canton map header on Explore** — interactive SVG silhouette of Luxembourg with all 12 clickable cantons; activity-count badges; selecting a canton filters the list, "Clear" resets
-- Filterable explore feed (canton / age / type / category / date) via bottom sheet
-- Save / unsave activities (persisted in AsyncStorage)
-- Booking flow with date picker, guest stepper, total computation, confirmation
-- Detail screen with embedded OpenStreetMap + "Open in Maps" deep link
-- Local-only profile (email/name) stored in AsyncStorage
-- Saved bookings show up in Calendar tab "Your booking" chip
+- Multilingual UI (EN/DE/FR), instant switch from login + profile
+- Real-time Luxembourg weather (Open-Meteo)
+- **6-tab navigation**: Home / Explore / Events / Saved / Calendar / Profile
+- Canton map header on Explore (12 clickable cantons + count badges)
+- Filterable explore feed (canton / age / type / category / date)
+- Save / unsave activities (AsyncStorage persistence)
+- Booking flow with date picker, guest stepper, total
+- Detail screens with embedded OSM map + "Open in Maps"
+- **Events tab** loads upcoming events from backend, grouped by month
+- **Admin CMS at `/admin`**: list/create/edit/delete events, publish toggle, multilingual fields
+- Local-only mobile user auth via AsyncStorage
 
-## Notes / MOCKED
-- Authentication is local-only (no backend). Email/password are stored in AsyncStorage; no real password hashing or remote auth. This matches the user's explicit choice ("static data, no backend").
-- Booking is a UI-only flow; no payment integration. Total is calculated and persisted locally.
-- Maps use OpenStreetMap embed via WebView (no API key required).
-- Weather uses the free Open-Meteo public endpoint (no API key required).
+## Mocked / Local-Only
+- Mobile user auth (local, no backend) — frontend stores user in AsyncStorage
+- Booking confirmation (no payment integration)
 
 ## Next Action Items
-- Backend wiring (FastAPI + MongoDB) when the user wants real users / bookings / partner listings
-- Real payment integration (Stripe) for the booking confirmation step
-- Push notifications for reminders on upcoming bookings (requires deployment + dev build)
+- Auto-import events from `visitluxembourg.com` Open Data API (Phase 2)
+- iCal feed aggregator for Mudam, Philharmonie, Rockhal (Phase 3)
+- User-submitted events with moderation queue (Phase 4)
+- Migrate mobile user auth to backend too (currently local-only)

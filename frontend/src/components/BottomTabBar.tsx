@@ -9,10 +9,11 @@ import { t } from "@/src/i18n/strings";
 import { palette } from "@/src/theme";
 
 type Tab = {
-  key: "home" | "explore" | "saved" | "calendar" | "profile";
+  key: "home" | "explore" | "events" | "saved" | "calendar" | "profile";
   href:
     | "/(tabs)/home"
     | "/(tabs)/explore"
+    | "/(tabs)/events"
     | "/(tabs)/saved"
     | "/(tabs)/calendar"
     | "/(tabs)/profile";
@@ -23,6 +24,7 @@ type Tab = {
 const TABS: Tab[] = [
   { key: "home", href: "/(tabs)/home", icon: "home-outline", iconFocused: "home" },
   { key: "explore", href: "/(tabs)/explore", icon: "search-outline", iconFocused: "search" },
+  { key: "events", href: "/(tabs)/events", icon: "sparkles-outline", iconFocused: "sparkles" },
   { key: "saved", href: "/(tabs)/saved", icon: "heart-outline", iconFocused: "heart" },
   {
     key: "calendar",
