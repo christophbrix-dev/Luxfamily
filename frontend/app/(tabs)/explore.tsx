@@ -79,16 +79,19 @@ export default function Explore() {
           contentContainerStyle={styles.quickRow}
           style={styles.quickRowOuter}
         >
-          {[t("age", lang), t("indoorOutdoor", lang), t("category", lang), t("date", lang)].map(
-            (label) => (
-              <Chip
-                key={label}
-                label={label}
-                onPress={() => setOpen(true)}
-                testID={`explore-quick-${label}`}
-              />
-            ),
-          )}
+          {[
+            { key: "age", label: t("age", lang) },
+            { key: "type", label: t("indoorOutdoor", lang) },
+            { key: "category", label: t("category", lang) },
+            { key: "date", label: t("date", lang) },
+          ].map((it) => (
+            <Chip
+              key={it.key}
+              label={it.label}
+              onPress={() => setOpen(true)}
+              testID={`explore-quick-${it.key}`}
+            />
+          ))}
         </ScrollView>
       </View>
 
