@@ -68,7 +68,7 @@ export default function EventsTab() {
         <View>
           <Text style={styles.h1}>Events</Text>
           <Text style={styles.sub}>
-            {events ? `${events.length} upcoming activities` : t("loading", lang)}
+            {events ? `${events.length} ${events.length === 1 ? "activity" : "activities"}` : t("loading", lang)}
           </Text>
         </View>
         <View style={styles.headerBadge}>
