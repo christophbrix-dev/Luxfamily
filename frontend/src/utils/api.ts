@@ -73,9 +73,46 @@ export type ApiEvent = {
   bookable: boolean;
   published: boolean;
   rating: number;
+  featured: boolean;
+  featured_until?: string | null;
+  view_count: number;
+  source_id?: string | null;
+  source_name?: string | null;
+  external_id?: string | null;
   created_at: string;
   updated_at: string;
   created_by?: string | null;
+};
+
+export type ApiSource = {
+  id: string;
+  name: string;
+  kind: "ical" | "data_public_lu";
+  url: string;
+  active: boolean;
+  canton_default: string;
+  town_default: string;
+  category_default: string[];
+  age_min_default: number;
+  age_max_default: number;
+  lat_default: number;
+  lng_default: number;
+  image_default: string;
+  created_at: string;
+  last_run_at?: string | null;
+  last_status?: "ok" | "error" | null;
+  last_error?: string | null;
+  last_imported_count?: number | null;
+  last_skipped_count?: number | null;
+};
+
+export type Analytics = {
+  total_events: number;
+  published: number;
+  drafts: number;
+  featured: number;
+  total_views: number;
+  top_events: { id: string; title: string; view_count: number }[];
 };
 
 export type AdminUser = { id: string; email: string; role: string; name?: string };
@@ -88,6 +125,8 @@ export const api = {
     }),
   me: () => apiFetch<AdminUser>("/api/auth/me", { admin: true }),
   publicEvents: () => apiFetch<ApiEvent[]>("/api/events?upcoming=false"),
+  pingView: (id: string) =>
+    apiFetch<void>(`/api/events/${id}/view`, { method: "POST" }),
   adminEvents: () => apiFetch<ApiEvent[]>("/api/admin/events", { admin: true }),
   createEvent: (payload: Omit<ApiEvent, "id" | "created_at" | "updated_at" | "created_by">) =>
     apiFetch<ApiEvent>("/api/admin/events", { method: "POST", body: payload, admin: true }),
@@ -95,4 +134,17 @@ export const api = {
     apiFetch<ApiEvent>(`/api/admin/events/${id}`, { method: "PATCH", body: patch, admin: true }),
   deleteEvent: (id: string) =>
     apiFetch<void>(`/api/admin/events/${id}`, { method: "DELETE", admin: true }),
+  adminSources: () => apiFetch<ApiSource[]>("/api/admin/sources", { admin: true }),
+  createSource: (payload: Omit<ApiSource, "id" | "created_at" | "last_run_at" | "last_status" | "last_error" | "last_imported_count" | "last_skipped_count">) =>
+    apiFetch<ApiSource>("/api/admin/sources", { method: "POST", body: payload, admin: true }),
+  updateSource: (id: string, patch: Partial<ApiSource>) =>
+    apiFetch<ApiSource>(`/api/admin/sources/${id}`, { method: "PATCH", body: patch, admin: true }),
+  deleteSource: (id: string) =>
+    apiFetch<void>(`/api/admin/sources/${id}`, { method: "DELETE", admin: true }),
+  runSource: (id: string) =>
+    apiFetch<{ last_status: string; last_imported_count: number; last_error?: string }>(
+      `/api/admin/sources/${id}/run`,
+      { method: "POST", admin: true },
+    ),
+  analytics: () => apiFetch<Analytics>("/api/admin/analytics/overview", { admin: true }),
 };

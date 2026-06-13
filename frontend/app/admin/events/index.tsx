@@ -69,6 +69,20 @@ export default function AdminEvents() {
         </View>
         <View style={{ flexDirection: "row", gap: 8 }}>
           <TouchableOpacity
+            onPress={() => router.push("/admin/analytics")}
+            style={styles.iconBtn}
+            testID="admin-analytics"
+          >
+            <Ionicons name="stats-chart-outline" size={18} color={palette.textPrimary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.push("/admin/sources")}
+            style={styles.iconBtn}
+            testID="admin-sources"
+          >
+            <Ionicons name="cloud-download-outline" size={18} color={palette.textPrimary} />
+          </TouchableOpacity>
+          <TouchableOpacity
             onPress={async () => {
               await setAdminToken(null);
               router.replace("/admin");
@@ -106,11 +120,25 @@ export default function AdminEvents() {
             <View key={ev.id} style={styles.row} testID={`admin-row-${ev.id}`}>
               <View style={[styles.dot, ev.published ? styles.dotOn : styles.dotOff]} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.title} numberOfLines={1}>
-                  {ev.title.en}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={styles.title} numberOfLines={1}>
+                    {ev.title.en}
+                  </Text>
+                  {ev.featured ? (
+                    <View style={styles.sponsorBadge}>
+                      <Ionicons name="star" size={9} color="#92400E" />
+                      <Text style={styles.sponsorBadgeTxt}>Sponsored</Text>
+                    </View>
+                  ) : null}
+                  {ev.source_name ? (
+                    <View style={styles.autoBadge}>
+                      <Ionicons name="cloud-download" size={9} color={palette.textMuted} />
+                      <Text style={styles.autoBadgeTxt}>{ev.source_name}</Text>
+                    </View>
+                  ) : null}
+                </View>
                 <Text style={styles.meta} numberOfLines={1}>
-                  {ev.start_date} · {ev.town} · {ev.canton}
+                  {ev.start_date} · {ev.town} · {ev.canton} · {ev.view_count} views
                 </Text>
               </View>
               <TouchableOpacity

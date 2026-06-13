@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 import bcrypt
 import jwt
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
@@ -28,6 +29,8 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.middleware.cors import CORSMiddleware
+
+from importers import run_all_active, run_source
 
 # ---------------------------------------------------------------------------
 # Bootstrap
@@ -128,6 +131,12 @@ class EventBase(BaseModel):
     bookable: bool = False
     published: bool = True
     rating: float = 4.5
+    featured: bool = False
+    featured_until: Optional[str] = None
+    view_count: int = 0
+    source_id: Optional[str] = None
+    source_name: Optional[str] = None
+    external_id: Optional[str] = None
 
 
 class EventCreate(EventBase):
@@ -158,6 +167,8 @@ class EventUpdate(BaseModel):
     bookable: Optional[bool] = None
     published: Optional[bool] = None
     rating: Optional[float] = None
+    featured: Optional[bool] = None
+    featured_until: Optional[str] = None
 
 
 class EventResponse(EventBase):
@@ -196,10 +207,65 @@ def _event_to_response(doc: Dict[str, Any]) -> EventResponse:
         bookable=doc.get("bookable", False),
         published=doc.get("published", True),
         rating=doc.get("rating", 4.5),
+        featured=doc.get("featured", False),
+        featured_until=doc.get("featured_until"),
+        view_count=doc.get("view_count", 0),
+        source_id=doc.get("source_id"),
+        source_name=doc.get("source_name"),
+        external_id=doc.get("external_id"),
         created_at=doc["created_at"],
         updated_at=doc["updated_at"],
         created_by=doc.get("created_by"),
     )
+
+
+# ---- Source models ----
+class SourceBase(BaseModel):
+    name: str
+    kind: Literal["ical", "data_public_lu"]
+    url: str
+    active: bool = True
+    canton_default: str = "Luxembourg"
+    town_default: str = "Luxembourg"
+    category_default: List[str] = Field(default_factory=lambda: ["Culture"])
+    age_min_default: int = 0
+    age_max_default: int = 99
+    lat_default: float = 49.6116
+    lng_default: float = 6.1319
+    image_default: str = ""
+
+
+class SourceCreate(SourceBase):
+    pass
+
+
+class SourceUpdate(BaseModel):
+    name: Optional[str] = None
+    kind: Optional[Literal["ical", "data_public_lu"]] = None
+    url: Optional[str] = None
+    active: Optional[bool] = None
+    canton_default: Optional[str] = None
+    town_default: Optional[str] = None
+    category_default: Optional[List[str]] = None
+    age_min_default: Optional[int] = None
+    age_max_default: Optional[int] = None
+    lat_default: Optional[float] = None
+    lng_default: Optional[float] = None
+    image_default: Optional[str] = None
+
+
+class SourceResponse(SourceBase):
+    id: str
+    created_at: str
+    last_run_at: Optional[str] = None
+    last_status: Optional[str] = None
+    last_error: Optional[str] = None
+    last_imported_count: Optional[int] = None
+    last_skipped_count: Optional[int] = None
+
+
+def _source_to_response(doc: Dict[str, Any]) -> SourceResponse:
+    return SourceResponse(**{k: v for k, v in doc.items() if k != "_id"})
 
 
 # ---------------------------------------------------------------------------
@@ -244,6 +310,10 @@ async def lifespan(_: FastAPI):
     await db.users.create_index("id", unique=True)
     await db.events.create_index("id", unique=True)
     await db.events.create_index("start_date")
+    await db.events.create_index([("source_id", 1), ("external_id", 1)], sparse=True)
+    await db.sources.create_index("id", unique=True)
+    await db.event_views.create_index("event_id")
+    await db.event_views.create_index("viewed_at")
 
     # Idempotent admin seeding.
     existing = await db.users.find_one({"email": ADMIN_EMAIL})
@@ -261,8 +331,29 @@ async def lifespan(_: FastAPI):
     else:
         logger.info("Admin user already exists: %s", ADMIN_EMAIL)
 
-    yield
-    client.close()
+    # 24h background importer cron. We skip the scheduler in pytest runs to
+    # keep the test suite hermetic — toggle with DISABLE_SCHEDULER=1.
+    scheduler: Optional[AsyncIOScheduler] = None
+    if os.environ.get("DISABLE_SCHEDULER") != "1":
+        scheduler = AsyncIOScheduler(timezone="UTC")
+        scheduler.add_job(
+            run_all_active,
+            "interval",
+            hours=24,
+            args=[db],
+            id="importers",
+            replace_existing=True,
+            next_run_time=datetime.now(timezone.utc) + timedelta(minutes=2),
+        )
+        scheduler.start()
+        logger.info("Importer scheduler started (24h interval)")
+
+    try:
+        yield
+    finally:
+        if scheduler:
+            scheduler.shutdown(wait=False)
+        client.close()
 
 
 # ---------------------------------------------------------------------------
@@ -329,7 +420,12 @@ async def list_events(
     if upcoming:
         today = datetime.now(timezone.utc).date().isoformat()
         query["start_date"] = {"$gte": today}
-    cursor = db.events.find(query, {"_id": 0}).sort("start_date", 1).limit(limit)
+    # Featured events first, then by start date.
+    cursor = (
+        db.events.find(query, {"_id": 0})
+        .sort([("featured", -1), ("start_date", 1)])
+        .limit(limit)
+    )
     docs = await cursor.to_list(length=limit)
     return [_event_to_response(d) for d in docs]
 
@@ -340,6 +436,33 @@ async def get_event(event_id: str):
     if not doc:
         raise HTTPException(status_code=404, detail="Event not found")
     return _event_to_response(doc)
+
+
+@app.post("/api/events/{event_id}/view", status_code=204)
+async def event_view(event_id: str, request: Request):
+    # Fire-and-forget ping. We count anonymous views but rate-limit per IP+event
+    # so a refresh loop can't inflate stats.
+    ip = get_remote_address(request)
+    minute_bucket = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
+    bucket_id = f"{event_id}:{ip}:{minute_bucket}"
+    seen = await db.event_views_dedup.find_one({"_id": bucket_id})
+    if seen:
+        return
+    try:
+        await db.event_views_dedup.insert_one(
+            {"_id": bucket_id, "expires_at": datetime.now(timezone.utc) + timedelta(hours=1)}
+        )
+    except Exception:
+        return  # race — already counted
+
+    await db.events.update_one({"id": event_id}, {"$inc": {"view_count": 1}})
+    await db.event_views.insert_one(
+        {
+            "event_id": event_id,
+            "viewed_at": datetime.now(timezone.utc).isoformat(),
+            "ip_hash": str(hash(ip))[:12],
+        }
+    )
 
 
 # ---- Admin events ----
@@ -405,3 +528,105 @@ async def health():
         return {"status": "ok"}
     except Exception as exc:  # pragma: no cover
         return {"status": "error", "detail": str(exc)}
+
+
+# ---------------------------------------------------------------------------
+# Admin: Sources (auto-importer configuration)
+# ---------------------------------------------------------------------------
+@app.get("/api/admin/sources", response_model=List[SourceResponse])
+async def admin_list_sources(_: Dict[str, Any] = Depends(require_admin)):
+    cursor = db.sources.find({}, {"_id": 0}).sort("created_at", 1)
+    docs = await cursor.to_list(length=200)
+    return [_source_to_response(d) for d in docs]
+
+
+@app.post("/api/admin/sources", response_model=SourceResponse, status_code=201)
+async def admin_create_source(
+    body: SourceCreate = Body(...), _: Dict[str, Any] = Depends(require_admin)
+):
+    doc = {
+        **body.model_dump(),
+        "id": str(uuid.uuid4()),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "last_run_at": None,
+        "last_status": None,
+        "last_error": None,
+        "last_imported_count": None,
+        "last_skipped_count": None,
+    }
+    await db.sources.insert_one(doc)
+    doc.pop("_id", None)
+    return _source_to_response(doc)
+
+
+@app.patch("/api/admin/sources/{source_id}", response_model=SourceResponse)
+async def admin_update_source(
+    source_id: str,
+    body: SourceUpdate = Body(...),
+    _: Dict[str, Any] = Depends(require_admin),
+):
+    updates = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    result = await db.sources.find_one_and_update(
+        {"id": source_id}, {"$set": updates}, return_document=True, projection={"_id": 0}
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Source not found")
+    return _source_to_response(result)
+
+
+@app.delete("/api/admin/sources/{source_id}", status_code=204)
+async def admin_delete_source(
+    source_id: str, _: Dict[str, Any] = Depends(require_admin)
+):
+    result = await db.sources.delete_one({"id": source_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Source not found")
+
+
+@app.post("/api/admin/sources/{source_id}/run")
+async def admin_run_source(
+    source_id: str, _: Dict[str, Any] = Depends(require_admin)
+):
+    source = await db.sources.find_one({"id": source_id}, {"_id": 0})
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    return await run_source(source, db)
+
+
+@app.post("/api/admin/sources/run-all")
+async def admin_run_all(_: Dict[str, Any] = Depends(require_admin)):
+    return {"runs": await run_all_active(db)}
+
+
+# ---------------------------------------------------------------------------
+# Admin analytics
+# ---------------------------------------------------------------------------
+@app.get("/api/admin/analytics/overview")
+async def admin_analytics(_: Dict[str, Any] = Depends(require_admin)):
+    total = await db.events.count_documents({})
+    published = await db.events.count_documents({"published": True})
+    featured = await db.events.count_documents({"featured": True, "published": True})
+    drafts = total - published
+    total_views_doc = await db.events.aggregate(
+        [{"$group": {"_id": None, "v": {"$sum": "$view_count"}}}]
+    ).to_list(1)
+    total_views = total_views_doc[0]["v"] if total_views_doc else 0
+    top_cursor = (
+        db.events.find({"published": True}, {"_id": 0, "id": 1, "title": 1, "view_count": 1})
+        .sort("view_count", -1)
+        .limit(5)
+    )
+    top = await top_cursor.to_list(5)
+    return {
+        "total_events": total,
+        "published": published,
+        "drafts": drafts,
+        "featured": featured,
+        "total_views": total_views,
+        "top_events": [
+            {"id": t["id"], "title": t["title"].get("en", ""), "view_count": t.get("view_count", 0)}
+            for t in top
+        ],
+    }

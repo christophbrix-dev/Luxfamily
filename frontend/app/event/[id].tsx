@@ -39,6 +39,10 @@ export default function EventDetail() {
         if (alive) setEv(data);
       })
       .catch((e) => alive && setErr(e instanceof Error ? e.message : "Failed"));
+    // Fire-and-forget view ping; backend rate-limits per IP per minute.
+    fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/events/${id}/view`, {
+      method: "POST",
+    }).catch(() => {});
     return () => {
       alive = false;
     };

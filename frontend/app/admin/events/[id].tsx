@@ -172,16 +172,67 @@ export default function AdminEventEdit() {
           />
         </Section>
 
-        <Section title="Image URL">
+        <Section title="Image URL or upload">
           <TextInput
             style={styles.input}
             value={draft.image}
             onChangeText={(v) => setField("image", v)}
-            placeholder="https://..."
+            placeholder="https://... or data:image/..."
             placeholderTextColor={palette.textMuted}
             autoCapitalize="none"
             testID="image"
           />
+          {Platform.OS === "web" ? (
+            <input
+              type="file"
+              accept="image/*"
+              onChange={async (e) => {
+                const file = (e.target as HTMLInputElement).files?.[0];
+                if (!file) return;
+                if (file.size > 2_000_000) {
+                  alert("Please choose an image under 2 MB.");
+                  return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => {
+                  if (typeof reader.result === "string") setField("image", reader.result);
+                };
+                reader.readAsDataURL(file);
+              }}
+              style={{ marginTop: 8 }}
+            />
+          ) : null}
+          {draft.image ? (
+            <Text style={styles.minilabel}>{draft.image.startsWith("data:") ? "Uploaded image (stored as base64)" : "Linked URL"}</Text>
+          ) : null}
+        </Section>
+
+        <Section title="Sponsored placement (EUR 49 / month)">
+          <TouchableOpacity
+            onPress={() => setField("featured", !draft.featured)}
+            style={styles.toggleRow}
+            testID="toggle-featured"
+          >
+            <View style={[styles.toggleBox, draft.featured && { borderColor: "#F59E0B", backgroundColor: "#F59E0B" }]}>
+              {draft.featured ? <Ionicons name="star" size={14} color="#fff" /> : null}
+            </View>
+            <Text style={styles.toggleTxt}>
+              {draft.featured ? "Featured — promoted on Home & Events" : "Not featured"}
+            </Text>
+          </TouchableOpacity>
+          {draft.featured ? (
+            <View style={{ marginTop: 8 }}>
+              <Text style={styles.minilabel}>Featured until (YYYY-MM-DD)</Text>
+              <TextInput
+                style={styles.input}
+                value={draft.featured_until ?? ""}
+                onChangeText={(v) => setField("featured_until", v || null)}
+                placeholder="2026-12-31"
+                placeholderTextColor={palette.textMuted}
+                testID="featured-until"
+              />
+            </View>
+          ) : null}
         </Section>
 
         <Section title="Date & time">

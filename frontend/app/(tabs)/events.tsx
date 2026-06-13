@@ -158,9 +158,17 @@ function EventRow({
         </View>
       )}
       <View style={{ flex: 1 }}>
-        <Text style={styles.title} numberOfLines={2}>
-          {event.title[lang] ?? event.title.en}
-        </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Text style={styles.title} numberOfLines={1}>
+            {event.title[lang] ?? event.title.en}
+          </Text>
+          {event.featured ? (
+            <View style={featuredStyles.badge}>
+              <Ionicons name="star" size={9} color="#92400E" />
+              <Text style={featuredStyles.txt}>Sponsored</Text>
+            </View>
+          ) : null}
+        </View>
         <View style={styles.metaRow}>
           <Ionicons name="location-outline" size={11} color={palette.textSecondary} />
           <Text style={styles.metaTxt} numberOfLines={1}>
@@ -178,6 +186,19 @@ function EventRow({
     </TouchableOpacity>
   );
 }
+
+const featuredStyles = StyleSheet.create({
+  badge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: "#FEF3C7",
+  },
+  txt: { fontSize: 9, fontWeight: "800", color: "#92400E", letterSpacing: 0.4 },
+});
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.background },
