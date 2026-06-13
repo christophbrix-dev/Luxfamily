@@ -1,0 +1,96 @@
+{
+  "project_name": "Luxembourg Family Activities",
+  "app_type": "mobile_web_app",
+  "theme": "Light",
+  "archetype": "Organic & Earthy / Vibrant Play",
+  "color_palette": {
+    "background": "#F9FAFB",
+    "surface": "#FFFFFF",
+    "primary": "#10B981",
+    "primary_hover": "#059669",
+    "primary_light": "#D1FAE5",
+    "text_primary": "#111827",
+    "text_secondary": "#4B5563",
+    "border": "#E5E7EB"
+  },
+  "typography": {
+    "headings": "Manrope",
+    "body": "Figtree",
+    "h1": "text-[34px] font-bold tracking-tight leading-tight",
+    "h2": "text-2xl font-semibold tracking-tight",
+    "h3": "text-xl font-semibold",
+    "body_text": "text-base text-gray-600",
+    "small_text": "text-sm text-gray-500"
+  },
+  "spacing_and_layout": {
+    "container_padding": "p-4 sm:p-6",
+    "card_radius": "rounded-[28px]",
+    "card_shadow": "shadow-[0_8px_30px_rgb(0,0,0,0.06)]",
+    "gap_standard": "gap-4",
+    "glassmorphism": "backdrop-blur-md bg-white/70 border border-white/20 shadow-sm"
+  },
+  "components": {
+    "bottom_nav": "Fixed bottom navigation, 5 tabs (Home, Explore, Saved, Calendar, Profile). Icons from lucide-react. Active tab colored emerald-500. Container with rounded-t-[28px] and shadow-[0_-4px_20px_rgb(0,0,0,0.05)].",
+    "cards": "White background, rounded-[28px], soft shadow. Featured images take up the top half, using object-cover. Info overlays on images should use glassmorphism (backdrop-blur-md bg-black/30 text-white).",
+    "chips": "Category and filter chips: rounded-full px-4 py-2 text-sm bg-white border border-gray-200. Active state: bg-emerald-50 text-emerald-700 border-emerald-500.",
+    "buttons": "Primary buttons: rounded-full bg-emerald-500 text-white px-6 py-3 font-semibold shadow-lg shadow-emerald-500/30 hover:bg-emerald-600 transition-all.",
+    "bottom_sheet": "For filters (Age, Indoor/Outdoor, Category). Should slide up from bottom, rounded-t-[32px] with a drag handle (w-12 h-1.5 bg-gray-200 rounded-full mx-auto mt-2)."
+  },
+  "screens": [
+    {
+      "name": "Home",
+      "description": "Greeting header (e.g., 'Moien!'). Weather Widget showing Luxembourg weather (use emerald gradient). Horizontal scrollable category chips. Vertical feed of 'Featured Activities' using the 28px rounded cards."
+    },
+    {
+      "name": "Explore",
+      "description": "Sticky header with Search bar and 'Map / List' toggle. Floating action button for Filter bottom sheet. List of activity cards."
+    },
+    {
+      "name": "Saved",
+      "description": "Tabs (Places, Events, Itineraries). Grid or list of saved items."
+    },
+    {
+      "name": "Calendar",
+      "description": "Horizontal date selector. Events grouped by time/date below."
+    },
+    {
+      "name": "Profile",
+      "description": "User info, Language selector (DE/EN/FR), Preferences, Subscription status."
+    },
+    {
+      "name": "Detail",
+      "description": "Hero image (max-h-[40vh]) with 'glassmorphism' back and save buttons floating on top. Title (34px). Quick info row: Age, Distance, Weather fit. 'Open in Maps' inline map view. 'Book Now' sticky bottom CTA."
+    }
+  ],
+  "image_urls": [
+    {
+      "category": "city_family",
+      "url": "https://images.unsplash.com/photo-1633883007907-039fd7ae76ae?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MTJ8MHwxfHNlYXJjaHwzfHxsdXhlbWJvdXJnJTIwY2l0eSUyMGtpZHMlMjBmYW1pbHl8ZW58MHx8fHwxNzgxMzQ2ODE5fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Family walking in Luxembourg city"
+    },
+    {
+      "category": "playground",
+      "url": "https://images.unsplash.com/photo-1634608874538-443b84f7b06b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwyfHxraWRzJTIwcGxheWdyb3VuZCUyMG5hdHVyZXxlbnwwfHx8fDE3ODEzNDY4MTl8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Kids playground in nature"
+    },
+    {
+      "category": "hiking",
+      "url": "https://images.unsplash.com/photo-1606474226448-4aa808468efc?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODB8MHwxfHNlYXJjaHwxfHxmYW1pbHklMjBoaWtpbmclMjBmb3Jlc3R8ZW58MHx8fHwxNzgxMzQ2ODE5fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Family hiking in the forest"
+    },
+    {
+       "category": "culture",
+       "url": "https://images.unsplash.com/photo-1543930379-9c68a7de2be8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MTJ8MHwxfHNlYXJjaHwxfHxsdXhlbWJvdXJnJTIwY2l0eSUyMGtpZHMlMjBmYW1pbHl8ZW58MHx8fHwxNzgxMzQ2ODE5fDA&ixlib=rb-4.1.0&q=85",
+       "description": "People gathered near historical buildings"
+    }
+  ],
+  "instructions_to_main_agent": [
+    "Tech Stack: Implement as a mobile-first responsive React web app (matching the Expo/mobile feel) using Tailwind CSS.",
+    "Typography: Import and use Manrope for headings and Figtree for body text.",
+    "Navigation: Implement a fixed mobile bottom tab navigation bar with 5 tabs.",
+    "Design Language: Stick strictly to rounded-[28px] for main cards, soft shadows, generous whitespace, and emerald-500 accents.",
+    "Glassmorphism: Use it for image overlays and floating headers.",
+    "Testing: Add 'data-testid' to all interactive and key informational elements (e.g. data-testid='home-tab', data-testid='explore-card').",
+    "Images: Exclusively use the provided image_urls for activities."
+  ]
+}
