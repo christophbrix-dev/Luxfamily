@@ -17,7 +17,7 @@ const LANGS: { code: Lang; label: string; flag: string }[] = [
 
 export default function Profile() {
   const router = useRouter();
-  const { lang, setLang, user, signOutUser, bookings, saved } = useApp();
+  const { lang, setLang, user, signOutUser, bookings, saved, theme, setTheme } = useApp();
   const initial = (user?.name?.[0] ?? "U").toUpperCase();
 
   return (
@@ -76,18 +76,54 @@ export default function Profile() {
         <Text style={styles.sectionLabel}>Settings</Text>
         <View style={styles.settingsCard}>
           {[
-            { icon: "settings-outline" as const, label: t("preferencesFilters", lang) },
-            { icon: "card-outline" as const, label: t("subscription", lang) },
-            { icon: "leaf-outline" as const, label: t("savedInterests", lang) },
-            { icon: "notifications-outline" as const, label: "Notifications" },
+            { icon: "options-outline" as const, label: t("preferencesFilters", lang), to: "/preferences" },
+            { icon: "business-outline" as const, label: "For businesses", to: "/business" },
+            { icon: "information-circle-outline" as const, label: "About", to: "/about" },
+            { icon: "card-outline" as const, label: t("subscription", lang), to: null, hint: "Coming soon" },
           ].map((row) => (
-            <TouchableOpacity key={row.label} style={styles.settingsRow}>
+            <TouchableOpacity
+              key={row.label}
+              style={styles.settingsRow}
+              onPress={() => row.to && router.push(row.to as never)}
+              disabled={!row.to}
+              testID={`profile-row-${row.label.toLowerCase().replace(/\s+/g, "-")}`}
+            >
               <View style={styles.settingsIcon}>
                 <Ionicons name={row.icon} size={18} color={palette.primary} />
               </View>
               <Text style={styles.settingsTxt}>{row.label}</Text>
               <View style={{ flex: 1 }} />
+              {row.hint ? (
+                <Text style={{ fontSize: 11, color: palette.textMuted, marginRight: 8 }}>{row.hint}</Text>
+              ) : null}
               <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={styles.sectionLabel}>Appearance</Text>
+        <View style={styles.langCard}>
+          {(["light", "dark", "system"] as const).map((mode, idx) => (
+            <TouchableOpacity
+              key={mode}
+              onPress={() => setTheme(mode)}
+              style={[styles.langRow, theme === mode && styles.langRowActive, idx === 2 && { borderBottomWidth: 0 }]}
+              testID={`profile-theme-${mode}`}
+            >
+              <Ionicons
+                name={mode === "light" ? "sunny-outline" : mode === "dark" ? "moon-outline" : "phone-portrait-outline"}
+                size={20}
+                color={palette.primary}
+              />
+              <Text style={styles.langLabel}>
+                {mode === "light" ? "Light" : mode === "dark" ? "Dark (Beta)" : "System"}
+              </Text>
+              <View style={{ flex: 1 }} />
+              {theme === mode ? (
+                <Ionicons name="checkmark-circle" size={22} color={palette.primary} />
+              ) : (
+                <Ionicons name="ellipse-outline" size={22} color={palette.border} />
+              )}
             </TouchableOpacity>
           ))}
         </View>

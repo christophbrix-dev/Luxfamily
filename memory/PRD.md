@@ -1,50 +1,52 @@
 # Luxembourg Family Activities — PRD
 
-Native Expo + FastAPI + MongoDB app discovering family activities in Luxembourg.
+Expo mobile app + FastAPI backend for discovering family activities, places and events in Luxembourg.
 
 ## Stack
-- Frontend: Expo SDK 54, expo-router, react-native-svg, OpenStreetMap (no key), Open-Meteo (no key)
-- Backend: FastAPI + Motor + bcrypt + PyJWT + slowapi + APScheduler + icalendar + httpx
-- Mobile auth: local (AsyncStorage). Admin auth: real backend (Bcrypt + JWT).
+- Frontend: Expo SDK 54, expo-router, react-native-svg, OpenStreetMap, Open-Meteo, expo-application
+- Backend: FastAPI + Motor + bcrypt + PyJWT + slowapi + APScheduler + icalendar + httpx + beautifulsoup4 + lxml
+- Mobile user auth: local AsyncStorage. Admin auth: backend Bcrypt + JWT.
 
-## Routes
-### Mobile (`/(tabs)/...`, 6 tabs)
-home / explore / events / saved / calendar / profile
-+ `/detail/[id]` (static places), `/event/[id]` (backend), `/book/[id]`, `/login`
+## Mobile routes
+- `(tabs)/home|explore|events|saved|calendar|profile` (6 tabs)
+- `/detail/[id]`, `/event/[id]`, `/book/[id]`, `/login`
+- `/preferences` — age range, fav cantons (12), fav categories (7), notify toggle
+- `/about` — version, privacy, terms, contact, IG/FB
+- `/business` — partner submission form (with honest "why no FB/IG connect" explanation)
 
-### Admin (web-only at `/admin`)
-- `/admin` — login
-- `/admin/events` — list, publish toggle, edit, delete, sponsored star, view counts
-- `/admin/events/new`, `/admin/events/[id]` — multilingual editor + image upload (base64) + featured toggle + featured_until
-- `/admin/sources` — configurable auto-importer feeds (iCal / data.public.lu)
-- `/admin/analytics` — total/published/drafts/featured + total views + monthly featured revenue (EUR 49 × featured) + top events
+## Admin (web at /admin)
+- `/admin` login, `/admin/events` (list + featured star + view counts), `/admin/events/[id]` (editor with image upload, featured toggle, featured_until)
+- `/admin/sources` — auto-importer feeds (ical / data_public_lu / html_scraper kinds)
+- `/admin/analytics` — total/published/drafts/featured, total views, monthly featured revenue projection (EUR 49 × featured), top events
 
 ## Backend endpoints
-- Auth: POST /api/auth/login (rate-limited 10/min), GET /api/auth/me
-- Events public: GET /api/events (featured-first), GET /api/events/{id}, POST /api/events/{id}/view (rate-limited 1/min/IP)
-- Events admin: GET|POST /api/admin/events, PATCH|DELETE /api/admin/events/{id}
-- Sources admin: GET|POST /api/admin/sources, PATCH|DELETE /api/admin/sources/{id}, POST /api/admin/sources/{id}/run, POST /api/admin/sources/run-all
+- Auth: POST /api/auth/login (10/min), GET /api/auth/me
+- Events public: GET /api/events (featured-first), /api/events/{id}, POST /api/events/{id}/view (1/min/IP)
+- Events admin: GET|POST|PATCH|DELETE
+- Sources admin: GET|POST|PATCH|DELETE, POST /api/admin/sources/{id}/run, POST /api/admin/sources/run-all
 - Analytics: GET /api/admin/analytics/overview
 - Health: GET /api/health
 
-## Auto-importer
-- APScheduler runs `run_all_active(db)` every 24h (`DISABLE_SCHEDULER=1` in tests)
-- iCal importer parses VEVENTs, dedupes by (source_id, UID)
-- data.public.lu importer parses CKAN-style JSON (records[]), dedupes by (source_id, id)
-- All imports write `published=false` so admin reviews first
+## Auto-importer kinds
+- `ical` — venue iCalendar feeds (Mudam/Philharmonie/Rockhal require B2B request — none expose public iCal as of June 2026)
+- `data_public_lu` — CKAN JSON resources from data.public.lu and similar portals
+- `html_scraper` — generic CSS-selector-based HTML scraper for commune/venue listing pages (BeautifulSoup4 + lxml)
+- Scheduler runs every 24h via APScheduler; admin can also trigger manually
 
 ## Monetization
-- `featured: bool` + `featured_until: date` on events
-- Featured events surfaced first in public list + "Sponsored" amber badge on mobile + admin
-- Analytics dashboard projects EUR 49/month/featured
+- `featured: bool` + `featured_until` per event → "Sponsored" amber badge + featured-first sort
+- Analytics dashboard shows monthly revenue projection (featured × EUR 49)
 
-## MOCKED / Local-only
-- Mobile end-user auth (intentional)
-- Booking flow (no payment)
-- Sponsored revenue is a projection from `featured` count — no Stripe integration yet
+## MOCKED / explicit limitations
+- Mobile end-user auth is local-only (no backend) — intentional
+- Booking flow has no payment integration yet
+- Mudam/Philharmonie/Rockhal/Instagram/Facebook public events APIs are dead — only via partner submission or html_scraper
+- Stripe Checkout for sponsored slots: deferred (test key available, not wired)
+- Dark mode: toggle persists but full theming is BETA (only Profile screen reads `theme` from context; other screens still use the light palette)
 
 ## Next Action Items
-- Image upload to S3/Cloudinary instead of base64 (when MongoDB doc sizes grow)
-- Add Stripe checkout for partners to self-serve "Sponsored" upgrade
-- Add SourceLogs collection for audit history of imports (currently last-only)
-- Mudam / Philharmonie / Rockhal: add specific source records with verified iCal URLs
+- Full dark mode theming (touch every StyleSheet — about 2h refactor)
+- Stripe self-service for sponsored slots
+- Real Mudam/Philharmonie/Rockhal feeds — contact venues OR use html_scraper with their actual listing pages
+- Move image storage from base64 → S3 once docs exceed 1 MB
+- Wire `/api/partners` endpoint so business submissions write to MongoDB (currently emails)

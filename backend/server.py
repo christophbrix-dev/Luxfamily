@@ -222,7 +222,7 @@ def _event_to_response(doc: Dict[str, Any]) -> EventResponse:
 # ---- Source models ----
 class SourceBase(BaseModel):
     name: str
-    kind: Literal["ical", "data_public_lu"]
+    kind: Literal["ical", "data_public_lu", "html_scraper"]
     url: str
     active: bool = True
     canton_default: str = "Luxembourg"
@@ -233,6 +233,7 @@ class SourceBase(BaseModel):
     lat_default: float = 49.6116
     lng_default: float = 6.1319
     image_default: str = ""
+    selectors: Optional[Dict[str, str]] = None
 
 
 class SourceCreate(SourceBase):
@@ -241,7 +242,7 @@ class SourceCreate(SourceBase):
 
 class SourceUpdate(BaseModel):
     name: Optional[str] = None
-    kind: Optional[Literal["ical", "data_public_lu"]] = None
+    kind: Optional[Literal["ical", "data_public_lu", "html_scraper"]] = None
     url: Optional[str] = None
     active: Optional[bool] = None
     canton_default: Optional[str] = None
@@ -252,6 +253,7 @@ class SourceUpdate(BaseModel):
     lat_default: Optional[float] = None
     lng_default: Optional[float] = None
     image_default: Optional[str] = None
+    selectors: Optional[Dict[str, str]] = None
 
 
 class SourceResponse(SourceBase):

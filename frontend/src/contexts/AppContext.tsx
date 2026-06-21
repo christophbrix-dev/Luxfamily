@@ -14,11 +14,28 @@ const LANG_KEY = "lux.lang";
 const SAVED_KEY = "lux.saved";
 const USER_KEY = "lux.user";
 const BOOKINGS_KEY = "lux.bookings";
+const PREFS_KEY = "lux.prefs";
+const THEME_KEY = "lux.theme";
+
+export type Preferences = {
+  ageRange: [number, number];
+  favoriteCantons: string[];
+  favoriteCategories: string[];
+  notifyOnNew: boolean;
+};
+
+const DEFAULT_PREFS: Preferences = {
+  ageRange: [0, 12],
+  favoriteCantons: [],
+  favoriteCategories: [],
+  notifyOnNew: false,
+};
+
+export type ThemeMode = "light" | "dark" | "system";
 
 export type User = {
   name: string;
   email: string;
-  // For demo only; never store plaintext passwords in real apps.
   guest?: boolean;
 } | null;
 
@@ -44,6 +61,10 @@ type Ctx = {
   toggleSave: (id: number) => void;
   bookings: Booking[];
   addBooking: (b: Omit<Booking, "id" | "createdAt">) => Booking;
+  preferences: Preferences;
+  setPreferences: (p: Preferences) => void;
+  theme: ThemeMode;
+  setTheme: (t: ThemeMode) => void;
 };
 
 const AppCtx = createContext<Ctx | null>(null);
@@ -54,6 +75,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User>(null);
   const [saved, setSaved] = useState<number[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [preferences, setPreferencesState] = useState<Preferences>(DEFAULT_PREFS);
+  const [theme, setThemeState] = useState<ThemeMode>("light");
 
   // Hydrate from storage on mount.
   useEffect(() => {
@@ -78,8 +101,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const parsed = JSON.parse(storedBookings || "[]");
         if (Array.isArray(parsed)) setBookings(parsed);
       } catch {}
+      const storedPrefs = await storage.getItem<string>(PREFS_KEY, "");
+      if (storedPrefs) {
+        try {
+          setPreferencesState({ ...DEFAULT_PREFS, ...JSON.parse(storedPrefs) });
+        } catch {}
+      }
+      const storedTheme = await storage.getItem<string>(THEME_KEY, "light");
+      if (storedTheme === "dark" || storedTheme === "system" || storedTheme === "light") {
+        setThemeState(storedTheme);
+      }
       setReady(true);
     })();
+  }, []);
+
+  const setPreferences = useCallback((p: Preferences) => {
+    setPreferencesState(p);
+    storage.setItem(PREFS_KEY, JSON.stringify(p));
+  }, []);
+
+  const setTheme = useCallback((t: ThemeMode) => {
+    setThemeState(t);
+    storage.setItem(THEME_KEY, t);
   }, []);
 
   const setLang = useCallback((l: Lang) => {
@@ -142,8 +185,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       toggleSave,
       bookings,
       addBooking,
+      preferences,
+      setPreferences,
+      theme,
+      setTheme,
     }),
-    [ready, lang, setLang, user, signIn, signInGuest, signOutUser, saved, toggleSave, bookings, addBooking],
+    [ready, lang, setLang, user, signIn, signInGuest, signOutUser, saved, toggleSave, bookings, addBooking, preferences, setPreferences, theme, setTheme],
   );
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;

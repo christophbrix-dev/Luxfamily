@@ -16,12 +16,14 @@ The framework is intentionally tolerant: missing fields fall back to
 sensible defaults; rows are deduplicated via (source_id, external_id).
 """
 
+import json
 import logging
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
+from bs4 import BeautifulSoup
 from icalendar import Calendar
 
 logger = logging.getLogger("lux-backend.importers")
@@ -193,7 +195,6 @@ async def _import_ical(source: Dict[str, Any], db) -> Tuple[int, int]:
 async def _import_data_public_lu(source: Dict[str, Any], db) -> Tuple[int, int]:
     """Imports a JSON resource from a CKAN portal (data.public.lu / similar)."""
     raw = await _fetch(source["url"])
-    import json
 
     try:
         payload = json.loads(raw)
@@ -276,7 +277,125 @@ async def _import_data_public_lu(source: Dict[str, Any], db) -> Tuple[int, int]:
 IMPORTERS = {
     "ical": _import_ical,
     "data_public_lu": _import_data_public_lu,
+    "html_scraper": None,  # filled in below after the function is declared
 }
+
+
+def _pick(el, selector: Optional[str], attr: Optional[str] = None) -> str:
+    if not selector or not el:
+        return ""
+    found = el.select_one(selector)
+    if not found:
+        return ""
+    if attr:
+        return (found.get(attr) or "").strip()
+    return found.get_text(" ", strip=True)
+
+
+def _abs_url(base: str, href: str) -> str:
+    if not href:
+        return ""
+    if href.startswith("http"):
+        return href
+    if href.startswith("//"):
+        return "https:" + href
+    if href.startswith("/"):
+        from urllib.parse import urlparse
+
+        parsed = urlparse(base)
+        return f"{parsed.scheme}://{parsed.netloc}{href}"
+    return href
+
+
+async def _import_html_scraper(source: Dict[str, Any], db) -> Tuple[int, int]:
+    """Generic HTML scraper. Source.selectors must be a dict, e.g.:
+
+      {
+        "item":  ".event-card",          # required, matches each event block
+        "title": "h3",                   # required, relative within item
+        "date":  ".date",                # required, ISO/text parsed loosely
+        "location": ".venue",            # optional
+        "description": ".excerpt",       # optional
+        "image": ".thumb img",           # optional, picks first matching <img src>
+        "link": "a",                     # optional, used as external_id basis
+        "date_attr": "datetime"          # optional: attr to read date from instead
+                                          # of text (e.g. "datetime" on <time>)
+      }
+
+    Works for most municipality/venue listing pages without requiring custom code.
+    Events created have ``published=False`` so an admin can review them.
+    """
+    selectors = source.get("selectors") or {}
+    item_sel = selectors.get("item")
+    title_sel = selectors.get("title")
+    date_sel = selectors.get("date")
+    if not (item_sel and title_sel and date_sel):
+        raise RuntimeError("html_scraper requires item, title and date selectors")
+
+    raw = await _fetch(source["url"])
+    soup = BeautifulSoup(raw, "lxml")
+    items = soup.select(item_sel)
+
+    inserted = 0
+    skipped = 0
+    today = datetime.now(timezone.utc).date()
+
+    for el in items:
+        title = _pick(el, title_sel)
+        if not title:
+            skipped += 1
+            continue
+
+        date_attr = selectors.get("date_attr")
+        raw_date = _pick(el, date_sel, attr=date_attr)
+        start_iso = _to_iso_date(raw_date)
+        if not start_iso:
+            # Best-effort fuzzy parsing for non-ISO date strings.
+            try:
+                parsed = datetime.strptime(raw_date[:10], "%d.%m.%Y")
+                start_iso = parsed.date().isoformat()
+            except (ValueError, TypeError):
+                skipped += 1
+                continue
+
+        if datetime.fromisoformat(start_iso).date() < today - timedelta(days=1):
+            skipped += 1
+            continue
+
+        description = _pick(el, selectors.get("description")) or title
+        town = _pick(el, selectors.get("location")) or source.get("town_default", "Luxembourg")
+        image_src = _pick(el, selectors.get("image"), attr="src")
+        link = _pick(el, selectors.get("link"), attr="href")
+        image = _abs_url(source["url"], image_src) if image_src else source.get("image_default", "")
+        external_id = link or f"{source['id']}:{start_iso}:{title[:60]}"
+
+        existing = await db.events.find_one(
+            {"source_id": source["id"], "external_id": external_id}, {"_id": 0, "id": 1}
+        )
+        if existing:
+            skipped += 1
+            continue
+
+        doc = _build_event_doc(
+            source=source,
+            external_id=external_id,
+            title=title,
+            description=description,
+            start_date=start_iso,
+            end_date=None,
+            time_str="",
+            town=town,
+            lat=float(source.get("lat_default", 49.6116)),
+            lng=float(source.get("lng_default", 6.1319)),
+            image=image,
+        )
+        await db.events.insert_one(doc)
+        inserted += 1
+
+    return inserted, skipped
+
+
+IMPORTERS["html_scraper"] = _import_html_scraper
 
 
 async def run_source(source: Dict[str, Any], db) -> Dict[str, Any]:
