@@ -59,6 +59,9 @@ export type Place = {
   lng: number;
   bookable: boolean;
   rating: number;
+  wheelchair?: boolean;
+  sensoryFriendly?: boolean;
+  freeParking?: boolean;
 };
 
 export const PLACES: Place[] = [

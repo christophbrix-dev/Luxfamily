@@ -12,6 +12,9 @@ export type Filters = {
   type: string;
   category: string[];
   date: string;
+  wheelchair: boolean;
+  sensoryFriendly: boolean;
+  freeParking: boolean;
 };
 
 export const DEFAULT_FILTERS: Filters = {
@@ -19,6 +22,9 @@ export const DEFAULT_FILTERS: Filters = {
   type: "All",
   category: [],
   date: "Anytime",
+  wheelchair: false,
+  sensoryFriendly: false,
+  freeParking: false,
 };
 
 type Props = {
@@ -117,6 +123,27 @@ export function FilterSheet({ open, filters, onChange, onClose }: Props) {
                 testID={`filter-date-${d}`}
               />
             ))}
+          </Section>
+
+          <Section label="Family needs">
+            <Chip
+              label="♿ Wheelchair"
+              active={filters.wheelchair}
+              onPress={() => onChange({ ...filters, wheelchair: !filters.wheelchair })}
+              testID="filter-wheelchair"
+            />
+            <Chip
+              label="🧠 Sensory friendly"
+              active={filters.sensoryFriendly}
+              onPress={() => onChange({ ...filters, sensoryFriendly: !filters.sensoryFriendly })}
+              testID="filter-sensory"
+            />
+            <Chip
+              label="🅿️ Free parking"
+              active={filters.freeParking}
+              onPress={() => onChange({ ...filters, freeParking: !filters.freeParking })}
+              testID="filter-parking"
+            />
           </Section>
         </ScrollView>
 

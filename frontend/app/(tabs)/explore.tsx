@@ -39,6 +39,9 @@ export default function Explore() {
       }
       if (filters.category.length && !filters.category.some((c) => p.category.includes(c)))
         return false;
+      if (filters.wheelchair && !p.wheelchair) return false;
+      if (filters.sensoryFriendly && !p.sensoryFriendly) return false;
+      if (filters.freeParking && !p.freeParking) return false;
       if (query.trim()) {
         const q = query.trim().toLowerCase();
         const hay = `${p.title[lang]} ${p.short[lang]} ${p.town}`.toLowerCase();
@@ -53,6 +56,9 @@ export default function Explore() {
     (filters.type !== "All" ? 1 : 0) +
     filters.category.length +
     (filters.date !== "Anytime" ? 1 : 0) +
+    (filters.wheelchair ? 1 : 0) +
+    (filters.sensoryFriendly ? 1 : 0) +
+    (filters.freeParking ? 1 : 0) +
     (canton ? 1 : 0);
 
   return (
