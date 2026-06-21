@@ -151,6 +151,20 @@ class EventBase(BaseModel):
     source_id: Optional[str] = None
     source_name: Optional[str] = None
     external_id: Optional[str] = None
+    # Family-friendly detail fields (added per user feedback Jun 2026).
+    website_url: str = ""
+    accessibility_wheelchair: bool = False
+    sensory_friendly: bool = False
+    sensory_notes: LocalizedString = Field(default_factory=lambda: {"en": "", "de": "", "fr": ""})
+    parking: LocalizedString = Field(default_factory=lambda: {"en": "", "de": "", "fr": ""})
+    food_allowed: bool = True
+    food_onsite: LocalizedString = Field(default_factory=lambda: {"en": "", "de": "", "fr": ""})
+    preparation_tips: LocalizedString = Field(default_factory=lambda: {"en": "", "de": "", "fr": ""})
+    payment_methods: List[str] = Field(default_factory=list)
+    opening_hours: LocalizedString = Field(default_factory=lambda: {"en": "", "de": "", "fr": ""})
+    peak_hours: LocalizedString = Field(default_factory=lambda: {"en": "", "de": "", "fr": ""})
+    changing_facilities: bool = False
+    restrooms: bool = True
 
 
 class EventCreate(EventBase):
@@ -183,6 +197,19 @@ class EventUpdate(BaseModel):
     rating: Optional[float] = None
     featured: Optional[bool] = None
     featured_until: Optional[str] = None
+    website_url: Optional[str] = None
+    accessibility_wheelchair: Optional[bool] = None
+    sensory_friendly: Optional[bool] = None
+    sensory_notes: Optional[LocalizedString] = None
+    parking: Optional[LocalizedString] = None
+    food_allowed: Optional[bool] = None
+    food_onsite: Optional[LocalizedString] = None
+    preparation_tips: Optional[LocalizedString] = None
+    payment_methods: Optional[List[str]] = None
+    opening_hours: Optional[LocalizedString] = None
+    peak_hours: Optional[LocalizedString] = None
+    changing_facilities: Optional[bool] = None
+    restrooms: Optional[bool] = None
 
 
 class EventResponse(EventBase):
@@ -227,6 +254,19 @@ def _event_to_response(doc: Dict[str, Any]) -> EventResponse:
         source_id=doc.get("source_id"),
         source_name=doc.get("source_name"),
         external_id=doc.get("external_id"),
+        website_url=doc.get("website_url", ""),
+        accessibility_wheelchair=doc.get("accessibility_wheelchair", False),
+        sensory_friendly=doc.get("sensory_friendly", False),
+        sensory_notes=doc.get("sensory_notes") or {"en": "", "de": "", "fr": ""},
+        parking=doc.get("parking") or {"en": "", "de": "", "fr": ""},
+        food_allowed=doc.get("food_allowed", True),
+        food_onsite=doc.get("food_onsite") or {"en": "", "de": "", "fr": ""},
+        preparation_tips=doc.get("preparation_tips") or {"en": "", "de": "", "fr": ""},
+        payment_methods=doc.get("payment_methods", []),
+        opening_hours=doc.get("opening_hours") or {"en": "", "de": "", "fr": ""},
+        peak_hours=doc.get("peak_hours") or {"en": "", "de": "", "fr": ""},
+        changing_facilities=doc.get("changing_facilities", False),
+        restrooms=doc.get("restrooms", True),
         created_at=doc["created_at"],
         updated_at=doc["updated_at"],
         created_by=doc.get("created_by"),

@@ -146,6 +146,56 @@ export default function EventDetail() {
           </View>
 
           <View style={styles.card}>
+            <Text style={styles.cardTitle}>Good to know</Text>
+            {ev.website_url ? (
+              <TouchableOpacity
+                onPress={() => Linking.openURL(ev.website_url)}
+                style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 }}
+                testID="event-website"
+              >
+                <Ionicons name="globe-outline" size={16} color={palette.primary} />
+                <Text style={{ color: palette.primary, fontWeight: "700", fontSize: 13, flex: 1 }} numberOfLines={1}>
+                  {ev.website_url.replace(/^https?:\/\//, "")}
+                </Text>
+                <Ionicons name="open-outline" size={14} color={palette.textMuted} />
+              </TouchableOpacity>
+            ) : null}
+            {[
+              { icon: "accessibility-outline", label: "Wheelchair", val: ev.accessibility_wheelchair ? "Accessible" : null },
+              { icon: "happy-outline", label: "Sensory friendly (ADHD/Autism)", val: ev.sensory_friendly ? (ev.sensory_notes?.[lang] || "Yes") : null },
+              { icon: "car-outline", label: "Parking", val: ev.parking?.[lang] },
+              { icon: "restaurant-outline", label: "Food on-site", val: ev.food_onsite?.[lang] },
+              { icon: "fast-food-outline", label: "Own food", val: ev.food_allowed ? "Allowed" : "Not allowed" },
+              { icon: "card-outline", label: "Payment", val: ev.payment_methods?.length ? ev.payment_methods.join(" · ") : null },
+              { icon: "time-outline", label: "Opening hours", val: ev.opening_hours?.[lang] },
+              { icon: "people-outline", label: "Peak hours", val: ev.peak_hours?.[lang] },
+              { icon: "water-outline", label: "Changing facilities", val: ev.changing_facilities ? "Available" : null },
+              { icon: "body-outline", label: "Restrooms", val: ev.restrooms ? "Available" : null },
+            ]
+              .filter((r) => r.val)
+              .map((r) => (
+                <View key={r.label} style={{ flexDirection: "row", gap: 10, marginTop: 10, alignItems: "flex-start" }}>
+                  <Ionicons name={r.icon as never} size={16} color={palette.primary} style={{ marginTop: 2 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 11, color: palette.textMuted, fontWeight: "700", letterSpacing: 0.3 }}>
+                      {r.label.toUpperCase()}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: palette.textPrimary, marginTop: 1 }}>{r.val}</Text>
+                  </View>
+                </View>
+              ))}
+            {ev.preparation_tips?.[lang] ? (
+              <View style={{ marginTop: 14, padding: 12, backgroundColor: "#FEF3C7", borderRadius: 12, flexDirection: "row", gap: 8 }}>
+                <Ionicons name="bulb-outline" size={16} color="#92400E" style={{ marginTop: 2 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 11, fontWeight: "800", color: "#92400E", letterSpacing: 0.3 }}>HOW TO PREPARE</Text>
+                  <Text style={{ fontSize: 13, color: "#78350F", marginTop: 4, lineHeight: 19 }}>{ev.preparation_tips[lang]}</Text>
+                </View>
+              </View>
+            ) : null}
+          </View>
+
+          <View style={styles.card}>
             <Text style={styles.cardTitle}>{t("about", lang)}</Text>
             <Text style={styles.about}>{ev.description[lang] ?? ev.description.en}</Text>
             <View style={styles.tagRow}>

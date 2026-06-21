@@ -47,6 +47,25 @@ const EMPTY_DRAFT: Draft = {
   bookable: false,
   published: true,
   rating: 4.5,
+  featured: false,
+  featured_until: null,
+  view_count: 0,
+  source_id: null,
+  source_name: null,
+  external_id: null,
+  website_url: "",
+  accessibility_wheelchair: false,
+  sensory_friendly: false,
+  sensory_notes: { en: "", de: "", fr: "" },
+  parking: { en: "", de: "", fr: "" },
+  food_allowed: true,
+  food_onsite: { en: "", de: "", fr: "" },
+  preparation_tips: { en: "", de: "", fr: "" },
+  payment_methods: [],
+  opening_hours: { en: "", de: "", fr: "" },
+  peak_hours: { en: "", de: "", fr: "" },
+  changing_facilities: false,
+  restrooms: true,
 };
 
 export default function AdminEventEdit() {
@@ -362,6 +381,92 @@ export default function AdminEventEdit() {
 
         <Section title="Weather fit">
           <LangField value={draft.weather_fit} onChange={(l, v) => setL("weather_fit", l, v)} />
+        </Section>
+
+        <Section title="Website URL">
+          <TextInput
+            style={styles.input}
+            value={draft.website_url}
+            onChangeText={(v) => setField("website_url", v)}
+            placeholder="https://..."
+            placeholderTextColor={palette.textMuted}
+            autoCapitalize="none"
+            testID="website-url"
+          />
+        </Section>
+
+        <Section title="Accessibility & sensory">
+          <TouchableOpacity onPress={() => setField("accessibility_wheelchair", !draft.accessibility_wheelchair)} style={styles.toggleRow}>
+            <View style={[styles.toggleBox, draft.accessibility_wheelchair && styles.toggleOn]}>
+              {draft.accessibility_wheelchair ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+            </View>
+            <Text style={styles.toggleTxt}>Wheelchair accessible</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setField("sensory_friendly", !draft.sensory_friendly)} style={styles.toggleRow}>
+            <View style={[styles.toggleBox, draft.sensory_friendly && styles.toggleOn]}>
+              {draft.sensory_friendly ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+            </View>
+            <Text style={styles.toggleTxt}>Sensory-friendly (ADHD / Autism)</Text>
+          </TouchableOpacity>
+          {draft.sensory_friendly ? <LangField value={draft.sensory_notes} onChange={(l, v) => setL("sensory_notes", l, v)} multiline /> : null}
+        </Section>
+
+        <Section title="Parking">
+          <LangField value={draft.parking} onChange={(l, v) => setL("parking", l, v)} multiline />
+        </Section>
+
+        <Section title="Food">
+          <TouchableOpacity onPress={() => setField("food_allowed", !draft.food_allowed)} style={styles.toggleRow}>
+            <View style={[styles.toggleBox, draft.food_allowed && styles.toggleOn]}>
+              {draft.food_allowed ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+            </View>
+            <Text style={styles.toggleTxt}>Outside food / picnic allowed</Text>
+          </TouchableOpacity>
+          <Text style={styles.minilabel}>On-site food options</Text>
+          <LangField value={draft.food_onsite} onChange={(l, v) => setL("food_onsite", l, v)} multiline />
+        </Section>
+
+        <Section title="How to prepare (tips)">
+          <LangField value={draft.preparation_tips} onChange={(l, v) => setL("preparation_tips", l, v)} multiline big />
+        </Section>
+
+        <Section title="Payment methods">
+          <View style={styles.chipsWrap}>
+            {["cash", "card", "contactless", "mobile pay"].map((m) => {
+              const active = draft.payment_methods.includes(m);
+              return (
+                <TouchableOpacity
+                  key={m}
+                  onPress={() => setField("payment_methods", active ? draft.payment_methods.filter((x) => x !== m) : [...draft.payment_methods, m])}
+                  style={[styles.chip, active && styles.chipActive]}
+                >
+                  <Text style={[styles.chipTxt, active && styles.chipTxtActive]}>{m}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </Section>
+
+        <Section title="Opening & peak hours">
+          <Text style={styles.minilabel}>Opening hours (richer than time field)</Text>
+          <LangField value={draft.opening_hours} onChange={(l, v) => setL("opening_hours", l, v)} multiline />
+          <Text style={styles.minilabel}>Peak hours / busiest times</Text>
+          <LangField value={draft.peak_hours} onChange={(l, v) => setL("peak_hours", l, v)} multiline />
+        </Section>
+
+        <Section title="Facilities">
+          <TouchableOpacity onPress={() => setField("restrooms", !draft.restrooms)} style={styles.toggleRow}>
+            <View style={[styles.toggleBox, draft.restrooms && styles.toggleOn]}>
+              {draft.restrooms ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+            </View>
+            <Text style={styles.toggleTxt}>Restrooms available</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setField("changing_facilities", !draft.changing_facilities)} style={styles.toggleRow}>
+            <View style={[styles.toggleBox, draft.changing_facilities && styles.toggleOn]}>
+              {draft.changing_facilities ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+            </View>
+            <Text style={styles.toggleTxt}>Baby changing facilities</Text>
+          </TouchableOpacity>
         </Section>
 
         <Section title="Publication">
