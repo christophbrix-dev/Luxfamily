@@ -26,15 +26,31 @@ export default function Business() {
   const [website, setWebsite] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
-  const submit = () => {
+  const submit = async () => {
     if (!name.trim() || !email.trim() || !venue.trim()) return;
-    // For now we route partner submissions through email; admin can later wire
-    // this to a `POST /api/partners` endpoint with a moderation queue.
-    const body = encodeURIComponent(
-      `Name: ${name}\nVenue: ${venue}\nEmail: ${email}\nWebsite: ${website}\nInstagram: ${ig}\nFacebook: ${fb}`,
-    );
-    Linking.openURL(`mailto:partners@familyluxembourg.lu?subject=Partner submission&body=${body}`);
-    setSubmitted(true);
+    try {
+      const res = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/partners`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          venue: venue.trim(),
+          email: email.trim(),
+          website: website.trim(),
+          instagram: ig.trim(),
+          facebook: fb.trim(),
+        }),
+      });
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      setSubmitted(true);
+    } catch (e) {
+      // Fallback to mailto if backend unreachable.
+      const body = encodeURIComponent(
+        `Name: ${name}\nVenue: ${venue}\nEmail: ${email}\nWebsite: ${website}\nInstagram: ${ig}\nFacebook: ${fb}`,
+      );
+      Linking.openURL(`mailto:partners@familyluxembourg.lu?subject=Partner submission&body=${body}`);
+      setSubmitted(true);
+    }
   };
 
   return (

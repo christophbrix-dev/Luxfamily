@@ -8,6 +8,7 @@ Provides:
  - Brute-force protection on /api/auth/login via slowapi
 """
 
+import json
 import logging
 import os
 import re
@@ -19,6 +20,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 import bcrypt
 import jwt
+import stripe
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, HTTPException, Request, status
@@ -59,6 +61,18 @@ JWT_ALGORITHM = os.environ.get("JWT_ALGORITHM", "HS256")
 JWT_EXPIRE_MINUTES = int(os.environ.get("JWT_EXPIRE_MINUTES", "10080"))
 ADMIN_EMAIL = _require_env("ADMIN_EMAIL").lower()
 ADMIN_PASSWORD = _require_env("ADMIN_PASSWORD")
+
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "").rstrip("/")
+stripe.api_key = STRIPE_SECRET_KEY
+
+# Plan -> (cents, days)
+SPONSOR_PLANS: Dict[str, Dict[str, int]] = {
+    "1month": {"amount": 4900, "days": 30},
+    "3months": {"amount": 12900, "days": 90},
+    "6months": {"amount": 22900, "days": 180},
+}
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
@@ -316,6 +330,10 @@ async def lifespan(_: FastAPI):
     await db.sources.create_index("id", unique=True)
     await db.event_views.create_index("event_id")
     await db.event_views.create_index("viewed_at")
+    await db.partners.create_index("id", unique=True)
+    await db.partners.create_index("created_at")
+    await db.sponsorships.create_index("session_id", unique=True)
+    await db.sponsorships.create_index("event_id")
 
     # Idempotent admin seeding.
     existing = await db.users.find_one({"email": ADMIN_EMAIL})
@@ -520,6 +538,174 @@ async def admin_delete_event(
     result = await db.events.delete_one({"id": event_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Event not found")
+
+
+# ---------------------------------------------------------------------------
+# Partner submissions + Stripe sponsored slots
+# ---------------------------------------------------------------------------
+class PartnerCreate(BaseModel):
+    name: str
+    venue: str
+    email: EmailStr
+    website: Optional[str] = ""
+    instagram: Optional[str] = ""
+    facebook: Optional[str] = ""
+    message: Optional[str] = ""
+
+
+@app.post("/api/partners", status_code=201)
+@limiter.limit("5/minute")
+async def submit_partner(request: Request, body: PartnerCreate = Body(...)):
+    doc = {
+        **body.model_dump(),
+        "id": str(uuid.uuid4()),
+        "status": "pending",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.partners.insert_one(doc)
+    return {"id": doc["id"], "status": "pending"}
+
+
+@app.get("/api/admin/partners")
+async def admin_list_partners(_: Dict[str, Any] = Depends(require_admin)):
+    cursor = db.partners.find({}, {"_id": 0}).sort("created_at", -1)
+    return await cursor.to_list(length=500)
+
+
+@app.patch("/api/admin/partners/{partner_id}")
+async def admin_update_partner(
+    partner_id: str,
+    body: Dict[str, Any] = Body(...),
+    _: Dict[str, Any] = Depends(require_admin),
+):
+    allowed = {k: v for k, v in body.items() if k in {"status", "message"}}
+    if not allowed:
+        raise HTTPException(400, "No allowed fields")
+    result = await db.partners.find_one_and_update(
+        {"id": partner_id}, {"$set": allowed}, return_document=True, projection={"_id": 0}
+    )
+    if not result:
+        raise HTTPException(404, "Partner not found")
+    return result
+
+
+class CheckoutRequest(BaseModel):
+    event_id: str
+    plan: str
+
+
+@app.post("/api/sponsor/checkout")
+async def create_sponsor_checkout(body: CheckoutRequest = Body(...)):
+    if body.plan not in SPONSOR_PLANS:
+        raise HTTPException(400, "Invalid plan")
+    event = await db.events.find_one({"id": body.event_id}, {"_id": 0, "title": 1})
+    if not event:
+        raise HTTPException(404, "Event not found")
+    plan = SPONSOR_PLANS[body.plan]
+    try:
+        session = stripe.checkout.Session.create(
+            mode="payment",
+            payment_method_types=["card"],
+            line_items=[
+                {
+                    "price_data": {
+                        "currency": "eur",
+                        "product_data": {
+                            "name": f"Featured slot ({body.plan}) — {event['title'].get('en', 'Event')}"
+                        },
+                        "unit_amount": plan["amount"],
+                    },
+                    "quantity": 1,
+                }
+            ],
+            success_url=f"{FRONTEND_URL}/sponsor/success?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{FRONTEND_URL}/sponsor/cancel",
+            metadata={"event_id": body.event_id, "plan": body.plan},
+        )
+    except stripe.error.StripeError as exc:
+        raise HTTPException(502, f"Stripe error: {exc.user_message or str(exc)}")
+    return {"url": session.url, "session_id": session.id}
+
+
+@app.get("/api/sponsor/session/{session_id}")
+async def get_sponsor_session(session_id: str):
+    """Frontend polls this on the success page so the partner sees confirmation
+    even if our webhook hasn't been wired in this environment."""
+    try:
+        session = stripe.checkout.Session.retrieve(session_id)
+    except stripe.error.StripeError as exc:
+        raise HTTPException(404, str(exc))
+    paid = session.payment_status == "paid"
+    if paid:
+        await _grant_featured(session)
+    return {
+        "paid": paid,
+        "payment_status": session.payment_status,
+        "amount_total": session.amount_total,
+        "event_id": (session.metadata or {}).get("event_id"),
+        "plan": (session.metadata or {}).get("plan"),
+    }
+
+
+async def _grant_featured(session) -> None:
+    session_id = session.id if hasattr(session, "id") else session["id"]
+    metadata = session.metadata if hasattr(session, "metadata") else session.get("metadata", {})
+    event_id = metadata.get("event_id")
+    plan = metadata.get("plan")
+    amount_total = session.amount_total if hasattr(session, "amount_total") else session.get("amount_total", 0)
+    if not (event_id and plan and plan in SPONSOR_PLANS):
+        return
+    result = await db.sponsorships.update_one(
+        {"session_id": session_id},
+        {
+            "$setOnInsert": {
+                "session_id": session_id,
+                "event_id": event_id,
+                "plan": plan,
+                "amount_total": amount_total,
+                "status": "paid",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+        },
+        upsert=True,
+    )
+    if not result.upserted_id:
+        return  # duplicate, already processed
+    days = SPONSOR_PLANS[plan]["days"]
+    ev = await db.events.find_one({"id": event_id}, {"_id": 0, "featured_until": 1})
+    now = datetime.now(timezone.utc)
+    base = now
+    if ev and ev.get("featured_until"):
+        try:
+            existing = datetime.fromisoformat(ev["featured_until"].replace("Z", "+00:00"))
+            if existing > now:
+                base = existing
+        except (ValueError, TypeError):
+            pass
+    new_until = (base + timedelta(days=days)).date().isoformat()
+    await db.events.update_one(
+        {"id": event_id},
+        {"$set": {"featured": True, "featured_until": new_until}},
+    )
+
+
+@app.post("/api/sponsor/webhook")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+    if STRIPE_WEBHOOK_SECRET:
+        try:
+            event = stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)
+        except (ValueError, stripe.error.SignatureVerificationError):
+            raise HTTPException(400, "Invalid webhook signature")
+    else:
+        # No webhook secret configured (e.g. preview environment). Trust payload.
+        event = json.loads(payload)
+    if event.get("type") == "checkout.session.completed":
+        session = event["data"]["object"]
+        if session.get("payment_status") == "paid":
+            await _grant_featured(stripe.util.convert_to_stripe_object(session))
+    return {"received": True}
 
 
 # Health probe used by tests / supervisor.

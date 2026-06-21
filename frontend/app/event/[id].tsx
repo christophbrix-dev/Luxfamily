@@ -163,6 +163,14 @@ export default function EventDetail() {
         <TouchableOpacity onPress={openMaps} style={styles.footerSecondary}>
           <Text style={styles.footerSecondaryTxt}>{t("openInMaps", lang)}</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => router.push(`/sponsor/${ev.id}`)}
+          style={[styles.footerPrimary, { backgroundColor: "#F59E0B" }]}
+          testID="event-sponsor-btn"
+        >
+          <Ionicons name="star" size={14} color="#fff" />
+          <Text style={styles.footerPrimaryTxt}>Sponsor</Text>
+        </TouchableOpacity>
         <TouchableOpacity onPress={() => toggleSave(localId)} style={styles.footerPrimary}>
           <Text style={styles.footerPrimaryTxt}>{isSaved ? t("unsave", lang) : t("save", lang)}</Text>
         </TouchableOpacity>
@@ -282,6 +290,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 16,
     alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 4,
     backgroundColor: palette.primary,
     ...shadow.emerald,
   },

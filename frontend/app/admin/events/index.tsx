@@ -69,6 +69,13 @@ export default function AdminEvents() {
         </View>
         <View style={{ flexDirection: "row", gap: 8 }}>
           <TouchableOpacity
+            onPress={() => router.push("/admin/partners")}
+            style={styles.iconBtn}
+            testID="admin-partners"
+          >
+            <Ionicons name="people-outline" size={18} color={palette.textPrimary} />
+          </TouchableOpacity>
+          <TouchableOpacity
             onPress={() => router.push("/admin/analytics")}
             style={styles.iconBtn}
             testID="admin-analytics"
