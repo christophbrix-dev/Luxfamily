@@ -155,6 +155,7 @@ class EventBase(BaseModel):
     website_url: str = ""
     accessibility_wheelchair: bool = False
     sensory_friendly: bool = False
+    free_parking: bool = False
     sensory_notes: LocalizedString = Field(default_factory=lambda: {"en": "", "de": "", "fr": ""})
     parking: LocalizedString = Field(default_factory=lambda: {"en": "", "de": "", "fr": ""})
     food_allowed: bool = True
@@ -200,6 +201,7 @@ class EventUpdate(BaseModel):
     website_url: Optional[str] = None
     accessibility_wheelchair: Optional[bool] = None
     sensory_friendly: Optional[bool] = None
+    free_parking: Optional[bool] = None
     sensory_notes: Optional[LocalizedString] = None
     parking: Optional[LocalizedString] = None
     food_allowed: Optional[bool] = None

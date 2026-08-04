@@ -1,0 +1,65 @@
+{
+  "summary": "Backend testing for the crawler/importer overhaul. Wrote /app/backend/tests/test_sources_and_crawler.py (12 tests). Full pytest suite: 28/30 PASSED. Confirmed: (1) GET /api/events returns 56 events with all required top-level fields (title as LocalizedString {en,de,fr}, start_date YYYY-MM-DD, image URL, canton, town, category list, bool family flags). (2) source_name includes 'deep-dive-seed' (14 events) + real crawler names (Philharmonie 19, Mudam 9, Kayl-Tetange 4, Kulturfabrik Esch 1, Parc Merveilleux 1, Park Sennesraich 2, Visit Luxembourg 2, Dudelange 1). (3) GET /api/admin/sources returns exactly 53 sources with valid kinds {sitemap:45, json_ld:5, html_scraper:3} — all within allowed set {ical, data_public_lu, html_scraper, json_ld, sitemap}. Status fields last_run_at/last_status/last_imported_count populated (24 ok / 29 error). (4) POST /api/admin/sources/robots-check with https://www.mudam.com/programme returns {allowed: true, crawl_delay_seconds: 0.0, host: https://www.mudam.com, user_agent: FamilyLuxembourgBot/1.0}. (5) APScheduler cron 'importers' registered at startup — backend log confirms 'Importer scheduler started (3x daily: 05:00, 12:00, 18:00 Europe/Luxembourg)'. (6) POST /api/admin/sources/{id}/run on Kulturhaus Niederanven — Sitemap completed in <5s and persisted last_status=error (source URL https://www.khn.lu/sitemap.xml returns 404 upstream — real-world data issue, not a stuck state). (7) Event detail GET /api/events/{id} returns sensory_notes, parking, preparation_tips as LocalizedString {en,de,fr}. Also verified: auth 401 gates on all /api/admin/sources* endpoints, 404 on non-existent source run.\n\nTWO BACKEND BUGS FOUND (both real, both simple):\n- BUG-1 (HIGH): `free_parking` field is NEVER returned from the API. DB stores it correctly (12/14 deep-dive locations have free_parking=True in MongoDB), but /api/events and /api/events/{id} always return free_parking=false. Root cause: `_event_to_response()` in server.py maps accessibility_wheelchair / sensory_friendly but forgot free_parking (line 260-263). Breaks the 'free_parking' family-needs filter that the problem statement explicitly calls out.\n- BUG-2 (MEDIUM): POST /api/admin/sources/robots-check accepts malformed URLs like 'not-a-url' and returns 200 with host='://' allowed=true, instead of 400 as required by the problem statement. Root cause: crawler_utils.robots_check() calls urlparse() but never validates that scheme+netloc are present.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/events, GET /api/events/{id}",
+        "issue": "free_parking field always returned as false regardless of DB value. _event_to_response() in /app/backend/server.py (lines 227-275) explicitly maps accessibility_wheelchair and sensory_friendly but MISSES free_parking. Verified with direct MongoDB query: 12/14 deep-dive-seed docs have free_parking=true stored but API returns false for all. Fix: add `free_parking=doc.get('free_parking', False),` alongside the other family bool fields in _event_to_response (near line 261). This blocks the 'free_parking' family-needs filter that the review request explicitly requires to work.",
+        "priority": "HIGH"
+      },
+      {
+        "endpoint": "POST /api/admin/sources/robots-check",
+        "issue": "Invalid URL like 'not-a-url' returns 200 (allowed=true, host='://') instead of 400. crawler_utils.robots_check() should validate url scheme+netloc before parsing. Suggested fix: at the top of robots_check() (crawler_utils.py:142) validate `p = urlparse(url); if not p.scheme or not p.netloc: raise ValueError('invalid url')` — the FastAPI handler already converts exceptions into 400.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "GET /api/admin/sources",
+        "issue": "0 out of 53 sources are of kind 'ical' or 'data_public_lu' — the seed script only exercises sitemap / json_ld / html_scraper. Not a bug per se (the allowed set includes them) but worth confirming that the ical + data_public_lu importer branches in importers.py have actually been exercised somewhere. Currently 29/53 sources have last_status='error' (mostly upstream 404s / bad sitemap URLs)."
+      },
+      {
+        "endpoint": "POST /api/admin/sources/{id}/run (Kulturhaus Niederanven — Sitemap)",
+        "issue": "Runs cleanly but the seeded URL https://www.khn.lu/sitemap.xml is 404 upstream. Consider replacing with a working sitemap URL or the /events page for that venue in seed_lu_sources.py."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_3.json",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/pytest/sources_results.xml",
+    "/app/backend/tests/test_sources_and_crawler.py"
+  ],
+  "action_items": [
+    "FIX BUG-1 (one-liner): In /app/backend/server.py inside _event_to_response() add `free_parking=doc.get('free_parking', False),` next to accessibility_wheelchair / sensory_friendly (around line 261). Without this the free_parking family filter is dead code — all events look like they have no free parking even though the seed script sets it True for 12/14 locations.",
+    "FIX BUG-2: In /app/backend/crawler_utils.py robots_check(), validate `urlparse(url)` has both scheme and netloc — raise ValueError otherwise. The FastAPI wrapper will convert it to 400.",
+    "(Minor) Replace https://www.khn.lu/sitemap.xml in seed_lu_sources.py — that URL returns 404. Also 28 other sources currently produce last_status='error'; a follow-up pass on those URLs is worthwhile.",
+    "(Minor) Optionally seed at least one ical and one data_public_lu source so all 5 importer branches are exercised in production."
+  ],
+  "critical_code_review_comments": [
+    "server.py: _event_to_response() explicitly enumerates every field instead of just spreading `doc` through EventResponse.model_validate — that pattern is error-prone (as proven by the missing free_parking mapping). Consider `EventResponse(**{k:v for k,v in doc.items() if k != '_id'})` with `model_config = ConfigDict(extra='ignore')` to avoid future drift.",
+    "server.py:838-850 robots_check handler catches all exceptions and returns 400 — good; but the underlying `robots_check()` in crawler_utils.py silently accepts nonsense URLs (no validation of urlparse result). Add explicit URL validation at the top of robots_check.",
+    "crawler_utils.py: solid design — robots.txt caching with 6h TTL, per-host asyncio.Lock for throttling, RobotsBlocked exception so importers never silently retry disallowed URLs. USER_AGENT correctly identifies the bot with a contact URL.",
+    "server.py lifespan(): scheduler registration is idempotent (replace_existing=True) and gated on DISABLE_SCHEDULER for tests. Confirmed via backend logs: 'Importer scheduler started (3x daily: 05:00, 12:00, 18:00 Europe/Luxembourg)'.",
+    "server.py: file is now 883 lines — approaching the 700-line refactor threshold. Sources CRUD + admin analytics could be moved to a routers/admin_sources.py module.",
+    "seed_deepdive.py:772-800 build_document uses `**loc` at the END of the dict literal — that DOES override the defaults correctly, and DB confirms free_parking is stored properly. The bug is strictly in the response-mapping layer, not the seed."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_sources_and_crawler.py"
+  ],
+  "success_rate": {
+    "backend": "93.3% (28/30 pytest passing; 10/12 new crawler/sources tests). 2 failures both reveal real backend bugs (free_parking response mapping + robots-check URL validation) — not test issues.",
+    "frontend": "not tested (backend-only run per review request)"
+  },
+  "seed_data_creation": "None. Tests only read existing data; the single-source run test triggered a real crawl against Kulturhaus Niederanven (returned 404 upstream, source last_status updated to 'error' — pre-existing behavior).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "New pytest module: /app/backend/tests/test_sources_and_crawler.py (12 tests). Admin creds still work via /api/auth/login (NOT /api/login as the review request mistakenly claimed). Watch out for the free_parking response bug — until fixed, any UI filter/query relying on that field will look empty. Total baseline is 56 events / 53 sources. Running the single-source /run endpoint is safe (< 5s for Kulturhaus). Do NOT trigger /api/admin/sources/run-all (30+ min). Scheduler is active — you'll see 05:00/12:00/18:00 Europe/Luxembourg runs in backend logs.",
+  "rca_of_issue": "BUG-1 free_parking: _event_to_response() in server.py is a manually-written mapper that copies each EventBase field one-by-one from the mongo doc. When free_parking was added to EventBase (line 158) the corresponding mapping in _event_to_response was forgotten, so Pydantic used the default (False) instead of the DB value. Reproduction: `curl .../api/events?upcoming=false | jq '.[] | select(.source_name==\"deep-dive-seed\") | .free_parking'` returns all false; direct MongoDB query returns True for 12/14 docs. Fix: add one line to _event_to_response. BUG-2 robots-check: crawler_utils.robots_check(url) calls urlparse() and builds host=f'{scheme}://{netloc}'; when url='not-a-url' both are empty, giving host='://'. RobotFileParser then treats an unreachable URL as allow-all → API returns 200. Fix: add early URL validation in robots_check()."
+}

@@ -39,6 +39,11 @@ export default function EventsTab() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Family-needs filters (mirrors the Explore tab).
+  const [fWheelchair, setFWheelchair] = useState(false);
+  const [fSensory, setFSensory] = useState(false);
+  const [fFreeParking, setFFreeParking] = useState(false);
+
   const load = useCallback(async () => {
     try {
       setError(null);
@@ -60,7 +65,18 @@ export default function EventsTab() {
     setRefreshing(false);
   }, [load]);
 
-  const groups = useMemo(() => (events ? groupByMonth(events) : []), [events]);
+  const filtered = useMemo(() => {
+    if (!events) return [];
+    return events.filter((e) => {
+      if (fWheelchair && !e.accessibility_wheelchair) return false;
+      if (fSensory && !e.sensory_friendly) return false;
+      if (fFreeParking && !e.free_parking) return false;
+      return true;
+    });
+  }, [events, fWheelchair, fSensory, fFreeParking]);
+
+  const groups = useMemo(() => groupByMonth(filtered), [filtered]);
+  const activeFilterCount = [fWheelchair, fSensory, fFreeParking].filter(Boolean).length;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -68,13 +84,58 @@ export default function EventsTab() {
         <View>
           <Text style={styles.h1}>Events</Text>
           <Text style={styles.sub}>
-            {events ? `${events.length} ${events.length === 1 ? "activity" : "activities"}` : t("loading", lang)}
+            {events
+              ? activeFilterCount > 0
+                ? `${filtered.length} of ${events.length} (filtered)`
+                : `${events.length} ${events.length === 1 ? "activity" : "activities"}`
+              : t("loading", lang)}
           </Text>
         </View>
         <View style={styles.headerBadge}>
           <Ionicons name="calendar" size={16} color={palette.primaryDark} />
         </View>
       </View>
+
+      {events && events.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipsRow}
+        >
+          <FilterChip
+            label="Wheelchair"
+            icon="accessibility-outline"
+            active={fWheelchair}
+            onPress={() => setFWheelchair((v) => !v)}
+          />
+          <FilterChip
+            label="Sensory friendly"
+            icon="ear-outline"
+            active={fSensory}
+            onPress={() => setFSensory((v) => !v)}
+          />
+          <FilterChip
+            label="Free parking"
+            icon="car-outline"
+            active={fFreeParking}
+            onPress={() => setFFreeParking((v) => !v)}
+          />
+          {activeFilterCount > 0 && (
+            <TouchableOpacity
+              style={styles.clearChip}
+              onPress={() => {
+                setFWheelchair(false);
+                setFSensory(false);
+                setFFreeParking(false);
+              }}
+              testID="events-clear-filters"
+            >
+              <Ionicons name="close-circle" size={14} color={palette.textSecondary} />
+              <Text style={styles.clearChipTxt}>Clear</Text>
+            </TouchableOpacity>
+          )}
+        </ScrollView>
+      ) : null}
 
       {events === null && !error ? (
         <View style={styles.loadingWrap}>
@@ -99,6 +160,12 @@ export default function EventsTab() {
             New events are added by the team and partners. Pull to refresh.
           </Text>
         </ScrollView>
+      ) : filtered.length === 0 ? (
+        <View style={styles.emptyWrap}>
+          <Ionicons name="filter-outline" size={40} color={palette.textMuted} />
+          <Text style={styles.emptyTitle}>No matches</Text>
+          <Text style={styles.emptyTxt}>Try removing a filter above.</Text>
+        </View>
       ) : (
         <ScrollView
           contentContainerStyle={styles.scroll}
@@ -200,6 +267,34 @@ const featuredStyles = StyleSheet.create({
   txt: { fontSize: 9, fontWeight: "800", color: "#92400E", letterSpacing: 0.4 },
 });
 
+function FilterChip({
+  label,
+  icon,
+  active,
+  onPress,
+}: {
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.85}
+      style={[styles.chip, active && styles.chipActive]}
+      testID={`events-filter-${label.toLowerCase().replace(/\s+/g, "-")}`}
+    >
+      <Ionicons
+        name={icon}
+        size={14}
+        color={active ? "#fff" : palette.textSecondary}
+      />
+      <Text style={[styles.chipTxt, active && styles.chipTxtActive]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.background },
   header: {
@@ -277,4 +372,45 @@ const styles = StyleSheet.create({
   title: { fontSize: 14, fontWeight: "700", color: palette.textPrimary },
   metaRow: { flexDirection: "row", gap: 4, alignItems: "center", marginTop: 2 },
   metaTxt: { fontSize: 11, color: palette.textSecondary },
+  chipsRow: {
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    gap: 8,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: palette.surfaceMuted,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  chipActive: {
+    backgroundColor: palette.primary,
+    borderColor: palette.primary,
+  },
+  chipTxt: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: palette.textSecondary,
+  },
+  chipTxtActive: { color: "#fff" },
+  clearChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    marginLeft: 4,
+  },
+  clearChipTxt: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: palette.textSecondary,
+  },
 });

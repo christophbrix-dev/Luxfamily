@@ -510,7 +510,7 @@ LOCATIONS: List[Dict[str, Any]] = [
         "title": l("Schiessentümpel & Mullerthal Trail", "Schiessentümpel & Mullerthal-Pfad",
                     "Schiessentümpel & Sentier du Mullerthal"),
         "short": l("Iconic waterfall in 'Little Switzerland' — pure nature reset.",
-                    "Ikonischer Wasserfall in der „Kleinen Schweiz" — reine Natur.",
+                    "Ikonischer Wasserfall in der „Kleinen Schweiz\" — reine Natur.",
                     "Cascade emblématique dans la 'Petite Suisse' — nature pure."),
         "description": l(
             "Sandstone bridge (1879) and waterfall — the regional landmark. Currently a detour is in place due to wooden footbridge construction (check mullerthal.lu before going).",
@@ -544,7 +544,7 @@ LOCATIONS: List[Dict[str, Any]] = [
                       "Parking Schiessentümpel (~500m) ou Heringer Millen (~1km), gratuit."),
         "food_allowed": True,
         "food_onsite": l("Bring a picnic; 'Heringer Millen' restaurant nearby.",
-                          "Picknick mitbringen; Restaurant „Heringer Millen" in der Nähe.",
+                          "Picknick mitbringen; Restaurant „Heringer Millen\" in der Nähe.",
                           "Apportez un pique-nique ; restaurant 'Heringer Millen' à proximité."),
         "preparation_tips": l(
             "Sturdy / waterproof shoes essential (roots, rock, often slippery). Stroller unsuitable — use a baby carrier. Weather-resistant clothing.",
@@ -806,9 +806,9 @@ async def main() -> None:
     db = mongo[DB_NAME]
     events = db["events"]
 
-    log.info("Deleting all existing events …")
-    res = await events.delete_many({})
-    log.info("  ↳ removed %d documents", res.deleted_count)
+    # Only clear our own previous seed rows — never touch crawler content.
+    res = await events.delete_many({"source_name": "deep-dive-seed"})
+    log.info("Cleared %d previous deep-dive-seed rows.", res.deleted_count)
 
     async with httpx.AsyncClient() as http:
         log.info("Inserting %d curated locations …", len(LOCATIONS))

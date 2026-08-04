@@ -82,6 +82,7 @@ export type ApiEvent = {
   website_url: string;
   accessibility_wheelchair: boolean;
   sensory_friendly: boolean;
+  free_parking: boolean;
   sensory_notes: LocalizedString;
   parking: LocalizedString;
   food_allowed: boolean;
