@@ -2,11 +2,9 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("EXPO_BACKEND_URL") or "https://kids-adventure-hub-4.preview.emergentagent.com"
-BASE_URL = BASE_URL.rstrip("/")
-
-ADMIN_EMAIL = "admin@familyluxembourg.lu"
-ADMIN_PASSWORD = "LuxFam2026!"
+BASE_URL = (os.environ.get("EXPO_BACKEND_URL") or "http://localhost:8001").rstrip("/")
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@familyluxembourg.lu")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "LuxFam2026!")
 
 
 @pytest.fixture(scope="session")

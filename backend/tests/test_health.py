@@ -2,7 +2,7 @@
 import os
 import requests
 
-BASE_URL = (os.environ.get('EXPO_BACKEND_URL') or 'https://kids-adventure-hub-4.preview.emergentagent.com').rstrip('/')
+BASE_URL = (os.environ.get('EXPO_BACKEND_URL') or 'http://localhost:8001').rstrip('/')
 
 
 def test_health():
