@@ -1,0 +1,48 @@
+{
+  "summary": "Re-verified Northern-user FOR YOU dedupe fix on mobile Playwright (390x844). Onboarding flow executed exactly as prescribed: guest sign-in → family → 4-8 → default interests (playgrounds, animals, nature, workshops, culture_kids) → skip needs → preferredCantons=[Diekirch] → budget=any → finish. localStorage['lux.profile'] verified: {\"persona\":\"family\",\"childAgeGroups\":[\"4-8\"],\"interests\":[\"playgrounds\",\"nature\",\"animals\",\"workshops\",\"culture_kids\"],\"needs\":[],\"preferredCantons\":[\"Diekirch\"],\"budget\":\"any\",...}. FOR YOU top-6 after the venue-key fix is IDENTICAL to iteration_6 (before-fix): [1] Park Sënnesräich (Sensory Park) — Lullange · Clervaux, [2] Robbesscheier Munshausen — Munshausen · Clervaux, [3] Vianden Castle + Chairlift — Vianden · Diekirch, [4] Parc Merveilleux Bettembourg — Bettembourg · Esch-sur-Alzette, [5] Programm Zooschule Sommersaison ... | Parc Merveilleux Bettembourg — Bettembourg · Esch-sur-Alzette, [6] Actualités - Parc Sënnesräich - Centre de loisirs — Lullange · Clervaux. MIGO — Mini-Golf & Indoor Playground (Eschweiler · Wiltz) is present in the ranked list (position 43 in the general AUGUST 2026 section below FOR YOU) but is NOT in the FOR YOU top-6. PASS CRITERIA RESULT: [1] ≤1 Sënnesräich in FOR YOU → FAIL (2 present: 'Park Sënnesräich' + 'Actualités - Parc Sënnesräich'); [2] MIGO in FOR YOU → FAIL (visible only in general list); [3] ≥3 unique Northern venues → PASS (Sënnesräich, Robbesscheier, Vianden). Root cause: the venueKey heuristic in personalization.ts:181-188 keys on the FIRST TWO title words. The crawler-imported duplicates do NOT start with the venue name — 'Actualités - Parc Sënnesräich…' → key='actualités parc'; 'Braddel Babbel - Le spectacle - Parc Sënnesräich…' → key='braddel babbel'; 'Programm Zooschule Sommersaison ... | Parc Merveilleux Bettembourg' → key='programm zooschule'. So none of them collide with the seeded 'Park Sënnesräich' (key='park sënnesräich') or 'Parc Merveilleux Bettembourg' (key='parc merveilleux'). Net effect: the dedupe pass removed ZERO items from the FOR YOU top-6 in this scenario; the list is unchanged from iteration_6.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "FOR YOU venue-dedupe (rankForProfile)",
+        "issue": "venueKey heuristic (first 2 words of title, punctuation-stripped) is too weak. Crawler duplicates of a seeded venue rarely start with the venue name — they usually start with the event type/marketing prefix (e.g. 'Actualités - …', 'Braddel Babbel - …', 'Programm Zooschule …'). As a result, the fix does not remove ANY of the 3 near-duplicate rows the review targets. Suggested fixes: (a) match venue by a canonical set of substring tokens ('sënnesräich', 'merveilleux', 'robbesscheier', 'migo', 'vianden') OR (b) dedupe by the event's `location.name`/`venue_id`/canton+coords if available in ApiEvent, OR (c) apply an N-gram token-set similarity ≥0.5 across the whole title lowercased, OR (d) use event.location or event.venue as the canonical key rather than the free-text title.",
+        "affected_testIDs": ["event-row-*"]
+      },
+      {
+        "flow": "MIGO not surfaced in FOR YOU top-6 for Diekirch-only user",
+        "issue": "Even after the (currently ineffective) dedupe, MIGO (Wiltz, cantonAffinity=+0.4 neighbour bonus) still scores lower than the 5 non-Northern high-interest events (Parc Merveilleux + Programm Zooschule are Esch-sur-Alzette, matching 3+ interests). If the dedupe were effective (removing 'Actualités - Parc Sënnesräich' and one Parc Merveilleux duplicate), MIGO would likely rise into position 5 or 6. Recommend fixing the dedupe first (see previous item), then re-verifying MIGO placement."
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "shadow* style props", "issue": "Multiple 'shadow* style props are deprecated. Use boxShadow' warnings on Events tab. Non-blocking. Reference: /app/frontend/app/(tabs)/events.tsx (styles.forYouWrap/row/etc)."},
+      {"component": "pointerEvents prop", "issue": "'props.pointerEvents is deprecated. Use style.pointerEvents' console warning during onboarding transitions. Non-blocking."}
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_7.json",
+    "/tmp/foryou_result.png (screenshot of FOR YOU top-6 post-fix)"
+  ],
+  "action_items": [
+    "FIX venue-dedupe algorithm in /app/frontend/src/utils/personalization.ts (~lines 181-198). Current heuristic keys on the first 2 words of the title, which fails because crawler-imported duplicates begin with marketing prefixes ('Actualités - ', 'Braddel Babbel - ', 'Programm Zooschule Sommersaison ...') rather than the venue name. Recommended replacement: canonical-substring match, e.g. detect 'sënnesräich' | 'sennesraich', 'merveilleux', 'robbesscheier', 'migo', 'vianden castle', or dedupe by event.location/venue_id if the API exposes it, or use a token-set overlap threshold across the ENTIRE title.",
+    "After improving dedupe, MIGO should enter FOR YOU. If it still does not, consider also increasing forYou slice from 6 to 8, OR guaranteeing at least one representative per preferredCanton/neighbour-canton (soft quota).",
+    "Optional cleanup unchanged from iteration_6: migrate shadow* → boxShadow and props.pointerEvents → style.pointerEvents to silence RN 0.76+ deprecation warnings."
+  ],
+  "critical_code_review_comments": [
+    "personalization.ts:181-188 — venueKey = title.slice(0,2 words) is a fragile heuristic. Any crawler entry with a prefix ('Actualités - ', 'Le spectacle - ', 'Programm ...', 'Guided tour of ...', 'Visite en français de la ...') will bypass the dedupe. This exactly matches the failure mode observed.",
+    "personalization.ts:200 — forYou = dedup (max 6). Combined with the ineffective venueKey, the output is identical to a plain sort-and-slice. The declared behaviour in the fix comment ('e.g. 3 different Sënnesräich rows') is not achieved.",
+    "Rank list evidence (post-fix): Park Sënnesräich [Clervaux, seeded], Robbesscheier [Clervaux, seeded], Vianden Castle [Diekirch, seeded], Parc Merveilleux [Esch-sur-Alzette, seeded, matches 3 interests], Programm Zooschule|Parc Merveilleux [Esch-sur-Alzette, crawler dup of Merveilleux, matches similar interests], Actualités - Parc Sënnesräich [Clervaux, crawler dup of Sënnesräich]. Two duplicate PAIRS are present in the top-6.",
+    "Note that events.tsx line 100 memoises rankForProfile output on `filtered` — the change is picked up correctly; the bug is purely inside venueKey."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "not re-tested this iteration (unchanged since iteration_6: 7/7)",
+    "frontend": "33% on new pass criteria (1 of 3 passed: unique Northern venues ≥3. Failed: ≤1 Sënnesräich; MIGO in top-6)"
+  },
+  "seed_data_creation": "None. Reused existing MIGO + Sënnesräich seed data from iteration_6 backend run.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The venue-dedupe fix at personalization.ts:181-198 is functionally a no-op for this test case because the crawler-imported duplicates of a seeded venue do NOT begin with the venue name — they begin with words like 'Actualités', 'Braddel', 'Programm', 'Guided', etc. Main agent must switch to a substring/token-set match (or a proper venue_id from the API) before this test can pass. When re-testing: repeat the exact Northern-user flow from this report; assert (a) exactly 1 row containing 'Sënnesräich' in FOR YOU, (b) at most 1 row containing 'Merveilleux' in FOR YOU, (c) at least 1 row containing 'MIGO' in FOR YOU. FOR YOU rows can be reliably extracted by locating the sibling of the 'Matched to your interests' Text and enumerating [data-testid^=\\\"event-row-\\\"] within it (works in one Playwright session; the state does not persist across separate mcp_browser_automation calls, so keep the full flow inside one script).",
+  "rca_of_issue": "The main agent's fix chose venueKey = first-2-words-of-title as the dedup key. The three actual near-duplicate rows for the Sënnesräich venue have titles: (A) 'Park Sënnesräich (Sensory Park)' (deep-dive-seed) → key 'park sënnesräich'; (B) 'Actualités - Parc Sënnesräich - Centre de loisirs - Luxembourg' (crawler) → key 'actualités parc'; (C) 'Braddel Babbel - Le spectacle - Parc Sënnesräich - Centre de loisirs' (crawler) → key 'braddel babbel'. All three keys differ, so seen.has(key) never triggers. Same story for Parc Merveilleux: (A) 'Parc Merveilleux Bettembourg' → 'parc merveilleux'; (B) 'Programm Zooschule Sommersaison (21/03/2026 - 10/10/2026) | Parc Merveilleux Bettembourg' → 'programm zooschule'. Recommended: dedupe on canonical venue tokens found ANYWHERE in the title (or use event.location/venue_id if backend exposes it) rather than the first two title words."
+}

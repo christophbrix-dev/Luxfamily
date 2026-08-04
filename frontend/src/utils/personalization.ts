@@ -167,7 +167,7 @@ export function rankForProfile(
   const hasProfile = !!profile.persona && profile.persona !== "skipped";
   if (!hasProfile) return { forYou: [], others: events, isPersonalized: false };
 
-  const scored: Array<{ ev: ApiEvent; score: number }> = events.map((ev) => ({
+  const scored: { ev: ApiEvent; score: number }[] = events.map((ev) => ({
     ev,
     score: eventMatchScore(ev, profile),
   }));
@@ -175,7 +175,29 @@ export function rankForProfile(
   const withHits = scored.filter((s) => s.score > 0);
   withHits.sort((a, b) => b.score - a.score);
 
-  const forYou = withHits.slice(0, 6).map((s) => s.ev);
+  // Dedupe by venue-key so crawler-imported near-duplicates of a seeded venue
+  // (e.g. 3 different "Sënnesräich" rows) don't monopolise the FOR YOU slots.
+  // Venue-key = first two title words, lowercased, punctuation-stripped.
+  const venueKey = (title: string): string =>
+    title
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]+/gu, " ")
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .join(" ");
+
+  const seen = new Set<string>();
+  const dedup: ApiEvent[] = [];
+  for (const s of withHits) {
+    const key = venueKey(s.ev.title?.en ?? s.ev.title?.de ?? "");
+    if (key && seen.has(key)) continue;
+    seen.add(key);
+    dedup.push(s.ev);
+    if (dedup.length >= 6) break;
+  }
+
+  const forYou = dedup;
   const forYouIds = new Set(forYou.map((e) => e.id));
   const others = events.filter((e) => !forYouIds.has(e.id));
 
