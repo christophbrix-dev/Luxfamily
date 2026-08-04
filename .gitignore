@@ -83,6 +83,4 @@ android-sdk/
 credentials.json
 *.key
 .credentials
-.env
-.env.*
-*.env
+# Note: .env files ARE tracked so the deployment pipeline can read them.

@@ -14,6 +14,7 @@ import {
 
 import { radii, type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
+import { useApp } from "@/src/contexts/AppContext";
 import { t } from "@/src/i18n/strings";
 import { api, getAdminToken, setAdminToken } from "@/src/utils/api";
 

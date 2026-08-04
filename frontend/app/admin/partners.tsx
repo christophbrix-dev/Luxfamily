@@ -5,6 +5,7 @@ import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TouchableOpac
 
 import { radii, type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
+import { useApp } from "@/src/contexts/AppContext";
 import { t } from "@/src/i18n/strings";
 import { apiFetch } from "@/src/utils/api";
 
@@ -74,7 +75,7 @@ export default function AdminPartners() {
               <View style={{ flex: 1, gap: 4 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <Text style={styles.venue}>{p.venue}</Text>
-                  <View style={[styles.statusBadge, statusStyle(p.status)]}>
+                  <View style={[styles.statusBadge, statusStyle(p.status, palette)]}>
                     <Text style={styles.statusTxt}>{p.status}</Text>
                   </View>
                 </View>
@@ -118,7 +119,7 @@ export default function AdminPartners() {
   );
 }
 
-function statusStyle(s: string) {
+function statusStyle(s: string, palette: Palette) {
   if (s === "approved") return { backgroundColor: palette.primaryLight };
   if (s === "rejected") return { backgroundColor: "#FEF2F2" };
   return { backgroundColor: "#FEF3C7" };

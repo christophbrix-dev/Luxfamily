@@ -155,6 +155,8 @@ function Field({
   keyboardType?: "default" | "email-address";
   testID?: string;
 }) {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   return (
     <View style={{ gap: 4 }}>
       <Text style={styles.label}>{label}</Text>

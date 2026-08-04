@@ -515,6 +515,8 @@ function LangField({
   big?: boolean;
   testID?: string;
 }) {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   return (
     <View style={{ gap: 8 }}>
       {(["en", "de", "fr"] as const).map((l) => (

@@ -5,6 +5,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View
 
 import { radii, type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
+import { useApp } from "@/src/contexts/AppContext";
 import { t } from "@/src/i18n/strings";
 import { Analytics, api } from "@/src/utils/api";
 
@@ -90,6 +91,8 @@ export default function AdminAnalytics() {
 }
 
 function Stat({ label, value, accent, highlight }: { label: string; value: number; accent?: boolean; highlight?: boolean }) {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   return (
     <View
       style={[
