@@ -19,18 +19,74 @@ import { palette, radii, shadow } from "@/src/theme";
 import { api, ApiEvent } from "@/src/utils/api";
 import { needsToFilters, rankForProfile } from "@/src/utils/personalization";
 
-type EventGroup = { label: string; items: ApiEvent[] };
+type EventGroup = { label: string; items: ApiEvent[]; kind?: "venue" | "dated" };
 
-function groupByMonth(events: ApiEvent[]): EventGroup[] {
-  const map = new Map<string, ApiEvent[]>();
-  for (const e of events) {
-    const d = new Date(e.start_date);
-    const key = d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-    const arr = map.get(key) ?? [];
+/**
+ * True when this DB record is a curated always-open venue rather than a
+ * time-bound event. Venues are seeded with `source_name = "Curated — …"`.
+ * They should not be sorted chronologically — instead we put them in their
+ * own "Always open" group.
+ */
+function isVenue(event: ApiEvent): boolean {
+  return (event.source_name ?? "").startsWith("Curated");
+}
+
+const MONTH_NAMES: Record<string, string[]> = {
+  de: ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"],
+  fr: ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"],
+  en: ["January","February","March","April","May","June","July","August","September","October","November","December"],
+};
+
+function monthLabel(d: Date, lang: "en" | "de" | "fr"): string {
+  const names = MONTH_NAMES[lang] ?? MONTH_NAMES.en;
+  return `${names[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+/**
+ * Groups dated events by month (chronologically) and puts always-open
+ * curated venues into a single "Always open" bucket at the end.
+ */
+function groupEvents(
+  events: ApiEvent[],
+  lang: "en" | "de" | "fr",
+  alwaysOpenLabel: string,
+): EventGroup[] {
+  const venues: ApiEvent[] = [];
+  const dated: ApiEvent[]  = [];
+  for (const e of events) (isVenue(e) ? venues : dated).push(e);
+
+  // Sort dated events chronologically (ascending) with featured on top per day.
+  dated.sort((a, b) => {
+    if (a.featured !== b.featured) return a.featured ? -1 : 1;
+    return a.start_date.localeCompare(b.start_date);
+  });
+
+  // Group dated events by month, preserving insertion order (already sorted).
+  const monthMap = new Map<string, ApiEvent[]>();
+  for (const e of dated) {
+    const d   = new Date(e.start_date);
+    const key = monthLabel(d, lang);
+    const arr = monthMap.get(key) ?? [];
     arr.push(e);
-    map.set(key, arr);
+    monthMap.set(key, arr);
   }
-  return Array.from(map.entries()).map(([label, items]) => ({ label, items }));
+
+  const groups: EventGroup[] = Array.from(monthMap.entries()).map(
+    ([label, items]) => ({ label, items, kind: "dated" as const }),
+  );
+
+  // Sort venues alphabetically for stable UX (title matters more than date
+  // since they're all always-open).
+  venues.sort((a, b) => {
+    const ta = (a.title[lang] ?? a.title.en ?? "").toLowerCase();
+    const tb = (b.title[lang] ?? b.title.en ?? "").toLowerCase();
+    return ta.localeCompare(tb);
+  });
+
+  if (venues.length > 0) {
+    groups.push({ label: alwaysOpenLabel, items: venues, kind: "venue" });
+  }
+  return groups;
 }
 
 export default function EventsTab() {
@@ -104,7 +160,10 @@ export default function EventsTab() {
     return rankForProfile(filtered, userProfile);
   }, [filtered, userProfile, personalizationOn]);
 
-  const groups = useMemo(() => groupByMonth(others), [others]);
+  const groups = useMemo(
+    () => groupEvents(others, lang, t("alwaysOpen", lang)),
+    [others, lang],
+  );
   const activeFilterCount = [fWheelchair, fSensory, fFreeParking].filter(Boolean).length;
   const hasProfile = !!userProfile.persona && userProfile.persona !== "skipped";
 
@@ -127,11 +186,7 @@ export default function EventsTab() {
       </View>
 
       {events && events.length > 0 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsRow}
-        >
+        <View style={styles.chipsWrap}>
           <FilterChip
             label={t("wheelchair", lang)}
             icon="accessibility-outline"
@@ -164,7 +219,7 @@ export default function EventsTab() {
               <Text style={styles.clearChipTxt}>{t("clear", lang)}</Text>
             </TouchableOpacity>
           )}
-        </ScrollView>
+        </View>
       ) : null}
 
       {events === null && !error ? (
@@ -271,9 +326,11 @@ function EventRow({
   lang: "en" | "de" | "fr";
   onPress: () => void;
 }) {
+  const venue = isVenue(event);
   const date = new Date(event.start_date);
   const day = date.getDate();
-  const month = date.toLocaleDateString(undefined, { month: "short" });
+  const monthShort = MONTH_NAMES[lang]?.[date.getMonth()]?.slice(0, 3).toUpperCase()
+                    ?? date.toLocaleDateString(undefined, { month: "short" });
 
   return (
     <TouchableOpacity
@@ -282,10 +339,16 @@ function EventRow({
       style={styles.row}
       testID={`event-row-${event.id}`}
     >
-      <View style={styles.dateBox}>
-        <Text style={styles.dateDay}>{day}</Text>
-        <Text style={styles.dateMonth}>{month}</Text>
-      </View>
+      {venue ? (
+        <View style={[styles.dateBox, styles.venueBox]}>
+          <Ionicons name="location" size={22} color={palette.primaryDark} />
+        </View>
+      ) : (
+        <View style={styles.dateBox}>
+          <Text style={styles.dateDay}>{day}</Text>
+          <Text style={styles.dateMonth}>{monthShort}</Text>
+        </View>
+      )}
       {event.image ? (
         <Image source={{ uri: event.image }} style={styles.thumb} contentFit="cover" />
       ) : (
@@ -314,7 +377,7 @@ function EventRow({
         <View style={styles.metaRow}>
           <Ionicons name="time-outline" size={11} color={palette.textSecondary} />
           <Text style={styles.metaTxt} numberOfLines={1}>
-            {event.time || "—"}
+            {venue ? t("alwaysOpen", lang) : (event.time || "—")}
           </Text>
         </View>
       </View>
@@ -425,6 +488,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  venueBox: {
+    backgroundColor: "#ECFDF5",
+  },
   dateDay: { fontSize: 18, fontWeight: "800", color: palette.primaryDark },
   dateMonth: {
     fontSize: 10,
@@ -447,6 +513,14 @@ const styles = StyleSheet.create({
     gap: 8,
     flexDirection: "row",
     alignItems: "center",
+  },
+  chipsWrap: {
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    gap: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
   },
   chip: {
     flexDirection: "row",
