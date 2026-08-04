@@ -211,6 +211,46 @@ export const CHILD_AGE_GROUPS: ChildAgeGroup[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Preferred cantons (Luxembourg's 12 cantons + "everywhere")
+// ---------------------------------------------------------------------------
+export type CantonOption = {
+  id: string;         // matches the `canton` field on ApiEvent
+  labels: LocalizedString;
+};
+
+export const CANTON_OPTIONS: CantonOption[] = [
+  { id: "Luxembourg",         labels: { en: "Luxembourg (city)", de: "Luxembourg (Stadt)", fr: "Luxembourg (ville)" } },
+  { id: "Esch-sur-Alzette",   labels: { en: "Esch-sur-Alzette",  de: "Esch-sur-Alzette",   fr: "Esch-sur-Alzette" } },
+  { id: "Diekirch",           labels: { en: "Diekirch",          de: "Diekirch",           fr: "Diekirch" } },
+  { id: "Clervaux",           labels: { en: "Clervaux",          de: "Clervaux",           fr: "Clervaux" } },
+  { id: "Vianden",            labels: { en: "Vianden",           de: "Vianden",            fr: "Vianden" } },
+  { id: "Wiltz",              labels: { en: "Wiltz",             de: "Wiltz",              fr: "Wiltz" } },
+  { id: "Redange",            labels: { en: "Redange",           de: "Redange",            fr: "Redange" } },
+  { id: "Capellen",           labels: { en: "Capellen",          de: "Capellen",           fr: "Capellen" } },
+  { id: "Mersch",             labels: { en: "Mersch",            de: "Mersch",             fr: "Mersch" } },
+  { id: "Grevenmacher",       labels: { en: "Grevenmacher",      de: "Grevenmacher",       fr: "Grevenmacher" } },
+  { id: "Echternach",         labels: { en: "Echternach",        de: "Echternach",         fr: "Echternach" } },
+  { id: "Remich",             labels: { en: "Remich",            de: "Remich",             fr: "Remich" } },
+];
+
+// ---------------------------------------------------------------------------
+// Budget bands (per adult ticket)
+// ---------------------------------------------------------------------------
+export type BudgetOption = {
+  id: string;
+  max: number | null;           // null = no limit
+  labels: LocalizedString;
+  icon: string;
+};
+
+export const BUDGET_OPTIONS: BudgetOption[] = [
+  { id: "free",    max: 0,    icon: "gift-outline",       labels: { en: "Free only",      de: "Nur kostenlos",  fr: "Uniquement gratuit" } },
+  { id: "cheap",   max: 15,   icon: "wallet-outline",     labels: { en: "Up to €15",      de: "Bis 15 €",       fr: "Jusqu'à 15 €" } },
+  { id: "medium",  max: 30,   icon: "card-outline",       labels: { en: "Up to €30",      de: "Bis 30 €",       fr: "Jusqu'à 30 €" } },
+  { id: "any",     max: null, icon: "infinite-outline",   labels: { en: "Any budget",     de: "Egal",           fr: "Peu importe" } },
+];
+
+// ---------------------------------------------------------------------------
 // Wizard step copy
 // ---------------------------------------------------------------------------
 
@@ -237,6 +277,18 @@ export const ONBOARDING_COPY = {
   needsSub:      { en: "Optional — helps us filter out mismatches.",
                     de: "Optional — hilft, unpassende Vorschläge auszublenden.",
                     fr: "Optionnel — pour filtrer les résultats." },
+  cantonsTitle:  { en: "Where do you spend most time?",
+                    de: "Wo bist du meistens unterwegs?",
+                    fr: "Où passes-tu le plus de temps ?" },
+  cantonsSub:    { en: "Skip to see events all over Luxembourg.",
+                    de: "Überspringen, um Events aus ganz Luxemburg zu sehen.",
+                    fr: "Passer pour voir tous les événements." },
+  budgetTitle:   { en: "What's your comfort zone?",
+                    de: "Was ist dein Budget?",
+                    fr: "Quel budget préfères-tu ?" },
+  budgetSub:     { en: "Per adult ticket. We'll rank cheaper options higher.",
+                    de: "Pro Erwachsenen-Ticket. Günstigere Optionen werden bevorzugt.",
+                    fr: "Par billet adulte. Les moins chers seront priorisés." },
   doneTitle:     { en: "You're all set!",       de: "Fertig!",                    fr: "C'est parti !" },
   doneSub:       { en: "You can change any of this later in your Profile.",
                     de: "Du kannst das jederzeit in deinem Profil ändern.",

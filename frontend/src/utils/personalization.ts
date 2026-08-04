@@ -65,20 +65,24 @@ export function needsToFilters(profile: UserProfile): FilterState {
  */
 export function eventMatchScore(event: ApiEvent, profile: UserProfile): number {
   if (!profile.persona || profile.persona === "skipped") return 0;
-  if (!profile.interests?.length) return 0;
-  const cats = event.category ?? [];
+
   let score = 0;
-  for (const interest of profile.interests) {
-    const mapped = INTEREST_TO_CATEGORY[interest] ?? [];
-    for (const c of mapped) {
-      if (cats.includes(c)) {
-        score += 1;
-        break; // count each interest at most once
+
+  // Interest overlap (main signal)
+  if (profile.interests?.length) {
+    const cats = event.category ?? [];
+    for (const interest of profile.interests) {
+      const mapped = INTEREST_TO_CATEGORY[interest] ?? [];
+      for (const c of mapped) {
+        if (cats.includes(c)) {
+          score += 1;
+          break;
+        }
       }
     }
   }
-  // Small bonus for family-oriented events when the family persona is set,
-  // and a matching age-group boost.
+
+  // Family age-group bonus
   if (profile.persona === "family") {
     for (const g of profile.childAgeGroups) {
       const [minStr, maxStr] = g.replace("+", "").split("-");
@@ -87,8 +91,42 @@ export function eventMatchScore(event: ApiEvent, profile: UserProfile): number {
       if (event.age_max >= min && event.age_min <= max) score += 0.5;
     }
   }
+
+  // Canton match — meaningful boost when user narrowed down
+  if (profile.preferredCantons?.length) {
+    if (profile.preferredCantons.includes(event.canton)) {
+      score += 1;
+    } else {
+      // outside preferred cantons — significant demotion but keep the event
+      score -= 0.5;
+    }
+  }
+
+  // Budget match — reward events within the user's price ceiling
+  if (profile.budget) {
+    const budget = BUDGET_LIMITS[profile.budget];
+    if (budget !== undefined) {
+      if (budget === null || event.price_adult <= budget) {
+        // free events get a bigger boost when user asked "free only"
+        if (profile.budget === "free" && event.price_adult === 0) score += 1;
+        else score += 0.3;
+      } else {
+        // outside the user's comfort zone
+        score -= 0.5;
+      }
+    }
+  }
+
   return score;
 }
+
+// Numeric limits per BUDGET_OPTIONS id — mirrors the data table.
+const BUDGET_LIMITS: Record<string, number | null | undefined> = {
+  free: 0,
+  cheap: 15,
+  medium: 30,
+  any: null,
+};
 
 /**
  * Splits events into two lists:

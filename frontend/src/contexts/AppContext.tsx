@@ -48,6 +48,8 @@ export type UserProfile = {
   childAgeGroups: string[];
   interests: string[];
   needs: string[];
+  preferredCantons: string[];   // subset of CANTON_OPTIONS ids; empty = all
+  budget: string;               // one of BUDGET_OPTIONS ids; "" = not set
   completedAt: number | null;    // null if user skipped
 };
 
@@ -56,6 +58,8 @@ const DEFAULT_PROFILE: UserProfile = {
   childAgeGroups: [],
   interests: [],
   needs: [],
+  preferredCantons: [],
+  budget: "",
   completedAt: null,
 };
 

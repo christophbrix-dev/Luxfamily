@@ -14,6 +14,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useApp, type UserProfile } from "@/src/contexts/AppContext";
 import {
+  BUDGET_OPTIONS,
+  CANTON_OPTIONS,
   CHILD_AGE_GROUPS,
   INTEREST_TAGS,
   NEED_TAGS,
@@ -36,7 +38,7 @@ const palette = {
   accent: "#10B981",
 };
 
-type Step = "welcome" | "persona" | "ages" | "interests" | "needs" | "done";
+type Step = "welcome" | "persona" | "ages" | "interests" | "needs" | "cantons" | "budget" | "done";
 
 export default function OnboardingScreen() {
   const router = useRouter();
@@ -47,17 +49,16 @@ export default function OnboardingScreen() {
   const [childAges, setChildAges] = useState<string[]>([]);
   const [interests, setInterests] = useState<string[]>([]);
   const [needs, setNeeds] = useState<string[]>([]);
+  const [preferredCantons, setPreferredCantons] = useState<string[]>([]);
+  const [budget, setBudget] = useState<string>("");
 
   const selectedPersona = PERSONAS.find((p) => p.id === persona);
 
-  // ---------------------------------------------------------------------------
-  // Navigation helpers
-  // ---------------------------------------------------------------------------
   const stepOrder: Step[] = useMemo(() => {
     if (selectedPersona?.askChildAges) {
-      return ["welcome", "persona", "ages", "interests", "needs", "done"];
+      return ["welcome", "persona", "ages", "interests", "needs", "cantons", "budget", "done"];
     }
-    return ["welcome", "persona", "interests", "needs", "done"];
+    return ["welcome", "persona", "interests", "needs", "cantons", "budget", "done"];
   }, [selectedPersona]);
 
   const currentStepIdx = stepOrder.indexOf(step);
@@ -88,9 +89,11 @@ export default function OnboardingScreen() {
       childAgeGroups: childAges,
       interests,
       needs,
+      preferredCantons,
+      budget,
       completedAt: Date.now(),
     });
-  }, [persona, childAges, interests, needs, persistAndExit]);
+  }, [persona, childAges, interests, needs, preferredCantons, budget, persistAndExit]);
 
   const confirmSkip = useCallback(() => {
     Alert.alert(
@@ -107,6 +110,8 @@ export default function OnboardingScreen() {
               childAgeGroups: [],
               interests: [],
               needs: [],
+              preferredCantons: [],
+              budget: "",
               completedAt: null,
             }),
         },
@@ -141,6 +146,10 @@ export default function OnboardingScreen() {
         return interests.length >= 1;
       case "needs":
         return true;
+      case "cantons":
+        return true;        // multi-select, empty means "all"
+      case "budget":
+        return !!budget;    // must pick one radio
       case "done":
         return true;
       default:
@@ -331,6 +340,74 @@ export default function OnboardingScreen() {
           </View>
         )}
 
+        {step === "cantons" && (
+          <View>
+            <Text style={styles.h1}>{ONBOARDING_COPY.cantonsTitle[lang]}</Text>
+            <Text style={styles.subtitle}>
+              {ONBOARDING_COPY.cantonsSub[lang]} · {preferredCantons.length} selected
+            </Text>
+            <View style={styles.chipsWrap}>
+              {CANTON_OPTIONS.map((c) => {
+                const active = preferredCantons.includes(c.id);
+                return (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[styles.chip, active && styles.chipActive]}
+                    onPress={() =>
+                      setPreferredCantons((prev) => toggle(prev, c.id))
+                    }
+                    testID={`onb-canton-${c.id}`}
+                  >
+                    <Ionicons
+                      name="location-outline"
+                      size={14}
+                      color={active ? "#fff" : palette.textSecondary}
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={[styles.chipTxt, active && styles.chipTxtActive]}>
+                      {c.labels[lang]}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {step === "budget" && (
+          <View>
+            <Text style={styles.h1}>{ONBOARDING_COPY.budgetTitle[lang]}</Text>
+            <Text style={styles.subtitle}>{ONBOARDING_COPY.budgetSub[lang]}</Text>
+            <View style={styles.cardsWrap}>
+              {BUDGET_OPTIONS.map((b) => {
+                const active = budget === b.id;
+                return (
+                  <Pressable
+                    key={b.id}
+                    style={[styles.card, active && styles.cardActive]}
+                    onPress={() => setBudget(b.id)}
+                    testID={`onb-budget-${b.id}`}
+                  >
+                    <View style={[styles.cardIcon, active && styles.cardIconActive]}>
+                      <Ionicons
+                        name={b.icon as keyof typeof Ionicons.glyphMap}
+                        size={20}
+                        color={active ? "#fff" : palette.primaryDark}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.cardTitle}>{b.labels[lang]}</Text>
+                    </View>
+                    {active ? (
+                      <Ionicons name="checkmark-circle" size={22} color={palette.primary} />
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
         {step === "done" && (
           <View style={styles.welcome}>
             <View style={styles.heroIcon}>
@@ -357,6 +434,23 @@ export default function OnboardingScreen() {
                 <SummaryRow
                   icon="checkbox-outline"
                   label={`${needs.length} deal-breaker${needs.length === 1 ? "" : "s"}`}
+                />
+              )}
+              {preferredCantons.length > 0 && (
+                <SummaryRow
+                  icon="location-outline"
+                  label={`${preferredCantons.length} canton${preferredCantons.length === 1 ? "" : "s"}`}
+                />
+              )}
+              {budget && (
+                <SummaryRow
+                  icon={
+                    (BUDGET_OPTIONS.find((b) => b.id === budget)?.icon ??
+                      "wallet-outline") as string
+                  }
+                  label={
+                    BUDGET_OPTIONS.find((b) => b.id === budget)?.labels[lang] ?? ""
+                  }
                 />
               )}
             </View>
