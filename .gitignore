@@ -84,3 +84,6 @@ credentials.json
 *.key
 .credentials
 # Note: .env files ARE tracked so the deployment pipeline can read them.
+.env
+.env.*
+*.env
