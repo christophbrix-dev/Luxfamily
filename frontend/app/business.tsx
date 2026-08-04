@@ -70,7 +70,7 @@ export default function Business() {
             </View>
             <Text style={styles.introTitle}>List your venue or events</Text>
             <Text style={styles.introTxt}>
-              Submit your venue and we&apos;ll add it to Family Luxembourg. Once approved, we can
+              Submit your venue and we&apos;ll add it to Wat Elo?. Once approved, we can
               also auto-import your future events from your website or social channels.
             </Text>
           </View>

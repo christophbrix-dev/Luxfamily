@@ -79,7 +79,7 @@ export default function AdminLogin() {
           <Ionicons name="shield-checkmark" size={26} color="#fff" />
         </View>
         <Text style={styles.title}>Admin Console</Text>
-        <Text style={styles.sub}>Family Luxembourg event management</Text>
+        <Text style={styles.sub}>Wat Elo? event management</Text>
 
         <View style={styles.field}>
           <Ionicons name="mail-outline" size={18} color={palette.textSecondary} />

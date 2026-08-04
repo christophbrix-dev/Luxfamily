@@ -34,7 +34,7 @@ export default function About() {
           <View style={styles.logo}>
             <Ionicons name="sparkles" size={32} color="#fff" />
           </View>
-          <Text style={styles.appName}>Family Luxembourg</Text>
+          <Text style={styles.appName}>Wat Elo?</Text>
           <Text style={styles.tagline}>Discover places, events and workshops curated for your kids.</Text>
           <View style={styles.versionPill}>
             <Text style={styles.versionTxt}>v{version} ({build})</Text>
@@ -59,7 +59,7 @@ export default function About() {
         </View>
 
         <Text style={styles.footer}>
-          Made with love in Luxembourg. {"\n"}© 2026 Family Luxembourg.
+          Made with love in Luxembourg. {"\n"}© 2026 Wat Elo?.
         </Text>
       </ScrollView>
     </SafeAreaView>

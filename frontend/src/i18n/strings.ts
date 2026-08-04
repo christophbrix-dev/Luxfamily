@@ -4,7 +4,7 @@ import type { Lang } from "@/src/data/places";
 type Dict = Record<string, Record<Lang, string>>;
 
 export const STRINGS: Dict = {
-  appTitle: { en: "Family Luxembourg", de: "Familie Luxemburg", fr: "Famille Luxembourg" },
+  appTitle: { en: "Wat Elo?", de: "Wat Elo?", fr: "Wat Elo?" },
   events: { en: "Events", de: "Events", fr: "Events" },
   goodMorning: { en: "Good morning!", de: "Guten Morgen!", fr: "Bonjour !" },
   goodAfternoon: { en: "Good afternoon!", de: "Guten Tag!", fr: "Bon apres-midi !" },
@@ -96,14 +96,14 @@ export const STRINGS: Dict = {
   },
   skip: { en: "Continue as guest", de: "Als Gast fortfahren", fr: "Continuer en invite" },
   welcomeTitle: {
-    en: "Family adventures in Luxembourg",
-    de: "Familienabenteuer in Luxemburg",
-    fr: "Aventures familiales au Luxembourg",
+    en: "What to do in Luxembourg?",
+    de: "Was in Luxemburg unternehmen?",
+    fr: "Quoi faire au Luxembourg ?",
   },
   welcomeSub: {
-    en: "Discover places, events and workshops curated for your kids.",
-    de: "Entdecke Orte, Events und Workshops fuer deine Kinder.",
-    fr: "Decouvrez des lieux et ateliers pour vos enfants.",
+    en: "Discover places, events and workshops — matched to who you are.",
+    de: "Entdecke Orte, Events und Workshops — abgestimmt auf dich.",
+    fr: "Découvrez lieux et événements adaptés à vos envies.",
   },
   noResults: { en: "No results", de: "Keine Ergebnisse", fr: "Aucun resultat" },
   noSaved: {

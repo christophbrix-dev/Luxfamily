@@ -256,9 +256,9 @@ export const BUDGET_OPTIONS: BudgetOption[] = [
 
 export const ONBOARDING_COPY = {
   welcomeTitle: {
-    en: "Welcome to Family Luxembourg",
-    de: "Willkommen bei Family Luxembourg",
-    fr: "Bienvenue chez Family Luxembourg",
+    en: "Welcome to Wat Elo?",
+    de: "Willkommen bei Wat Elo?",
+    fr: "Bienvenue chez Wat Elo?",
   },
   welcomeSubtitle: {
     en: "Answer 3 quick questions so we can suggest the right places and events for you.",

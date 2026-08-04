@@ -450,7 +450,7 @@ async def lifespan(_: FastAPI):
 # App
 # ---------------------------------------------------------------------------
 limiter = Limiter(key_func=get_remote_address)
-app = FastAPI(lifespan=lifespan, title="Family Luxembourg API")
+app = FastAPI(lifespan=lifespan, title="Wat Elo? API")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -468,7 +468,7 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 @app.get("/api/")
 async def root():
-    return {"service": "Family Luxembourg API", "version": "1.0"}
+    return {"service": "Wat Elo? API", "version": "1.0"}
 
 
 # ---- Auth ----
