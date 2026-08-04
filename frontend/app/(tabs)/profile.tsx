@@ -168,6 +168,50 @@ export default function Profile() {
           <Ionicons name="log-out-outline" size={18} color={palette.red} />
           <Text style={styles.signOutTxt}>{t("signOut", lang)}</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={async () => {
+            const confirmed =
+              typeof window !== "undefined" && typeof window.confirm === "function"
+                ? window.confirm(
+                    lang === "de"
+                      ? "Account und alle Daten wirklich unwiderruflich löschen?"
+                      : lang === "fr"
+                        ? "Supprimer définitivement le compte et toutes les données ?"
+                        : "Permanently delete your account and all data?",
+                  )
+                : true;
+            if (!confirmed) return;
+            try {
+              const token = await (
+                await import("@/src/utils/googleAuth")
+              ).sessionStorage.get();
+              if (token) {
+                await fetch(
+                  `${process.env.EXPO_PUBLIC_BACKEND_URL ?? ""}/api/auth/me`,
+                  {
+                    method: "DELETE",
+                    headers: { Authorization: `Bearer ${token}` },
+                  },
+                );
+              }
+            } catch {}
+            signOutUser();
+            resetOnboarding();
+            router.replace("/login");
+          }}
+          style={styles.deleteAccountBtn}
+          testID="delete-account-btn"
+        >
+          <Ionicons name="trash-outline" size={16} color={palette.textMuted} />
+          <Text style={styles.deleteAccountTxt}>
+            {lang === "de"
+              ? "Account löschen"
+              : lang === "fr"
+                ? "Supprimer le compte"
+                : "Delete account"}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -271,4 +315,17 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   signOutTxt: { color: palette.red, fontWeight: "700", fontSize: 14 },
+  deleteAccountBtn: {
+    marginTop: 4,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 10,
+  },
+  deleteAccountTxt: {
+    color: palette.textMuted,
+    fontWeight: "600",
+    fontSize: 12,
+  },
 });

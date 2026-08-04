@@ -517,7 +517,10 @@ class GoogleSessionResponse(BaseModel):
     user: GoogleAuthUser
 
 
-EMERGENT_SESSION_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data"
+EMERGENT_SESSION_URL = os.environ.get(
+    "EMERGENT_SESSION_URL",
+    "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+)
 
 
 @app.post("/api/auth/session", response_model=GoogleSessionResponse)
@@ -618,6 +621,33 @@ async def logout(current: Dict[str, Any] = Depends(get_current_user),
     """Invalidate the current session token (if it's a Google session)."""
     if token:
         await db.user_sessions.delete_one({"session_token": token})
+    return None
+
+
+@app.delete("/api/auth/me", status_code=204)
+async def delete_my_account(current: Dict[str, Any] = Depends(get_current_user)):
+    """GDPR / Apple App Store requirement: user-initiated permanent account deletion.
+
+    Removes the user's row, all of their sessions, and any personal data
+    they created. Public content (events they submitted, bookings that
+    reference partner venues) is anonymised — the `created_by` field is
+    replaced with 'deleted_user', not deleted, so downstream analytics
+    stay consistent.
+    """
+    uid = current["id"]
+    # Delete personal auth artefacts.
+    await db.user_sessions.delete_many({"user_id": uid})
+    # Anonymise anything they created but keep the content itself.
+    await db.events.update_many(
+        {"created_by": uid},
+        {"$set": {"created_by": "deleted_user"}},
+    )
+    # Finally, remove the user row itself. Guard against deleting the
+    # seed admin account through this endpoint.
+    if current.get("email", "").lower() == (ADMIN_EMAIL or "").lower():
+        raise HTTPException(status_code=400,
+                             detail="Admin account cannot be deleted this way.")
+    await db.users.delete_one({"id": uid})
     return None
 
 
