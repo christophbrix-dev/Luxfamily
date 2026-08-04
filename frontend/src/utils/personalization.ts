@@ -92,14 +92,10 @@ export function eventMatchScore(event: ApiEvent, profile: UserProfile): number {
     }
   }
 
-  // Canton match — meaningful boost when user narrowed down
+  // Canton match with neighbour-canton tolerance — a Northern user who only
+  // ticked "Diekirch" should still see Clervaux and Wiltz events.
   if (profile.preferredCantons?.length) {
-    if (profile.preferredCantons.includes(event.canton)) {
-      score += 1;
-    } else {
-      // outside preferred cantons — significant demotion but keep the event
-      score -= 0.5;
-    }
+    score += cantonAffinity(event.canton, profile.preferredCantons);
   }
 
   // Budget match — reward events within the user's price ceiling
@@ -127,6 +123,35 @@ const BUDGET_LIMITS: Record<string, number | null | undefined> = {
   medium: 30,
   any: null,
 };
+
+// Adjacent-canton map — if the user picked a canton, its neighbours count
+// as a "soft match" instead of a demotion. Keeps our Northern user seeing
+// Clervaux content when they only ticked "Wiltz" or "Diekirch".
+const NEIGHBOR_CANTONS: Record<string, string[]> = {
+  Luxembourg:         ["Mersch", "Capellen", "Esch-sur-Alzette", "Grevenmacher", "Remich"],
+  "Esch-sur-Alzette": ["Luxembourg", "Capellen"],
+  Capellen:           ["Luxembourg", "Esch-sur-Alzette", "Mersch", "Redange"],
+  Mersch:             ["Luxembourg", "Capellen", "Redange", "Diekirch"],
+  Redange:            ["Capellen", "Mersch", "Wiltz"],
+  Diekirch:           ["Mersch", "Wiltz", "Clervaux", "Vianden", "Echternach", "Grevenmacher"],
+  Vianden:            ["Diekirch", "Clervaux"],
+  Wiltz:              ["Redange", "Diekirch", "Clervaux"],
+  Clervaux:           ["Wiltz", "Diekirch", "Vianden"],
+  Echternach:         ["Diekirch", "Grevenmacher"],
+  Grevenmacher:       ["Diekirch", "Echternach", "Remich", "Luxembourg"],
+  Remich:             ["Grevenmacher", "Luxembourg"],
+};
+
+export function cantonAffinity(eventCanton: string, preferred: string[]): number {
+  if (!preferred.length) return 0;
+  if (preferred.includes(eventCanton)) return 1;             // direct hit
+  for (const p of preferred) {
+    if ((NEIGHBOR_CANTONS[p] ?? []).includes(eventCanton)) {
+      return 0.4;                                            // neighbouring
+    }
+  }
+  return -0.3;                                               // far away — mild demotion
+}
 
 /**
  * Splits events into two lists:
