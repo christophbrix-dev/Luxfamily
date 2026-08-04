@@ -14,6 +14,13 @@ import { palette } from "@/src/theme";
 
 const HOME_CHIPS = ["All", "Outdoor", "Indoor", "0-3", "4-6", "7-12"] as const;
 
+function chipLabel(c: string, lang: "en" | "de" | "fr"): string {
+  if (c === "All")     return lang === "de" ? "Alle" : lang === "fr" ? "Tout" : "All";
+  if (c === "Indoor")  return lang === "de" ? "Drinnen" : lang === "fr" ? "Intérieur" : "Indoor";
+  if (c === "Outdoor") return lang === "de" ? "Draußen" : lang === "fr" ? "Extérieur" : "Outdoor";
+  return c;   // age ranges — no translation needed
+}
+
 function greetingKey(): "goodMorning" | "goodAfternoon" | "goodEvening" {
   const h = new Date().getHours();
   if (h < 12) return "goodMorning";
@@ -70,7 +77,7 @@ export default function Home() {
           {HOME_CHIPS.map((c) => (
             <Chip
               key={c}
-              label={c}
+              label={chipLabel(c, lang)}
               active={chip === c}
               onPress={() => setChip(c)}
               testID={`home-chip-${c}`}

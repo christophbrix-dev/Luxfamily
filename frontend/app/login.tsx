@@ -66,11 +66,7 @@ export default function Login() {
     }
   };
 
-  const googleLabel = lang === "de"
-    ? "Mit Google fortfahren"
-    : lang === "fr"
-      ? "Continuer avec Google"
-      : "Continue with Google";
+  const googleLabel = t("continueWithGoogle", lang);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
@@ -160,7 +156,7 @@ export default function Login() {
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
               <Text style={styles.dividerTxt}>
-                {lang === "de" ? "oder" : lang === "fr" ? "ou" : "or"}
+                {t("or", lang).toLowerCase()}
               </Text>
               <View style={styles.dividerLine} />
             </View>

@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useApp } from "@/src/contexts/AppContext";
 import { CANTONS } from "@/src/data/places";
+import { t } from "@/src/i18n/strings";
 import { palette, radii, shadow } from "@/src/theme";
 
 const CATEGORIES = ["Animals", "Culture", "Playgrounds", "Water", "Nature", "Workshops", "Festivals"];
@@ -18,7 +19,7 @@ const AGE_PRESETS: [number, number, string][] = [
 
 export default function Preferences() {
   const router = useRouter();
-  const { preferences, setPreferences } = useApp();
+  const { preferences, setPreferences, lang } = useApp();
   const [prefs, setPrefs] = useState(preferences);
 
   const toggleCanton = (c: string) =>
@@ -48,13 +49,13 @@ export default function Preferences() {
         <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} testID="prefs-back">
           <Ionicons name="chevron-back" size={20} color={palette.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.h1}>Preferences</Text>
+        <Text style={styles.h1}>{t("preferencesTitle", lang)}</Text>
         <TouchableOpacity onPress={save} style={styles.saveBtn} testID="prefs-save">
-          <Text style={styles.saveTxt}>Save</Text>
+          <Text style={styles.saveTxt}>{t("save", lang)}</Text>
         </TouchableOpacity>
       </View>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Section title="Age range">
+        <Section title={t("ageRange", lang)}>
           <View style={styles.chips}>
             {AGE_PRESETS.map(([min, max, label]) => {
               const active = prefs.ageRange[0] === min && prefs.ageRange[1] === max;
@@ -72,7 +73,7 @@ export default function Preferences() {
           </View>
         </Section>
 
-        <Section title="Favourite cantons">
+        <Section title={t("favouriteCantons", lang)}>
           <View style={styles.chips}>
             {CANTONS.map((c) => {
               const active = prefs.favoriteCantons.includes(c);
@@ -90,7 +91,7 @@ export default function Preferences() {
           </View>
         </Section>
 
-        <Section title="Favourite categories">
+        <Section title={t("favouriteCategories", lang)}>
           <View style={styles.chips}>
             {CATEGORIES.map((c) => {
               const active = prefs.favoriteCategories.includes(c);
@@ -108,9 +109,9 @@ export default function Preferences() {
           </View>
         </Section>
 
-        <Section title="Notifications">
+        <Section title={t("notifications", lang)}>
           <View style={styles.row}>
-            <Text style={styles.rowTxt}>Notify me when new events match my preferences</Text>
+            <Text style={styles.rowTxt}>{t("notifyOnMatch", lang)}</Text>
             <Switch
               value={prefs.notifyOnNew}
               onValueChange={(v) => setPrefs({ ...prefs, notifyOnNew: v })}
@@ -119,7 +120,7 @@ export default function Preferences() {
             />
           </View>
           <Text style={styles.hint}>
-            Requires the published app build (not Expo Go) and granted notification permission.
+            {t("notifyBuildHint", lang)}
           </Text>
         </Section>
       </ScrollView>

@@ -92,7 +92,7 @@ export const PLACES: Place[] = [
     },
     image:
       "https://images.unsplash.com/photo-1500595046743-cd271d694d30?auto=format&fit=crop&w=1200&q=80",
-    date: { en: "Open daily", de: "Taeglich offen", fr: "Ouvert tous les jours" },
+    date: { en: "Open daily", de: "Täglich offen", fr: "Ouvert tous les jours" },
     time: "10:00 - 18:00",
     priceAdult: 6,
     priceChild: 4,
@@ -125,8 +125,8 @@ export const PLACES: Place[] = [
     },
     short: {
       en: "Creative workshop for kids and parents.",
-      de: "Kreativer Workshop fuer Kinder und Eltern.",
-      fr: "Atelier creatif pour enfants et parents.",
+      de: "Kreativer Workshop für Kinder und Eltern.",
+      fr: "Atelier créatif pour enfants et parents.",
     },
     type: "Indoor",
     age: "4-12",
@@ -138,8 +138,8 @@ export const PLACES: Place[] = [
     category: ["Culture", "Workshops"],
     weatherFit: {
       en: "Perfect for rainy afternoons",
-      de: "Perfekt fuer regnerische Nachmittage",
-      fr: "Parfait pour les apres-midi pluvieux",
+      de: "Perfekt für regnerische Nachmittage",
+      fr: "Parfait pour les après-midi pluvieux",
     },
     image:
       "https://images.unsplash.com/photo-1607453998774-d533f65dac99?auto=format&fit=crop&w=1200&q=80",
@@ -154,7 +154,7 @@ export const PLACES: Place[] = [
     priceLabel: {
       en: "Free with museum ticket",
       de: "Gratis mit Museumsticket",
-      fr: "Gratuit avec billet musee",
+      fr: "Gratuit avec billet musée",
     },
     accessibility: {
       en: "Barrier-free",
@@ -163,8 +163,8 @@ export const PLACES: Place[] = [
     },
     description: {
       en: "Hands-on art activities designed for families, with rotating themes inspired by current exhibitions.",
-      de: "Praktische Kunstaktivitaeten fuer Familien, mit wechselnden Themen inspiriert von aktuellen Ausstellungen.",
-      fr: "Activites artistiques pratiques pour les familles, themes inspires des expositions en cours.",
+      de: "Praktische Kunstaktivitaeten für Familien, mit wechselnden Themen inspiriert von aktuellen Ausstellungen.",
+      fr: "Activités artistiques pratiques pour les familles, thèmes inspirés des expositions en cours.",
     },
     lat: 49.6411,
     lng: 6.1417,
@@ -180,7 +180,7 @@ export const PLACES: Place[] = [
     },
     short: {
       en: "Tasty food, music and activities.",
-      de: "Leckeres Essen, Musik und Aktivitaeten.",
+      de: "Leckeres Essen, Musik und Aktivitäten.",
       fr: "Cuisine savoureuse, musique et animations.",
     },
     type: "Event",
@@ -231,7 +231,7 @@ export const PLACES: Place[] = [
     },
     short: {
       en: "Indoor playground for all ages.",
-      de: "Indoor-Spielplatz fuer alle Altersgruppen.",
+      de: "Indoor-Spielplatz für alle Altersgruppen.",
       fr: "Aire de jeux couverte pour tous.",
     },
     type: "Indoor",
@@ -249,7 +249,7 @@ export const PLACES: Place[] = [
     },
     image:
       "https://images.unsplash.com/photo-1597524678053-faf08e5e1aff?auto=format&fit=crop&w=1200&q=80",
-    date: { en: "Open daily", de: "Taeglich offen", fr: "Ouvert tous les jours" },
+    date: { en: "Open daily", de: "Täglich offen", fr: "Ouvert tous les jours" },
     time: "09:30 - 18:30",
     priceAdult: 0,
     priceChild: 12,
@@ -265,7 +265,7 @@ export const PLACES: Place[] = [
     },
     description: {
       en: "An energetic indoor play zone with soft play, climbing areas and a cafe for parents.",
-      de: "Eine energiegeladene Indoor-Spielzone mit Soft-Play, Kletterbereich und Cafe fuer Eltern.",
+      de: "Eine energiegeladene Indoor-Spielzone mit Soft-Play, Kletterbereich und Cafe für Eltern.",
       fr: "Une zone de jeux interieure dynamique avec espaces souples, escalade et cafe pour parents.",
     },
     lat: 49.6181,
@@ -278,12 +278,12 @@ export const PLACES: Place[] = [
     title: {
       en: "Natur Musee",
       de: "Naturmuseum",
-      fr: "Musee National d'Histoire Naturelle",
+      fr: "Musée National d'Histoire Naturelle",
     },
     short: {
       en: "Interactive museum about nature.",
-      de: "Interaktives Museum ueber die Natur.",
-      fr: "Musee interactif sur la nature.",
+      de: "Interaktives Museum über die Natur.",
+      fr: "Musée interactif sur la nature.",
     },
     type: "Educational",
     age: "4-12",
@@ -296,11 +296,11 @@ export const PLACES: Place[] = [
     weatherFit: {
       en: "Excellent indoor backup",
       de: "Ausgezeichnete Indoor-Option",
-      fr: "Excellent plan B en interieur",
+      fr: "Excellent plan B en intérieur",
     },
     image:
       "https://images.unsplash.com/photo-1503424886307-b090341d25d1?auto=format&fit=crop&w=1200&q=80",
-    date: { en: "Open daily", de: "Taeglich offen", fr: "Ouvert tous les jours" },
+    date: { en: "Open daily", de: "Täglich offen", fr: "Ouvert tous les jours" },
     time: "10:00 - 18:00",
     priceAdult: 5,
     priceChild: 0,
@@ -316,7 +316,7 @@ export const PLACES: Place[] = [
     },
     description: {
       en: "Interactive exhibitions about wildlife, geology and ecosystems with plenty for curious children.",
-      de: "Interaktive Ausstellungen ueber Tierwelt, Geologie und Oekosysteme mit viel fuer neugierige Kinder.",
+      de: "Interaktive Ausstellungen über Tierwelt, Geologie und Ökosysteme mit viel für neugierige Kinder.",
       fr: "Expositions interactives sur la faune, la geologie et les ecosystemes pour enfants curieux.",
     },
     lat: 49.6126,
@@ -353,7 +353,7 @@ export const PLACES: Place[] = [
       "https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?auto=format&fit=crop&w=1200&q=80",
     date: {
       en: "Open daily until October",
-      de: "Taeglich offen bis Oktober",
+      de: "Täglich offen bis Oktober",
       fr: "Ouvert tous les jours jusqu'en octobre",
     },
     time: "10:00 - 19:00",
@@ -383,7 +383,7 @@ export const PLACES: Place[] = [
     id: 7,
     title: {
       en: "Mullerthal Hike for Kids",
-      de: "Mullerthal Wanderung fuer Kinder",
+      de: "Mullerthal Wanderung für Kinder",
       fr: "Randonnee Mullerthal pour Enfants",
     },
     short: {
@@ -453,7 +453,7 @@ export const PLACES: Place[] = [
     },
     image:
       "https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?auto=format&fit=crop&w=1200&q=80",
-    date: { en: "Open daily", de: "Taeglich offen", fr: "Ouvert tous les jours" },
+    date: { en: "Open daily", de: "Täglich offen", fr: "Ouvert tous les jours" },
     time: "08:00 - 21:00",
     priceAdult: 5.5,
     priceChild: 3.5,

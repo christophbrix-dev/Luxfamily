@@ -17,10 +17,21 @@ export default function Calendar() {
   const [chip, setChip] = useState<"weekend" | "7days" | "june" | "bookings">("weekend");
 
   // Group static demo content by date for the weekend / 7-day view.
+  // Labels are formatted per-locale below so the calendar reads naturally
+  // in DE/FR too (e.g. "Samstag, 25. Mai").
+  const fmtDate = (iso: string) => {
+    const d = new Date(iso);
+    const locale = lang === "de" ? "de-DE" : lang === "fr" ? "fr-FR" : "en-GB";
+    return d.toLocaleDateString(locale, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    });
+  };
   const groups: { label: string; items: typeof PLACES }[] = [
-    { label: "Saturday, 25 May", items: [PLACES[2], PLACES[1], PLACES[4]] },
-    { label: "Sunday, 26 May", items: [PLACES[0], PLACES[3]] },
-    { label: "Saturday, 1 June", items: [PLACES[5], PLACES[6]] },
+    { label: fmtDate("2026-05-25"), items: [PLACES[2], PLACES[1], PLACES[4]] },
+    { label: fmtDate("2026-05-26"), items: [PLACES[0], PLACES[3]] },
+    { label: fmtDate("2026-06-01"), items: [PLACES[5], PLACES[6]] },
   ];
 
   const showGroups = chip !== "bookings";
@@ -87,7 +98,7 @@ export default function Calendar() {
         ) : bookings.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="ticket-outline" size={40} color={palette.textMuted} />
-            <Text style={styles.emptyTxt}>No bookings yet.</Text>
+            <Text style={styles.emptyTxt}>{t("noBookingsYet", lang)}</Text>
           </View>
         ) : (
           <View style={styles.bookingList}>

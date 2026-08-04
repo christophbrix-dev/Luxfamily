@@ -120,11 +120,11 @@ export default function Explore() {
         <View style={styles.mapCard} testID="canton-map-card">
           <View style={styles.mapHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.mapTitle}>Browse by canton</Text>
+              <Text style={styles.mapTitle}>{t("browseByCanton", lang)}</Text>
               <Text style={styles.mapSub}>
                 {canton
-                  ? `Showing ${canton}`
-                  : "Tap a canton to filter activities"}
+                  ? `${t("showing", lang)} ${canton}`
+                  : t("tapCantonToFilter", lang)}
               </Text>
             </View>
             {canton ? (
@@ -134,7 +134,7 @@ export default function Explore() {
                 testID="canton-clear-btn"
               >
                 <Ionicons name="close" size={14} color={palette.primaryDark} />
-                <Text style={styles.mapClearTxt}>Clear</Text>
+                <Text style={styles.mapClearTxt}>{t("clear", lang)}</Text>
               </TouchableOpacity>
             ) : null}
           </View>

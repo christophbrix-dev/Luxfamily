@@ -21,14 +21,14 @@ export default function Profile() {
   const initial = (user?.name?.[0] ?? "U").toUpperCase();
 
   const personaLabel = (() => {
-    if (userProfile.persona === "skipped") return "Not set";
-    if (!userProfile.persona) return "Not set";
+    if (userProfile.persona === "skipped") return t("notSet", lang);
+    if (!userProfile.persona) return t("notSet", lang);
     // Look up the human label from PERSONAS data.
     // Avoid a top-of-file import cycle by requiring inline.
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { PERSONAS } = require("@/src/data/onboarding") as typeof import("@/src/data/onboarding");
     const p = PERSONAS.find((x) => x.id === userProfile.persona);
-    return p?.labels[lang] ?? "Not set";
+    return p?.labels[lang] ?? t("notSet", lang);
   })();
 
   return (
@@ -54,7 +54,7 @@ export default function Profile() {
           <View style={styles.statDivider} />
           <View style={styles.stat}>
             <Text style={styles.statVal}>{bookings.length}</Text>
-            <Text style={styles.statLabel}>{t("yourBooking", lang)}</Text>
+            <Text style={styles.statLabel}>{t("bookingsPlural", lang)}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.stat}>
@@ -84,7 +84,7 @@ export default function Profile() {
           ))}
         </View>
 
-        <Text style={styles.sectionLabel}>Settings</Text>
+        <Text style={styles.sectionLabel}>{t("settings", lang)}</Text>
         <View style={styles.settingsCard}>
           <TouchableOpacity
             style={styles.settingsRow}
@@ -97,7 +97,7 @@ export default function Profile() {
             <View style={styles.settingsIcon}>
               <Ionicons name="sparkles-outline" size={18} color={palette.primary} />
             </View>
-            <Text style={styles.settingsTxt}>Personalization</Text>
+            <Text style={styles.settingsTxt}>{t("personalization", lang)}</Text>
             <View style={{ flex: 1 }} />
             <Text style={{ fontSize: 11, color: palette.textMuted, marginRight: 8 }}>
               {personaLabel}
@@ -106,9 +106,9 @@ export default function Profile() {
           </TouchableOpacity>
           {[
             { icon: "options-outline" as const, label: t("preferencesFilters", lang), to: "/preferences" },
-            { icon: "business-outline" as const, label: "For businesses", to: "/business" },
-            { icon: "information-circle-outline" as const, label: "About", to: "/about" },
-            { icon: "card-outline" as const, label: t("subscription", lang), to: null, hint: "Coming soon" },
+            { icon: "business-outline" as const, label: t("forBusinesses", lang), to: "/business" },
+            { icon: "information-circle-outline" as const, label: t("about", lang), to: "/about" },
+            { icon: "card-outline" as const, label: t("subscription", lang), to: null, hint: t("comingSoon", lang) },
           ].map((row) => (
             <TouchableOpacity
               key={row.label}
@@ -130,7 +130,7 @@ export default function Profile() {
           ))}
         </View>
 
-        <Text style={styles.sectionLabel}>Appearance</Text>
+        <Text style={styles.sectionLabel}>{t("appearance", lang)}</Text>
         <View style={styles.langCard}>
           {(["light", "dark", "system"] as const).map((mode, idx) => (
             <TouchableOpacity
@@ -145,7 +145,7 @@ export default function Profile() {
                 color={palette.primary}
               />
               <Text style={styles.langLabel}>
-                {mode === "light" ? "Light" : mode === "dark" ? "Dark (Beta)" : "System"}
+                {mode === "light" ? t("themeLight", lang) : mode === "dark" ? t("themeDarkBeta", lang) : t("themeSystem", lang)}
               </Text>
               <View style={{ flex: 1 }} />
               {theme === mode ? (
@@ -173,13 +173,7 @@ export default function Profile() {
           onPress={async () => {
             const confirmed =
               typeof window !== "undefined" && typeof window.confirm === "function"
-                ? window.confirm(
-                    lang === "de"
-                      ? "Account und alle Daten wirklich unwiderruflich löschen?"
-                      : lang === "fr"
-                        ? "Supprimer définitivement le compte et toutes les données ?"
-                        : "Permanently delete your account and all data?",
-                  )
+                ? window.confirm(t("confirmDelete", lang))
                 : true;
             if (!confirmed) return;
             try {
@@ -205,11 +199,7 @@ export default function Profile() {
         >
           <Ionicons name="trash-outline" size={16} color={palette.textMuted} />
           <Text style={styles.deleteAccountTxt}>
-            {lang === "de"
-              ? "Account löschen"
-              : lang === "fr"
-                ? "Supprimer le compte"
-                : "Delete account"}
+            {t("deleteAccount", lang)}
           </Text>
         </TouchableOpacity>
       </ScrollView>

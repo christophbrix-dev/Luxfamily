@@ -112,12 +112,12 @@ export default function EventsTab() {
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.h1}>Events</Text>
+          <Text style={styles.h1}>{t("events", lang)}</Text>
           <Text style={styles.sub}>
             {events
               ? activeFilterCount > 0
-                ? `${filtered.length} of ${events.length} (filtered)`
-                : `${events.length} ${events.length === 1 ? "activity" : "activities"}`
+                ? `${filtered.length} / ${events.length} (${t("filtered", lang)})`
+                : `${events.length} ${events.length === 1 ? t("activity", lang) : t("activities", lang)}`
               : t("loading", lang)}
           </Text>
         </View>
@@ -133,19 +133,19 @@ export default function EventsTab() {
           contentContainerStyle={styles.chipsRow}
         >
           <FilterChip
-            label="Wheelchair"
+            label={t("wheelchair", lang)}
             icon="accessibility-outline"
             active={fWheelchair}
             onPress={() => setFWheelchair((v) => !v)}
           />
           <FilterChip
-            label="Sensory friendly"
+            label={t("sensoryFriendly", lang)}
             icon="ear-outline"
             active={fSensory}
             onPress={() => setFSensory((v) => !v)}
           />
           <FilterChip
-            label="Free parking"
+            label={t("freeParking", lang)}
             icon="car-outline"
             active={fFreeParking}
             onPress={() => setFFreeParking((v) => !v)}
@@ -161,7 +161,7 @@ export default function EventsTab() {
               testID="events-clear-filters"
             >
               <Ionicons name="close-circle" size={14} color={palette.textSecondary} />
-              <Text style={styles.clearChipTxt}>Clear</Text>
+              <Text style={styles.clearChipTxt}>{t("clear", lang)}</Text>
             </TouchableOpacity>
           )}
         </ScrollView>
@@ -176,7 +176,7 @@ export default function EventsTab() {
           <Ionicons name="cloud-offline-outline" size={36} color={palette.textMuted} />
           <Text style={styles.errorTxt}>{error}</Text>
           <TouchableOpacity onPress={load} style={styles.retryBtn} testID="events-retry-btn">
-            <Text style={styles.retryTxt}>Try again</Text>
+            <Text style={styles.retryTxt}>{t("tryAgain", lang)}</Text>
           </TouchableOpacity>
         </View>
       ) : events.length === 0 ? (
@@ -185,16 +185,16 @@ export default function EventsTab() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
           <Ionicons name="leaf-outline" size={44} color={palette.textMuted} />
-          <Text style={styles.emptyTitle}>No events yet</Text>
+          <Text style={styles.emptyTitle}>{t("noEventsYet", lang)}</Text>
           <Text style={styles.emptyTxt}>
-            New events are added by the team and partners. Pull to refresh.
+            {t("noEventsYetSub", lang)}
           </Text>
         </ScrollView>
       ) : filtered.length === 0 ? (
         <View style={styles.emptyWrap}>
           <Ionicons name="filter-outline" size={40} color={palette.textMuted} />
-          <Text style={styles.emptyTitle}>No matches</Text>
-          <Text style={styles.emptyTxt}>Try removing a filter above.</Text>
+          <Text style={styles.emptyTitle}>{t("noMatches", lang)}</Text>
+          <Text style={styles.emptyTxt}>{t("tryRemovingFilter", lang)}</Text>
         </View>
       ) : (
         <ScrollView
@@ -207,18 +207,18 @@ export default function EventsTab() {
               <View style={styles.forYouHeader}>
                 <View style={styles.forYouBadge}>
                   <Ionicons name="sparkles" size={12} color="#065F46" />
-                  <Text style={styles.forYouBadgeTxt}>FOR YOU</Text>
+                  <Text style={styles.forYouBadgeTxt}>{t("forYou", lang)}</Text>
                 </View>
                 <TouchableOpacity
                   onPress={() => setPersonalizationOn(false)}
                   hitSlop={8}
                   testID="events-show-all"
                 >
-                  <Text style={styles.forYouLink}>Show all</Text>
+                  <Text style={styles.forYouLink}>{t("showAll", lang)}</Text>
                 </TouchableOpacity>
               </View>
               <Text style={styles.forYouSub}>
-                Matched to your interests
+                {t("matchedToInterests", lang)}
               </Text>
               <View style={styles.groupItems}>
                 {forYou.map((ev) => (
@@ -238,7 +238,7 @@ export default function EventsTab() {
               testID="events-enable-personalization"
             >
               <Ionicons name="sparkles-outline" size={14} color={palette.primaryDark} />
-              <Text style={styles.enableBannerTxt}>Turn personalization back on</Text>
+              <Text style={styles.enableBannerTxt}>{t("turnPersonalizationBackOn", lang)}</Text>
             </TouchableOpacity>
           ) : null}
           {groups.map((g) => (
@@ -301,7 +301,7 @@ function EventRow({
           {event.featured ? (
             <View style={featuredStyles.badge}>
               <Ionicons name="star" size={9} color="#92400E" />
-              <Text style={featuredStyles.txt}>Sponsored</Text>
+              <Text style={featuredStyles.txt}>{t("sponsored", lang)}</Text>
             </View>
           ) : null}
         </View>
