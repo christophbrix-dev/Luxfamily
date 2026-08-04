@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   RefreshControl,
@@ -17,6 +17,7 @@ import { useApp } from "@/src/contexts/AppContext";
 import { t } from "@/src/i18n/strings";
 import { palette, radii, shadow } from "@/src/theme";
 import { api, ApiEvent } from "@/src/utils/api";
+import { needsToFilters, rankForProfile } from "@/src/utils/personalization";
 
 type EventGroup = { label: string; items: ApiEvent[] };
 
@@ -34,7 +35,7 @@ function groupByMonth(events: ApiEvent[]): EventGroup[] {
 
 export default function EventsTab() {
   const router = useRouter();
-  const { lang } = useApp();
+  const { lang, userProfile } = useApp();
   const [events, setEvents] = useState<ApiEvent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -43,6 +44,27 @@ export default function EventsTab() {
   const [fWheelchair, setFWheelchair] = useState(false);
   const [fSensory, setFSensory] = useState(false);
   const [fFreeParking, setFFreeParking] = useState(false);
+
+  // Personalization on/off — starts ON if the user has a profile, but the
+  // user can flip it off with the "Show all" toggle at the top.
+  const [personalizationOn, setPersonalizationOn] = useState(true);
+
+  // Auto-preselect chips from the onboarding profile — but only ONCE per
+  // profile change, and only on first mount after hydration. Using a ref
+  // guard so returning to the tab after the user manually cleared a chip
+  // does not re-check it against their will.
+  const appliedFor = useRef<string>("");
+  useEffect(() => {
+    if (!userProfile.persona || userProfile.persona === "skipped") return;
+    if (!personalizationOn) return;
+    const key = `${userProfile.persona}:${userProfile.needs.join("|")}`;
+    if (appliedFor.current === key) return;
+    appliedFor.current = key;
+    const preset = needsToFilters(userProfile);
+    setFWheelchair(preset.wheelchair);
+    setFSensory(preset.sensory);
+    setFFreeParking(preset.freeParking);
+  }, [userProfile, personalizationOn]);
 
   const load = useCallback(async () => {
     try {
@@ -75,8 +97,16 @@ export default function EventsTab() {
     });
   }, [events, fWheelchair, fSensory, fFreeParking]);
 
-  const groups = useMemo(() => groupByMonth(filtered), [filtered]);
+  const { forYou, others, isPersonalized } = useMemo(() => {
+    if (!personalizationOn) {
+      return { forYou: [], others: filtered, isPersonalized: false };
+    }
+    return rankForProfile(filtered, userProfile);
+  }, [filtered, userProfile, personalizationOn]);
+
+  const groups = useMemo(() => groupByMonth(others), [others]);
   const activeFilterCount = [fWheelchair, fSensory, fFreeParking].filter(Boolean).length;
+  const hasProfile = !!userProfile.persona && userProfile.persona !== "skipped";
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -172,6 +202,45 @@ export default function EventsTab() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
+          {isPersonalized && forYou.length > 0 ? (
+            <View style={styles.forYouWrap}>
+              <View style={styles.forYouHeader}>
+                <View style={styles.forYouBadge}>
+                  <Ionicons name="sparkles" size={12} color="#065F46" />
+                  <Text style={styles.forYouBadgeTxt}>FOR YOU</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setPersonalizationOn(false)}
+                  hitSlop={8}
+                  testID="events-show-all"
+                >
+                  <Text style={styles.forYouLink}>Show all</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.forYouSub}>
+                Matched to your interests
+              </Text>
+              <View style={styles.groupItems}>
+                {forYou.map((ev) => (
+                  <EventRow
+                    key={`fy-${ev.id}`}
+                    event={ev}
+                    lang={lang}
+                    onPress={() => router.push(`/event/${ev.id}`)}
+                  />
+                ))}
+              </View>
+            </View>
+          ) : hasProfile && !personalizationOn ? (
+            <TouchableOpacity
+              style={styles.enableBanner}
+              onPress={() => setPersonalizationOn(true)}
+              testID="events-enable-personalization"
+            >
+              <Ionicons name="sparkles-outline" size={14} color={palette.primaryDark} />
+              <Text style={styles.enableBannerTxt}>Turn personalization back on</Text>
+            </TouchableOpacity>
+          ) : null}
           {groups.map((g) => (
             <View key={g.label} style={styles.group}>
               <Text style={styles.groupLabel}>{g.label.toUpperCase()}</Text>
@@ -412,5 +481,65 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: palette.textSecondary,
+  },
+  forYouWrap: {
+    marginHorizontal: 20,
+    marginTop: 4,
+    marginBottom: 12,
+    padding: 14,
+    borderRadius: 20,
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  forYouHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  forYouBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: "#D1FAE5",
+  },
+  forYouBadgeTxt: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#065F46",
+    letterSpacing: 0.5,
+  },
+  forYouLink: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#065F46",
+  },
+  forYouSub: {
+    fontSize: 12,
+    color: "#047857",
+    marginBottom: 10,
+  },
+  enableBanner: {
+    marginHorizontal: 20,
+    marginTop: 4,
+    marginBottom: 8,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  enableBannerTxt: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#065F46",
   },
 });
