@@ -18,6 +18,7 @@ sensible defaults; rows are deduplicated via (source_id, external_id).
 
 import json
 import logging
+import os
 import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
