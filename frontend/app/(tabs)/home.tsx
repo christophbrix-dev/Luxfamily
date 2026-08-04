@@ -10,7 +10,8 @@ import { WeatherWidget } from "@/src/components/WeatherWidget";
 import { useApp } from "@/src/contexts/AppContext";
 import { PLACES } from "@/src/data/places";
 import { t } from "@/src/i18n/strings";
-import { palette } from "@/src/theme";
+import { type Palette, shadowFor } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
 
 const HOME_CHIPS = ["All", "Outdoor", "Indoor", "0-3", "4-6", "7-12"] as const;
 
@@ -29,6 +30,8 @@ function greetingKey(): "goodMorning" | "goodAfternoon" | "goodEvening" {
 }
 
 export default function Home() {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const router = useRouter();
   const { lang, user } = useApp();
   const [chip, setChip] = useState<string>("All");
@@ -117,7 +120,7 @@ export default function Home() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.background },
   scroll: { paddingBottom: 32 },
   headerRow: {

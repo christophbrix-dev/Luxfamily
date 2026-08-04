@@ -20,10 +20,13 @@ import LeafletMap, {
 import { useApp } from "@/src/contexts/AppContext";
 import { CANTONS, type Canton } from "@/src/data/places";
 import { t } from "@/src/i18n/strings";
-import { palette, radii, shadow } from "@/src/theme";
+import { radii, type Palette, shadowFor } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { api, type ApiEvent } from "@/src/utils/api";
 
 export default function Explore() {
+  const { palette, shadow, effective } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const router = useRouter();
   const { lang } = useApp();
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
@@ -129,6 +132,12 @@ export default function Explore() {
     },
     [router],
   );
+
+  // Push the current effective theme down to Leaflet whenever it changes.
+  useEffect(() => {
+    if (!mapReady) return;
+    mapRef.current?.setTheme(effective);
+  }, [effective, mapReady]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -275,6 +284,8 @@ function CantonPill({
   active: boolean;
   onPress: () => void;
 }) {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -294,7 +305,7 @@ function CantonPill({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.background },
   headerSticky: {
     paddingHorizontal: 20,

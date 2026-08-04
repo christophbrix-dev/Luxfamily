@@ -1,13 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useMemo } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useApp } from "@/src/contexts/AppContext";
 import type { Lang } from "@/src/data/places";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { t } from "@/src/i18n/strings";
-import { palette, radii, shadow } from "@/src/theme";
+import { radii, type Palette } from "@/src/theme";
 
 const LANGS: { code: Lang; label: string; flag: string }[] = [
   { code: "en", label: "English", flag: "🇬🇧" },
@@ -18,6 +19,8 @@ const LANGS: { code: Lang; label: string; flag: string }[] = [
 export default function Profile() {
   const router = useRouter();
   const { lang, setLang, user, signOutUser, bookings, saved, theme, setTheme, userProfile, resetOnboarding } = useApp();
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const initial = (user?.name?.[0] ?? "U").toUpperCase();
 
   const personaLabel = (() => {
@@ -207,7 +210,8 @@ export default function Profile() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof import("@/src/theme").shadowFor>) =>
+  StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.background },
   scroll: { padding: 20, paddingBottom: 36 },
   h1: { fontSize: 30, fontWeight: "800", color: palette.textPrimary, letterSpacing: -0.5 },

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -9,9 +9,12 @@ import { Chip } from "@/src/components/Chip";
 import { useApp } from "@/src/contexts/AppContext";
 import { PLACES } from "@/src/data/places";
 import { t } from "@/src/i18n/strings";
-import { palette } from "@/src/theme";
+import { type Palette, shadowFor } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
 
 export default function Saved() {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const router = useRouter();
   const { lang, saved } = useApp();
   const [tab, setTab] = useState<"places" | "events" | "itineraries">("places");
@@ -74,7 +77,7 @@ export default function Saved() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.background },
   scroll: { padding: 20, paddingBottom: 32 },
   h1: { fontSize: 30, fontWeight: "800", color: palette.textPrimary, letterSpacing: -0.5 },

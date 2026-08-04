@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -9,9 +9,12 @@ import { Chip } from "@/src/components/Chip";
 import { useApp } from "@/src/contexts/AppContext";
 import { PLACES } from "@/src/data/places";
 import { t } from "@/src/i18n/strings";
-import { palette } from "@/src/theme";
+import { type Palette, shadowFor } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
 
 export default function Calendar() {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const router = useRouter();
   const { lang, bookings } = useApp();
   const [chip, setChip] = useState<"weekend" | "7days" | "june" | "bookings">("weekend");
@@ -139,7 +142,7 @@ export default function Calendar() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.background },
   scroll: { padding: 20, paddingBottom: 36 },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },

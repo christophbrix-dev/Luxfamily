@@ -15,7 +15,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useApp } from "@/src/contexts/AppContext";
 import { t } from "@/src/i18n/strings";
-import { palette, radii, shadow } from "@/src/theme";
+import { radii, type Palette, shadowFor } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { api, ApiEvent } from "@/src/utils/api";
 import { needsToFilters, rankForProfile } from "@/src/utils/personalization";
 
@@ -90,6 +91,8 @@ function groupEvents(
 }
 
 export default function EventsTab() {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const router = useRouter();
   const { lang, userProfile } = useApp();
   const [events, setEvents] = useState<ApiEvent[] | null>(null);
@@ -326,6 +329,8 @@ function EventRow({
   lang: "en" | "de" | "fr";
   onPress: () => void;
 }) {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const venue = isVenue(event);
   const date = new Date(event.start_date);
   const day = date.getDate();
@@ -410,6 +415,8 @@ function FilterChip({
   active: boolean;
   onPress: () => void;
 }) {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -427,7 +434,7 @@ function FilterChip({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.background },
   header: {
     paddingHorizontal: 20,

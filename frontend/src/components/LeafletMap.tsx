@@ -29,6 +29,7 @@ export type LeafletMapHandle = {
   focus: (lat: number, lng: number, zoom?: number) => void;
   flyToCanton: (canton: string) => void;
   flyToCountry: () => void;
+  setTheme: (theme: "light" | "dark") => void;
 };
 
 type Props = {
@@ -76,6 +77,7 @@ const LeafletMap = forwardRef<LeafletMapHandle, Props>(function LeafletMap(
     focus: (lat, lng, zoom) => send({ type: "focus", lat, lng, zoom }),
     flyToCanton: (canton) => send({ type: "flyToCanton", canton }),
     flyToCountry: () => send({ type: "flyToCountry" }),
+    setTheme: (theme) => send({ type: "setTheme", theme }),
   }));
 
   const handleMessage = (raw: string) => {

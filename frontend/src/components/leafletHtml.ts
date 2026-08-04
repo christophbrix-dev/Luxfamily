@@ -120,7 +120,9 @@ export const LEAFLET_HTML = `<!doctype html>
 
     // "Positron" CartoDB tiles read nicer for family-facing UI than the
     // stock OSM Mapnik style — but we fall back to OSM if unavailable.
-    L.tileLayer(
+    // We keep references to both light + dark layers so we can hot-swap them
+    // when the host sends { type: "setTheme", theme: "dark" | "light" }.
+    const lightTiles = L.tileLayer(
       "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
       {
         attribution:
@@ -128,7 +130,28 @@ export const LEAFLET_HTML = `<!doctype html>
         subdomains: "abcd",
         maxZoom: 19,
       },
-    ).addTo(map);
+    );
+    const darkTiles = L.tileLayer(
+      "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+      {
+        attribution:
+          '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: "abcd",
+        maxZoom: 19,
+      },
+    );
+    let currentTiles = lightTiles;
+    currentTiles.addTo(map);
+
+    function applyTheme(theme) {
+      const next = theme === "dark" ? darkTiles : lightTiles;
+      if (next === currentTiles) return;
+      map.removeLayer(currentTiles);
+      currentTiles = next;
+      currentTiles.addTo(map);
+      // Match body colour so the initial white flash disappears.
+      document.body.style.background = theme === "dark" ? "#0B1120" : "#F0FDF4";
+    }
 
     const cluster = L.markerClusterGroup({
       showCoverageOnHover: false,
@@ -266,6 +289,8 @@ export const LEAFLET_HTML = `<!doctype html>
           if (c) map.flyTo(c, 12, { duration: 0.8 });
         } else if (data.type === "flyToCountry") {
           map.flyTo([49.7867, 6.0938], 9, { duration: 0.6 });
+        } else if (data.type === "setTheme") {
+          applyTheme(data.theme);
         }
       } catch (e) {
         // ignore malformed

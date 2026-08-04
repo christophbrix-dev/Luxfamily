@@ -311,6 +311,7 @@ IMPORTERS = {
     "data_public_lu": _import_data_public_lu,
     "html_scraper": None,  # filled in below after the function is declared
     "json_ld": None,       # filled in below after the function is declared
+    "kids_in_lux": None,   # filled in below after the function is declared
 }
 
 
@@ -954,6 +955,54 @@ def _extract_date_from_url(url: str) -> str:
 
 
 IMPORTERS["sitemap"] = _import_sitemap
+
+
+# --- kids-in-lux.com custom crawler --------------------------------------
+# Runs the sync crawler in a worker thread and returns (inserted, skipped) so
+# it plugs into the same `run_source` / cron flow as the JSON-LD / sitemap
+# importers.
+async def _import_kids_in_lux(source: Dict[str, Any], db) -> tuple[int, int]:
+    import asyncio
+
+    def _run_sync() -> tuple[int, int]:
+        # Late-import to keep the module boot fast when the source isn't used.
+        from crawlers import kids_in_lux as k
+        from pymongo import MongoClient
+
+        client = MongoClient(os.environ["MONGO_URL"])
+        sdb    = client[os.environ["DB_NAME"]]
+        src_row = sdb.sources.find_one({"id": source["id"]}) or source
+
+        inserted = updated = failed = 0
+        try:
+            import httpx
+            with httpx.Client() as hx:
+                for index_url, cats, ev_type in k.INDEX_URLS:
+                    details = k.list_detail_urls(index_url, hx)
+                    for url in details:
+                        html = k.fetch(url, hx)
+                        if not html:
+                            failed += 1
+                            continue
+                        parsed = k.parse_detail(url, html)
+                        if not parsed:
+                            failed += 1
+                            continue
+                        status = k.upsert_event(sdb, parsed, cats, ev_type, source["id"])
+                        if status == "inserted":
+                            inserted += 1
+                        else:
+                            updated += 1
+                        import time as _t
+                        _t.sleep(k.PAUSE_S)
+        finally:
+            client.close()
+        return inserted, failed
+
+    return await asyncio.to_thread(_run_sync)
+
+
+IMPORTERS["kids_in_lux"] = _import_kids_in_lux
 
 
 async def run_source(source: Dict[str, Any], db) -> Dict[str, Any]:
