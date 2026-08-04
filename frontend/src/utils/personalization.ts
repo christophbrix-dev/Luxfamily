@@ -144,22 +144,35 @@ const NEIGHBOR_CANTONS: Record<string, string[]> = {
 
 export function cantonAffinity(eventCanton: string, preferred: string[]): number {
   if (!preferred.length) return 0;
-  if (preferred.includes(eventCanton)) return 1;             // direct hit
+  if (preferred.includes(eventCanton)) return 3;             // direct hit — strong local bias
   for (const p of preferred) {
     if ((NEIGHBOR_CANTONS[p] ?? []).includes(eventCanton)) {
-      return 0.4;                                            // neighbouring
+      return 1;                                              // neighbouring
     }
   }
-  return -0.3;                                               // far away — mild demotion
+  return -0.5;                                               // far away — mild demotion
 }
 
 /**
  * Splits events into two lists:
- *   - `forYou`: score > 0, sorted best-first (max 6)
+ *   - `forYou`: score > 0, sorted best-first (max 8, with geographic guarantee)
  *   - `others`: everything else, kept in the caller's original order
  * If the profile has no useful signals, `forYou` is empty and `others`
  * equals the input.
+ *
+ * Ranking strategy:
+ *   1. All positive-scored events are sorted best-first.
+ *   2. Near-duplicate venues (fingerprint overlap) are collapsed to 1 slot.
+ *   3. Per-canton cap: no more than half the slots come from a single canton
+ *      (prevents Luxembourg-city events from crowding out the North/South).
+ *   4. Home-canton guarantee: at least 2 slots are reserved for events in
+ *      the user's preferred cantons, so a Wiltz-user always sees local
+ *      places like MIGO even if Luxembourg-city has more category matches.
  */
+const FOR_YOU_SLOTS = 8;
+const HOME_CANTON_RESERVED = 2;
+const MAX_PER_CANTON = 4;
+
 export function rankForProfile(
   events: ApiEvent[],
   profile: UserProfile,
@@ -181,8 +194,8 @@ export function rankForProfile(
   const STOPWORDS = new Set([
     "actualites", "actualite", "spectacle", "programm", "programme",
     "centre", "parc", "park", "castle", "chateau", "schloss", "musee",
-    "the", "and", "the", "der", "die", "das", "les", "des", "with",
-    "loisirs", "de", "du", "of", "la", "le", "el",
+    "the", "and", "der", "die", "das", "les", "des", "with",
+    "loisirs", "activite", "activites", "event", "events",
   ]);
   const fingerprint = (title: string): Set<string> => {
     const norm = title
@@ -198,22 +211,66 @@ export function rankForProfile(
     return false;
   };
 
+  const preferred = new Set(profile.preferredCantons ?? []);
+  const hasPreferred = preferred.size > 0;
+
+  // First pass: dedupe by venue-fingerprint. Keep ALL unique venues (not just
+  // top 6), so we can apply cantonal quotas below without running out of
+  // candidates.
   const seenFps: Set<string>[] = [];
-  const dedup: ApiEvent[] = [];
+  const uniqueByVenue: { ev: ApiEvent; score: number }[] = [];
   for (const s of withHits) {
-    const fp = fingerprint(s.ev.title?.en ?? s.ev.title?.de ?? s.ev.title?.fr ?? "");
+    const fp = fingerprint(
+      s.ev.title?.en ?? s.ev.title?.de ?? s.ev.title?.fr ?? "",
+    );
     if (fp.size === 0) {
-      dedup.push(s.ev);
-    } else if (seenFps.some((prev) => overlaps(prev, fp))) {
-      continue;   // near-duplicate of an already-selected venue
-    } else {
-      seenFps.push(fp);
-      dedup.push(s.ev);
+      uniqueByVenue.push(s);
+      continue;
     }
-    if (dedup.length >= 6) break;
+    if (seenFps.some((prev) => overlaps(prev, fp))) continue;
+    seenFps.push(fp);
+    uniqueByVenue.push(s);
   }
 
-  const forYou = dedup;
+  // Second pass: greedy pick with per-canton cap + home-canton reservation.
+  const forYou: ApiEvent[] = [];
+  const perCantonCount: Record<string, number> = {};
+  let homeCount = 0;
+
+  const pushIfRoom = (ev: ApiEvent, isHome: boolean): boolean => {
+    if (forYou.length >= FOR_YOU_SLOTS) return false;
+    const canton = ev.canton ?? "?";
+    const cnt = perCantonCount[canton] ?? 0;
+    // Home canton is allowed up to MAX_PER_CANTON, other cantons the same
+    // — but we soft-cap non-home cantons at half the slots so a strong
+    // Luxembourg-city surplus can't shut out the rest of the country.
+    const cap = isHome ? MAX_PER_CANTON : MAX_PER_CANTON;
+    if (cnt >= cap) return false;
+    forYou.push(ev);
+    perCantonCount[canton] = cnt + 1;
+    if (isHome) homeCount += 1;
+    return true;
+  };
+
+  // Step A — reserve home-canton slots first if user picked cantons.
+  if (hasPreferred) {
+    for (const s of uniqueByVenue) {
+      if (homeCount >= HOME_CANTON_RESERVED) break;
+      if (preferred.has(s.ev.canton)) {
+        pushIfRoom(s.ev, true);
+      }
+    }
+  }
+
+  // Step B — fill the remaining slots by score, honouring caps.
+  const alreadyIn = new Set(forYou.map((e) => e.id));
+  for (const s of uniqueByVenue) {
+    if (forYou.length >= FOR_YOU_SLOTS) break;
+    if (alreadyIn.has(s.ev.id)) continue;
+    const isHome = hasPreferred && preferred.has(s.ev.canton);
+    pushIfRoom(s.ev, isHome);
+  }
+
   const forYouIds = new Set(forYou.map((e) => e.id));
   const others = events.filter((e) => !forYouIds.has(e.id));
 

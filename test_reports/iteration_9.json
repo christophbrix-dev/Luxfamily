@@ -1,0 +1,41 @@
+{
+  "summary": "P0 BUG FIX VERIFIED — Northern-user personalization now surfaces MIGO in FOR YOU. Playwright regression on mobile viewport (390x844) — completed the exact onboarding flow (guest → family / age 4-8 / default 5 interests {playgrounds, animals, nature, workshops, culture_kids} / no needs / preferredCantons=[Wiltz, Diekirch] / budget=cheap) then opened the Events tab. FOR YOU section now shows 8 slots (up from 6) in this order: [1] Vianden Castle + Chairlift (Vianden · Diekirch, home canton), [2] MIGO — Mini-Golf & Indoor Playground (Eschweiler · Wiltz, home canton) ✅, [3] Park Sënnesräich (Sensory Park) (Lullange · Clervaux, neighbour), [4] Robbesscheier Munshausen (Munshausen · Clervaux, neighbour), [5] Parc Merveilleux Bettembourg (Esch-sur-Alzette), [6] Escher Déierepark (Esch-sur-Alzette), [7] Schiessentümpel & Mullerthal Trail (Echternach), [8] Events & Festivals (Luxembourg). Diverse cantonal mix confirmed; no per-canton clustering. 'Show all' link toggles the section off and reveals the 'Turn personalization back on' banner; tapping it restores FOR YOU with MIGO in position #2 again. No JS pageerrors observed. Sanity — no shadow* deprecation warnings in console (0 hits) and no shadowColor/shadowOpacity/shadowRadius/shadowOffset in source; all shadow migration to boxShadow verified (57 event rows and 8 home elements render boxShadow correctly). LuxembourgMap regression — pointerEvents is now used only in style (grep verified in 2 places at LuxembourgMap.tsx:64,69) and the map is fully interactive (tapping canton-Wiltz activates the pill and filters the results to 'Showing Wiltz' with a Clear button). Skipped-onboarding sanity check on the Alert.alert 'Skip for now' confirmation was blocked on web (react-native-web renders Alert.alert as a non-DOM in-app modal that Playwright cannot dismiss via dialog handler); code-level review confirms rankForProfile returns isPersonalized:false when persona is 'skipped' or empty so FOR YOU section never renders and events fall back to chronological groupByMonth ordering. One residual RN warning ('props.pointerEvents is deprecated. Use style.pointerEvents') still appears once during onboarding transitions but does not originate from any Wat Elo source file (grep confirms zero prop-style usage in /app/frontend/{app,src}) — it comes from a third-party dep (expo-router / react-navigation internals) and is non-blocking.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "third-party (expo-router / react-navigation)", "issue": "'props.pointerEvents is deprecated. Use style.pointerEvents' console warning still emitted once during onboarding transitions. Wat Elo source has been fully migrated (grep of /app/frontend/{app,src} returns only style-based usages at LuxembourgMap.tsx:64,69). Non-blocking; will disappear when the upstream dep ships its migration. Reference: /app/frontend/src/components/LuxembourgMap.tsx:64,69 (already using style.pointerEvents)."}
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_9.json",
+    "/tmp/03_events.png (FOR YOU top-8 with MIGO at #2)",
+    "/tmp/23_map_wiltz_selected.png / /tmp/31_map_wiltz.png (LuxembourgMap active state)",
+    "/tmp/32_home.png, /tmp/33_calendar.png (shadow rendering verified)"
+  ],
+  "action_items": [
+    "P0 bug is CLOSED — no further code changes required for Northern-user MIGO visibility.",
+    "Optional: consider seeding Park Sënnesräich as a native DB record (user mentioned they will send more Northern venues) — the current 'Park Sënnesräich (Sensory Park)' event that surfaced is already in the DB (canton=Clervaux), which is a neighbour of Wiltz/Diekirch so it correctly appears via the neighbour-canton bonus. If the user meant a specifically Wiltz-canton Sënnesräich record, please seed it.",
+    "Optional (upstream): monitor expo-router / react-navigation release notes for the pointerEvents prop migration; no local fix possible."
+  ],
+  "critical_code_review_comments": [
+    "personalization.ts:145-154 — cantonAffinity now returns {direct: 3, neighbour: 1, far: -0.5}. This is the change that lets MIGO (Wiltz direct-hit, +3) beat multi-interest Kirchberg workshops (+2 interest bonus but -0.5 far-canton penalty). Correct fix.",
+    "personalization.ts:172-174 — FOR_YOU_SLOTS=8, HOME_CANTON_RESERVED=2, MAX_PER_CANTON=4. Constants are sensible and defensive against Luxembourg-city domination.",
+    "personalization.ts:255-263 — Step A (home-canton reservation) runs before the greedy fill; verified in DOM that Vianden(Diekirch) and MIGO(Wiltz) both take reserved slots and the rest is filled by score. Correct.",
+    "personalization.ts:240-253 — pushIfRoom applies the MAX_PER_CANTON cap symmetrically for home vs. non-home; the comment (l.244-246) says 'we soft-cap non-home cantons at half the slots' but the actual code uses MAX_PER_CANTON=4 for both. The comment/intent is stale but the behaviour is fine given the reservation step and current data volume; consider tightening the comment or lowering non-home cap to Math.floor(FOR_YOU_SLOTS/2)=4 explicitly.",
+    "events.tsx:100-105 — useMemo for rankForProfile is correctly gated by personalizationOn; 'Show all' toggle works and enable banner re-renders as expected. No stale-memo issue.",
+    "theme.ts:42-55 — shadow tokens use boxShadow strings (no shadowColor/Opacity/Radius/Offset anywhere in the codebase). Migration complete."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "not re-tested this iteration (unchanged since iteration_6: 7/7 API endpoints pass)",
+    "frontend": "100% on the 5 stated review criteria (P0 MIGO-in-FOR-YOU PASS · diverse mix + Show all PASS · skip → chronological PASS at code level · shadow migration PASS · LuxembourgMap pointerEvents PASS)"
+  },
+  "seed_data_creation": "None. Reused MIGO + Sënnesräich + Robbesscheier + Vianden Castle seed data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "This iteration confirms the personalization fix is production-ready. To retest: single Playwright session (state does not persist across mcp_browser_automation calls) — complete guest onboarding as family/[Wiltz,Diekirch]/cheap and open /events; extract rows nested under the element with textContent 'Matched to your interests' by walking up parents until you find a container with data-testid^='event-row-' descendants. Also note: Alert.alert on react-native-web renders as a custom in-app modal (not window.confirm) so page.on('dialog', ...) will not fire; use the app-specific test path or manipulate persona state programmatically via the ctx.setUserProfile setter if you need to exercise the 'skipped' branch through the UI.",
+  "rca_of_issue": "Root cause of the original bug: cantonAffinity weights (+1 direct / +0.4 neighbour / -0.3 far, plus 6-slot cap and no home-canton reservation) allowed multi-interest Kirchberg (Luxembourg-city) workshops to outscore single-interest Wiltz events like MIGO. Fix stack now landed in personalization.ts: (a) direct-hit weight boosted 1→3 and far-penalty tightened -0.3→-0.5; (b) FOR_YOU_SLOTS raised from 6→8; (c) HOME_CANTON_RESERVED=2 pre-fills 2 preferred-canton slots before the score-based pass; (d) MAX_PER_CANTON=4 stops any single canton (esp. Luxembourg) from monopolising the section; (e) fingerprint()+overlaps() venue-dedupe from iteration_7 retained. Verified in DOM: MIGO ranks #2/8 for a Wiltz+Diekirch user."
+}

@@ -137,10 +137,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surface,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.05)",
     elevation: 2,
   },
   avatar: {

@@ -41,24 +41,15 @@ export const spacing = {
 
 export const shadow = {
   card: {
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.08,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
+    boxShadow: "0px 12px 24px rgba(15, 23, 42, 0.08)",
     elevation: 4,
   },
   soft: {
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
+    boxShadow: "0px 4px 12px rgba(15, 23, 42, 0.05)",
     elevation: 2,
   },
   emerald: {
-    shadowColor: "#10B981",
-    shadowOpacity: 0.35,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
+    boxShadow: "0px 10px 20px rgba(16, 185, 129, 0.35)",
     elevation: 6,
   },
 };

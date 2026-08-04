@@ -61,12 +61,12 @@ export function LuxembourgMap({ selected, counts, onSelect }: Props) {
       </Svg>
 
       {/* Country label inside the silhouette */}
-      <View style={styles.countryLabel} pointerEvents="none">
+      <View style={[styles.countryLabel, { pointerEvents: "none" }]}>
         <Text style={styles.countryLabelTxt}>LUXEMBOURG</Text>
       </View>
 
       {/* Overlay clickable canton pills positioned in geographic space */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+      <View style={[StyleSheet.absoluteFill, { pointerEvents: "box-none" }]}>
         {NODES.map((n) => {
           const active = selected === n.key;
           const count = counts[n.key] ?? 0;
@@ -150,19 +150,13 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.95)",
     borderWidth: 1,
     borderColor: "rgba(16,185,129,0.18)",
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
+    boxShadow: "0px 2px 4px rgba(15, 23, 42, 0.08)",
     elevation: 2,
   },
   pillActive: {
     backgroundColor: palette.primary,
     borderColor: palette.primary,
-    shadowColor: palette.primary,
-    shadowOpacity: 0.45,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    boxShadow: "0px 4px 8px rgba(16, 185, 129, 0.45)",
     elevation: 4,
   },
   dot: {
