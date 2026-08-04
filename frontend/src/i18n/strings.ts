@@ -209,6 +209,10 @@ export const STRINGS: Dict = {
   notSet:            { en: "Not set",           de: "Nicht gesetzt",        fr: "Non défini" },
   bookingsPlural:    { en: "Bookings",          de: "Buchungen",            fr: "Réservations" },
   alwaysOpen:        { en: "Always open",       de: "Immer offen",          fr: "Toujours ouvert" },
+  allCantons:        { en: "All cantons",       de: "Alle Kantone",         fr: "Tous les cantons" },
+  result:            { en: "result",            de: "Ergebnis",             fr: "résultat" },
+  results:           { en: "results",           de: "Ergebnisse",           fr: "résultats" },
+  openDetails:       { en: "Details",           de: "Details",              fr: "Détails" },
 };
 
 export function t(key: keyof typeof STRINGS, lang: Lang): string {

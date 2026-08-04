@@ -1,18 +1,27 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { AppCard } from "@/src/components/AppCard";
-import { Chip } from "@/src/components/Chip";
 import { DEFAULT_FILTERS, FilterSheet, Filters } from "@/src/components/FilterSheet";
-import { LuxembourgMap } from "@/src/components/LuxembourgMap";
+import LeafletMap, {
+  type LeafletMapHandle,
+  type MapEvent,
+} from "@/src/components/LeafletMap";
 import { useApp } from "@/src/contexts/AppContext";
-import type { Canton } from "@/src/data/places";
-import { PLACES } from "@/src/data/places";
+import { CANTONS, type Canton } from "@/src/data/places";
 import { t } from "@/src/i18n/strings";
-import { palette } from "@/src/theme";
+import { palette, radii, shadow } from "@/src/theme";
+import { api, type ApiEvent } from "@/src/utils/api";
 
 export default function Explore() {
   const router = useRouter();
@@ -22,34 +31,56 @@ export default function Explore() {
   const [query, setQuery] = useState("");
   const [canton, setCanton] = useState<Canton | null>(null);
 
-  // Pre-compute count of activities per canton for the map badges.
-  const cantonCounts = useMemo(() => {
-    const out: Record<string, number> = {};
-    for (const p of PLACES) out[p.canton] = (out[p.canton] ?? 0) + 1;
-    return out;
+  // Live data from the API — the same 159 events as the Events tab.
+  const [events, setEvents] = useState<ApiEvent[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoadError(false);
+    try {
+      const data = await api.publicEvents();
+      setEvents(data);
+    } catch {
+      setLoadError(true);
+    }
   }, []);
 
-  const list = useMemo(() => {
-    return PLACES.filter((p) => {
-      if (canton && p.canton !== canton) return false;
-      if (filters.type !== "All" && p.type !== filters.type) return false;
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Count events per canton for the pill row badges.
+  const cantonCounts = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const e of events ?? []) {
+      if (e.canton) out[e.canton] = (out[e.canton] ?? 0) + 1;
+    }
+    return out;
+  }, [events]);
+
+  // Filter by canton / query / filter-sheet selections.
+  const filtered = useMemo<ApiEvent[]>(() => {
+    if (!events) return [];
+    const q = query.trim().toLowerCase();
+    return events.filter((e) => {
+      if (canton && e.canton !== canton) return false;
+      if (filters.type !== "All" && e.type !== filters.type) return false;
       if (filters.age !== "All") {
         const [min, max] = filters.age.split("-").map(Number);
-        if (!(p.ageMin <= max && p.ageMax >= min)) return false;
+        if (!(e.age_min <= max && e.age_max >= min)) return false;
       }
-      if (filters.category.length && !filters.category.some((c) => p.category.includes(c)))
+      if (filters.category.length && !filters.category.some((c) => e.category.includes(c)))
         return false;
-      if (filters.wheelchair && !p.wheelchair) return false;
-      if (filters.sensoryFriendly && !p.sensoryFriendly) return false;
-      if (filters.freeParking && !p.freeParking) return false;
-      if (query.trim()) {
-        const q = query.trim().toLowerCase();
-        const hay = `${p.title[lang]} ${p.short[lang]} ${p.town}`.toLowerCase();
+      if (filters.wheelchair && !e.accessibility_wheelchair) return false;
+      if (filters.sensoryFriendly && !e.sensory_friendly) return false;
+      if (filters.freeParking && !e.free_parking) return false;
+      if (q) {
+        const hay = `${e.title[lang] ?? ""} ${e.short[lang] ?? ""} ${e.town ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [filters, query, lang, canton]);
+  }, [events, canton, filters, query, lang]);
 
   const activeFilterCount =
     (filters.age !== "All" ? 1 : 0) +
@@ -60,6 +91,44 @@ export default function Explore() {
     (filters.sensoryFriendly ? 1 : 0) +
     (filters.freeParking ? 1 : 0) +
     (canton ? 1 : 0);
+
+  // ---------------------------------------------------------------------
+  // Map: push filtered events as markers whenever they change.
+  // ---------------------------------------------------------------------
+  const mapRef = useRef<LeafletMapHandle | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+
+  useEffect(() => {
+    if (!mapReady) return;
+    const markers: MapEvent[] = filtered
+      .filter((e) => e.lat && e.lng && !(e.lat === 0 && e.lng === 0))
+      .map((e) => ({
+        id: e.id,
+        lat: e.lat,
+        lng: e.lng,
+        title: e.title[lang] ?? e.title.en ?? "",
+        town: e.town,
+        canton: e.canton,
+        category: e.category,
+        featured: e.featured,
+        btnLabel: t("openDetails", lang),
+      }));
+    mapRef.current?.setEvents(markers);
+  }, [filtered, mapReady, lang]);
+
+  // Fly to a canton whenever the pill selection changes.
+  useEffect(() => {
+    if (!mapReady) return;
+    if (canton) mapRef.current?.flyToCanton(canton);
+    else mapRef.current?.flyToCountry();
+  }, [canton, mapReady]);
+
+  const onMarkerTap = useCallback(
+    (id: string) => {
+      router.push(`/detail/${id}` as never);
+    },
+    [router],
+  );
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -90,77 +159,94 @@ export default function Explore() {
             ) : null}
           </TouchableOpacity>
         </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.quickRow}
-          style={styles.quickRowOuter}
-        >
-          {[
-            { key: "age", label: t("age", lang) },
-            { key: "type", label: t("indoorOutdoor", lang) },
-            { key: "category", label: t("category", lang) },
-            { key: "date", label: t("date", lang) },
-          ].map((it) => (
-            <Chip
-              key={it.key}
-              label={it.label}
-              onPress={() => setOpen(true)}
-              testID={`explore-quick-${it.key}`}
-            />
-          ))}
-        </ScrollView>
       </View>
 
       <ScrollView
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.mapCard} testID="canton-map-card">
-          <View style={styles.mapHeader}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.mapTitle}>{t("browseByCanton", lang)}</Text>
-              <Text style={styles.mapSub}>
-                {canton
-                  ? `${t("showing", lang)} ${canton}`
-                  : t("tapCantonToFilter", lang)}
-              </Text>
-            </View>
-            {canton ? (
-              <TouchableOpacity
-                onPress={() => setCanton(null)}
-                style={styles.mapClear}
-                testID="canton-clear-btn"
-              >
-                <Ionicons name="close" size={14} color={palette.primaryDark} />
-                <Text style={styles.mapClearTxt}>{t("clear", lang)}</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-          <LuxembourgMap
-            selected={canton}
-            counts={cantonCounts}
-            onSelect={setCanton}
+        {/* ------------------------------------------------------------ */}
+        {/* Canton pill selector (replaces the old cheap SVG silhouette) */}
+        {/* ------------------------------------------------------------ */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.cantonRow}
+          style={styles.cantonRowOuter}
+        >
+          <CantonPill
+            label={t("allCantons", lang)}
+            count={events?.length ?? 0}
+            active={canton === null}
+            onPress={() => setCanton(null)}
+          />
+          {CANTONS.map((c) => (
+            <CantonPill
+              key={c}
+              label={c}
+              count={cantonCounts[c] ?? 0}
+              active={canton === c}
+              onPress={() => setCanton(c)}
+            />
+          ))}
+        </ScrollView>
+
+        {/* ------------------------------------------------------------ */}
+        {/* Real interactive map — pinch/scroll to street-level zoom.    */}
+        {/* ------------------------------------------------------------ */}
+        <View style={styles.mapCard} testID="explore-map-card">
+          <LeafletMap
+            ref={mapRef}
+            style={styles.mapInner}
+            onReady={() => setMapReady(true)}
+            onMarkerTap={onMarkerTap}
           />
         </View>
 
+        {/* Result list underneath */}
         <Text style={styles.sectionTitle}>
-          {list.length} {list.length === 1 ? "result" : "results"}
+          {loadError
+            ? t("failedToLoad", lang)
+            : events === null
+              ? t("loading", lang)
+              : `${filtered.length} ${filtered.length === 1 ? t("result", lang) : t("results", lang)}`}
         </Text>
 
-        {list.length === 0 ? (
+        {events === null && !loadError ? (
+          <View style={styles.empty} testID="explore-loading">
+            <ActivityIndicator color={palette.primary} />
+          </View>
+        ) : filtered.length === 0 ? (
           <View style={styles.empty} testID="explore-empty">
             <Ionicons name="leaf-outline" size={40} color={palette.textMuted} />
             <Text style={styles.emptyTxt}>{t("noResults", lang)}</Text>
           </View>
         ) : (
-          list.map((p) => (
-            <AppCard
-              key={p.id}
-              item={p}
-              onPress={() => router.push(`/detail/${p.id}`)}
-            />
+          filtered.slice(0, 30).map((e) => (
+            <TouchableOpacity
+              key={e.id}
+              onPress={() => router.push(`/detail/${e.id}` as never)}
+              style={styles.resultCard}
+              activeOpacity={0.9}
+              testID={`explore-result-${e.id}`}
+            >
+              <View style={styles.resultIconWrap}>
+                <Ionicons
+                  name="location"
+                  size={18}
+                  color={palette.primaryDark}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.resultTitle} numberOfLines={1}>
+                  {e.title[lang] ?? e.title.en}
+                </Text>
+                <Text style={styles.resultSub} numberOfLines={1}>
+                  {[e.town, e.canton].filter(Boolean).join(" · ")}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
+            </TouchableOpacity>
           ))
         )}
       </ScrollView>
@@ -172,6 +258,39 @@ export default function Explore() {
         onClose={() => setOpen(false)}
       />
     </SafeAreaView>
+  );
+}
+
+// ------------------------------------------------------------------
+// Canton pill — mini component with a rounded emerald active state.
+// ------------------------------------------------------------------
+function CantonPill({
+  label,
+  count,
+  active,
+  onPress,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={[styles.pill, active && styles.pillActive]}
+      activeOpacity={0.85}
+      testID={`explore-canton-${label}`}
+    >
+      <Text style={[styles.pillTxt, active && styles.pillTxtActive]}>{label}</Text>
+      {count > 0 ? (
+        <View style={[styles.pillBadge, active && styles.pillBadgeActive]}>
+          <Text style={[styles.pillBadgeTxt, active && styles.pillBadgeTxtActive]}>
+            {count}
+          </Text>
+        </View>
+      ) : null}
+    </TouchableOpacity>
   );
 }
 
@@ -196,65 +315,125 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
     backgroundColor: palette.surface,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 18,
-    boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.05)",
-    elevation: 2,
+    borderRadius: radii.md,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: palette.border,
+    height: 44,
   },
-  searchInput: { flex: 1, fontSize: 14, color: palette.textPrimary, padding: 0 },
+  searchInput: { flex: 1, fontSize: 14, color: palette.textPrimary },
   filterBtn: {
-    width: 48,
+    width: 44,
+    height: 44,
+    borderRadius: radii.md,
     backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 18,
-    boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.05)",
-    elevation: 2,
   },
   filterBadge: {
     position: "absolute",
-    top: 6,
-    right: 6,
+    top: -4,
+    right: -4,
     backgroundColor: palette.primary,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    borderRadius: 999,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
     justifyContent: "center",
     alignItems: "center",
   },
-  filterBadgeTxt: { color: "#fff", fontSize: 9, fontWeight: "800" },
-  quickRowOuter: { marginTop: 14, maxHeight: 56 },
-  quickRow: { gap: 8, alignItems: "center", height: 56 },
-  list: { padding: 20, paddingBottom: 28, gap: 14 },
-  mapCard: {
+  filterBadgeTxt: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
+  list: { paddingBottom: 32 },
+
+  cantonRowOuter: { paddingTop: 14 },
+  cantonRow: { paddingHorizontal: 20, gap: 8, paddingBottom: 12 },
+  pill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
     backgroundColor: palette.surface,
-    borderRadius: 24,
-    padding: 14,
-    boxShadow: "0px 8px 16px rgba(15, 23, 42, 0.06)",
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: palette.border,
   },
-  mapHeader: {
-    flexDirection: "row",
-    alignItems: "center",
+  pillActive: {
+    backgroundColor: palette.primary,
+    borderColor: palette.primaryDark,
+  },
+  pillTxt: { fontSize: 13, color: palette.textPrimary, fontWeight: "600" },
+  pillTxtActive: { color: "#FFFFFF" },
+  pillBadge: {
+    backgroundColor: palette.primaryLight,
     paddingHorizontal: 6,
-    paddingBottom: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    minWidth: 22,
+    alignItems: "center",
   },
-  mapTitle: { fontSize: 15, fontWeight: "700", color: palette.textPrimary },
-  mapSub: { fontSize: 12, color: palette.textSecondary, marginTop: 2 },
-  mapClear: {
+  pillBadgeActive: { backgroundColor: "rgba(255,255,255,0.28)" },
+  pillBadgeTxt: { fontSize: 11, fontWeight: "700", color: palette.primaryDark },
+  pillBadgeTxtActive: { color: "#FFFFFF" },
+
+  mapCard: {
+    marginHorizontal: 20,
+    marginTop: 4,
+    marginBottom: 20,
+    borderRadius: radii.lg,
+    overflow: "hidden",
+    backgroundColor: palette.surface,
+    height: 380,
+    ...shadow.card,
+  },
+  mapInner: { flex: 1 },
+
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: palette.textMuted,
+    letterSpacing: 1.2,
+    marginHorizontal: 20,
+    marginTop: 4,
+    marginBottom: 12,
+    textTransform: "uppercase",
+  },
+
+  resultCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    gap: 10,
+    backgroundColor: palette.surface,
+    marginHorizontal: 20,
+    marginBottom: 8,
+    padding: 12,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: palette.borderSoft,
+  },
+  resultIconWrap: {
+    width: 36,
+    height: 36,
     borderRadius: 999,
     backgroundColor: palette.primaryLight,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  mapClearTxt: { color: palette.primaryDark, fontSize: 11, fontWeight: "700" },
-  sectionTitle: { fontSize: 14, fontWeight: "700", color: palette.textSecondary, marginBottom: 4 },
-  empty: { alignItems: "center", padding: 40, gap: 10 },
-  emptyTxt: { color: palette.textSecondary, fontSize: 14 },
+  resultTitle: { fontSize: 14, fontWeight: "700", color: palette.textPrimary },
+  resultSub: { fontSize: 12, color: palette.textMuted, marginTop: 2 },
+
+  empty: {
+    alignItems: "center",
+    padding: 32,
+    marginHorizontal: 20,
+    backgroundColor: palette.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: palette.borderSoft,
+  },
+  emptyTxt: { marginTop: 10, color: palette.textMuted, fontSize: 13 },
 });
