@@ -141,6 +141,9 @@ async def polite_get(
 
 async def robots_check(url: str) -> Dict[str, object]:
     """Diagnostic helper: report whether the URL is allowed and what the delay is."""
+    parsed = urlparse(url)
+    if not parsed.scheme or not parsed.netloc:
+        raise ValueError(f"malformed URL {url!r}: missing scheme or host")
     host = _host_of(url)
     entry = await _load_robots(host)
     return {

@@ -259,6 +259,7 @@ def _event_to_response(doc: Dict[str, Any]) -> EventResponse:
         website_url=doc.get("website_url", ""),
         accessibility_wheelchair=doc.get("accessibility_wheelchair", False),
         sensory_friendly=doc.get("sensory_friendly", False),
+        free_parking=doc.get("free_parking", False),
         sensory_notes=doc.get("sensory_notes") or {"en": "", "de": "", "fr": ""},
         parking=doc.get("parking") or {"en": "", "de": "", "fr": ""},
         food_allowed=doc.get("food_allowed", True),

@@ -1,0 +1,38 @@
+{
+  "summary": "Re-verification of the two bug fixes from iteration_3. Both fixes are in place and working end-to-end against the public EXPO_BACKEND_URL. Ran the 4 targeted pytest tests plus a manual curl smoke — all pass. (1) FIX-1 verified: /app/backend/server.py::_event_to_response() now includes `free_parking=doc.get('free_parking', False)` at line 262. GET /api/events?upcoming=false returns 56 events (baseline unchanged), every event contains the free_parking field, distribution = 12 True / 44 False / 0 missing — matches DB state. (2) FIX-2 verified: /app/backend/crawler_utils.py::robots_check() now validates urlparse(url).scheme AND .netloc at line 145-146 and raises ValueError('malformed URL ... missing scheme or host'). POST /api/admin/sources/robots-check with {'url':'not-a-url'} + admin auth → HTTP 400 with detail 'robots-check failed: malformed URL not-a-url: missing scheme or host'. Valid URL {'url':'https://www.mudam.com/programme'} still returns HTTP 200 with allowed=true, crawl_delay_seconds=0.0, host='https://www.mudam.com', user_agent contains 'FamilyLuxembourgBot'. Pytest results: test_events_list_has_family_fields_and_shape PASSED, test_deep_dive_seed_count_and_family_flags PASSED (deep-dive-seed has 14 events, at least one with free_parking=True), test_robots_check_invalid_url_returns_400 PASSED, test_robots_check_mudam_allowed PASSED — 4/4 in 1.23s. No regressions detected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_4.json",
+    "/app/test_reports/pytest/retest_iter4.xml",
+    "/app/backend/tests/test_sources_and_crawler.py"
+  ],
+  "action_items": [
+    "Both iteration_3 bug fixes are confirmed working — no further action needed on these two bugs.",
+    "(Carry-over, minor from iteration_3) Optionally replace https://www.khn.lu/sitemap.xml in seed_lu_sources.py (404 upstream) and fix the other ~28 sources currently in last_status='error'.",
+    "(Carry-over, minor from iteration_3) Optionally seed at least one ical + one data_public_lu source so all 5 importer branches are exercised in production."
+  ],
+  "critical_code_review_comments": [
+    "Fix quality is good: single-line addition to _event_to_response for free_parking mirrors the existing pattern for accessibility_wheelchair/sensory_friendly.",
+    "robots_check() now correctly rejects any URL where urlparse fails to produce both scheme and netloc — the ValueError message includes the offending URL for good debuggability, and the FastAPI wrapper in server.py converts it into a clean HTTP 400 with the error text propagated in `detail`.",
+    "Recommendation (unchanged from iteration_3): server.py is at 883 lines — _event_to_response's manual field-by-field mapping is the exact pattern that caused BUG-1. Long-term, switch to EventResponse.model_validate(doc) with ConfigDict(extra='ignore') and drop the ObjectId `_id` explicitly, to prevent the same class of drift when new fields are added."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (4/4 targeted tests pass; smoke curl of /api/events + robots-check both endpoints all green)",
+    "frontend": "not tested (backend-only re-verification per review request)"
+  },
+  "seed_data_creation": "None. Only read-only GET + a benign robots-check POST (no crawl triggered).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration_3 BUG-1 (free_parking response mapping) and BUG-2 (robots-check URL validation) are both fixed and confirmed via /app/backend/tests/test_sources_and_crawler.py (targeted subset run in iteration_4). Baseline is still 56 events / 53 sources / 14 deep-dive-seed. Note the review request mentioned '50 events, 12 True / 38 False' but the actual count is 56 events, 12 True / 44 False — the 12 True count matches, the total just reflects the full dataset including non-deep-dive events. No new bugs introduced.",
+  "rca_of_issue": "N/A — this iteration only re-verified iteration_3 fixes. Root causes documented in iteration_3.json remain accurate."
+}
