@@ -4,6 +4,7 @@ import React from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { useApp } from "@/src/contexts/AppContext";
+import { pickLang } from "@/src/i18n/pickLang";
 import type { Place } from "@/src/data/places";
 import { palette, radii, shadow, spacing } from "@/src/theme";
 
@@ -54,10 +55,10 @@ export function AppCard({ item, large = false, onPress, testID }: Props) {
         {large ? (
           <View style={styles.largeOverlay}>
             <Text style={styles.largeTitle} numberOfLines={2}>
-              {item.title[lang]}
+              {pickLang(item.title, lang)}
             </Text>
             <Text style={styles.largeShort} numberOfLines={2}>
-              {item.short[lang]}
+              {pickLang(item.short, lang)}
             </Text>
             <View style={styles.largeMetaRow}>
               <View style={styles.metaPill}>
@@ -82,10 +83,10 @@ export function AppCard({ item, large = false, onPress, testID }: Props) {
       {!large ? (
         <View style={styles.cardBody}>
           <Text style={styles.title} numberOfLines={1}>
-            {item.title[lang]}
+            {pickLang(item.title, lang)}
           </Text>
           <Text style={styles.short} numberOfLines={2}>
-            {item.short[lang]}
+            {pickLang(item.short, lang)}
           </Text>
           <View style={styles.metaRow}>
             <View style={styles.metaItem}>

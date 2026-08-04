@@ -23,6 +23,9 @@ import {
   PERSONAS,
   type PersonaId,
 } from "@/src/data/onboarding";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
+import { pickLang } from "@/src/i18n/pickLang";
+import { type Palette, shadowFor } from "@/src/theme";
 
 type Step = "welcome" | "persona" | "ages" | "interests" | "needs" | "cantons" | "budget" | "done";
 
@@ -85,12 +88,12 @@ export default function OnboardingScreen() {
 
   const confirmSkip = useCallback(() => {
     Alert.alert(
-      ONBOARDING_COPY.skipWarnTitle[lang],
-      ONBOARDING_COPY.skipWarnBody[lang],
+      pickLang(ONBOARDING_COPY.skipWarnTitle, lang),
+      pickLang(ONBOARDING_COPY.skipWarnBody, lang),
       [
-        { text: ONBOARDING_COPY.cancel[lang], style: "cancel" },
+        { text: pickLang(ONBOARDING_COPY.cancel, lang), style: "cancel" },
         {
-          text: ONBOARDING_COPY.skipConfirm[lang],
+          text: pickLang(ONBOARDING_COPY.skipConfirm, lang),
           style: "destructive",
           onPress: () =>
             persistAndExit({
@@ -179,7 +182,7 @@ export default function OnboardingScreen() {
 
         {step !== "done" ? (
           <TouchableOpacity onPress={confirmSkip} hitSlop={12} testID="onb-skip">
-            <Text style={styles.skipTxt}>{ONBOARDING_COPY.skip[lang]}</Text>
+            <Text style={styles.skipTxt}>{pickLang(ONBOARDING_COPY.skip, lang)}</Text>
           </TouchableOpacity>
         ) : (
           <View style={{ width: 22 }} />
@@ -196,17 +199,17 @@ export default function OnboardingScreen() {
             <View style={styles.heroIcon}>
               <Ionicons name="compass" size={54} color={palette.primaryDark} />
             </View>
-            <Text style={styles.h1}>{ONBOARDING_COPY.welcomeTitle[lang]}</Text>
+            <Text style={styles.h1}>{pickLang(ONBOARDING_COPY.welcomeTitle, lang)}</Text>
             <Text style={styles.subtitle}>
-              {ONBOARDING_COPY.welcomeSubtitle[lang]}
+              {pickLang(ONBOARDING_COPY.welcomeSubtitle, lang)}
             </Text>
           </View>
         )}
 
         {step === "persona" && (
           <View>
-            <Text style={styles.h1}>{ONBOARDING_COPY.personaTitle[lang]}</Text>
-            <Text style={styles.subtitle}>{ONBOARDING_COPY.personaSub[lang]}</Text>
+            <Text style={styles.h1}>{pickLang(ONBOARDING_COPY.personaTitle, lang)}</Text>
+            <Text style={styles.subtitle}>{pickLang(ONBOARDING_COPY.personaSub, lang)}</Text>
             <View style={styles.cardsWrap}>
               {PERSONAS.map((p) => {
                 const active = persona === p.id;
@@ -225,7 +228,7 @@ export default function OnboardingScreen() {
                       />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.cardTitle}>{p.labels[lang]}</Text>
+                      <Text style={styles.cardTitle}>{pickLang(p.labels, lang)}</Text>
                       <Text style={styles.cardDesc}>{p.descriptions[lang]}</Text>
                     </View>
                     {active ? (
@@ -244,8 +247,8 @@ export default function OnboardingScreen() {
 
         {step === "ages" && (
           <View>
-            <Text style={styles.h1}>{ONBOARDING_COPY.ageTitle[lang]}</Text>
-            <Text style={styles.subtitle}>{ONBOARDING_COPY.ageSub[lang]}</Text>
+            <Text style={styles.h1}>{pickLang(ONBOARDING_COPY.ageTitle, lang)}</Text>
+            <Text style={styles.subtitle}>{pickLang(ONBOARDING_COPY.ageSub, lang)}</Text>
             <View style={styles.chipsWrap}>
               {CHILD_AGE_GROUPS.map((a) => {
                 const active = childAges.includes(a.id);
@@ -257,7 +260,7 @@ export default function OnboardingScreen() {
                     testID={`onb-age-${a.id}`}
                   >
                     <Text style={[styles.chipTxt, active && styles.chipTxtActive]}>
-                      {a.labels[lang]}
+                      {pickLang(a.labels, lang)}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -268,9 +271,9 @@ export default function OnboardingScreen() {
 
         {step === "interests" && (
           <View>
-            <Text style={styles.h1}>{ONBOARDING_COPY.interestsTitle[lang]}</Text>
+            <Text style={styles.h1}>{pickLang(ONBOARDING_COPY.interestsTitle, lang)}</Text>
             <Text style={styles.subtitle}>
-              {ONBOARDING_COPY.interestsSub[lang]} · {interests.length} selected
+              {pickLang(ONBOARDING_COPY.interestsSub, lang)} · {interests.length} selected
             </Text>
             <View style={styles.chipsWrap}>
               {INTEREST_TAGS.map((t) => {
@@ -289,7 +292,7 @@ export default function OnboardingScreen() {
                       style={{ marginRight: 6 }}
                     />
                     <Text style={[styles.chipTxt, active && styles.chipTxtActive]}>
-                      {t.labels[lang]}
+                      {pickLang(t.labels, lang)}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -300,8 +303,8 @@ export default function OnboardingScreen() {
 
         {step === "needs" && (
           <View>
-            <Text style={styles.h1}>{ONBOARDING_COPY.needsTitle[lang]}</Text>
-            <Text style={styles.subtitle}>{ONBOARDING_COPY.needsSub[lang]}</Text>
+            <Text style={styles.h1}>{pickLang(ONBOARDING_COPY.needsTitle, lang)}</Text>
+            <Text style={styles.subtitle}>{pickLang(ONBOARDING_COPY.needsSub, lang)}</Text>
             <View style={styles.chipsWrap}>
               {NEED_TAGS.map((t) => {
                 const active = needs.includes(t.id);
@@ -319,7 +322,7 @@ export default function OnboardingScreen() {
                       style={{ marginRight: 6 }}
                     />
                     <Text style={[styles.chipTxt, active && styles.chipTxtActive]}>
-                      {t.labels[lang]}
+                      {pickLang(t.labels, lang)}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -330,9 +333,9 @@ export default function OnboardingScreen() {
 
         {step === "cantons" && (
           <View>
-            <Text style={styles.h1}>{ONBOARDING_COPY.cantonsTitle[lang]}</Text>
+            <Text style={styles.h1}>{pickLang(ONBOARDING_COPY.cantonsTitle, lang)}</Text>
             <Text style={styles.subtitle}>
-              {ONBOARDING_COPY.cantonsSub[lang]} · {preferredCantons.length} selected
+              {pickLang(ONBOARDING_COPY.cantonsSub, lang)} · {preferredCantons.length} selected
             </Text>
             <View style={styles.chipsWrap}>
               {CANTON_OPTIONS.map((c) => {
@@ -353,7 +356,7 @@ export default function OnboardingScreen() {
                       style={{ marginRight: 6 }}
                     />
                     <Text style={[styles.chipTxt, active && styles.chipTxtActive]}>
-                      {c.labels[lang]}
+                      {pickLang(c.labels, lang)}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -364,8 +367,8 @@ export default function OnboardingScreen() {
 
         {step === "budget" && (
           <View>
-            <Text style={styles.h1}>{ONBOARDING_COPY.budgetTitle[lang]}</Text>
-            <Text style={styles.subtitle}>{ONBOARDING_COPY.budgetSub[lang]}</Text>
+            <Text style={styles.h1}>{pickLang(ONBOARDING_COPY.budgetTitle, lang)}</Text>
+            <Text style={styles.subtitle}>{pickLang(ONBOARDING_COPY.budgetSub, lang)}</Text>
             <View style={styles.cardsWrap}>
               {BUDGET_OPTIONS.map((b) => {
                 const active = budget === b.id;
@@ -384,7 +387,7 @@ export default function OnboardingScreen() {
                       />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.cardTitle}>{b.labels[lang]}</Text>
+                      <Text style={styles.cardTitle}>{pickLang(b.labels, lang)}</Text>
                     </View>
                     {active ? (
                       <Ionicons name="checkmark-circle" size={22} color={palette.primary} />
@@ -401,12 +404,12 @@ export default function OnboardingScreen() {
             <View style={styles.heroIcon}>
               <Ionicons name="sparkles" size={54} color={palette.primaryDark} />
             </View>
-            <Text style={styles.h1}>{ONBOARDING_COPY.doneTitle[lang]}</Text>
-            <Text style={styles.subtitle}>{ONBOARDING_COPY.doneSub[lang]}</Text>
+            <Text style={styles.h1}>{pickLang(ONBOARDING_COPY.doneTitle, lang)}</Text>
+            <Text style={styles.subtitle}>{pickLang(ONBOARDING_COPY.doneSub, lang)}</Text>
             <View style={styles.summary}>
               <SummaryRow
                 icon={selectedPersona?.icon ?? "person-outline"}
-                label={selectedPersona?.labels[lang] ?? ""}
+                label={pickLang(selectedPersona?.labels, lang) ?? ""}
               />
               {childAges.length > 0 && (
                 <SummaryRow
@@ -456,8 +459,8 @@ export default function OnboardingScreen() {
         >
           <Text style={styles.ctaTxt}>
             {step === "done"
-              ? ONBOARDING_COPY.finish[lang]
-              : ONBOARDING_COPY.next[lang]}
+              ? pickLang(ONBOARDING_COPY.finish, lang)
+              : pickLang(ONBOARDING_COPY.next, lang)}
           </Text>
           <Ionicons name="arrow-forward" size={18} color="#fff" />
         </TouchableOpacity>

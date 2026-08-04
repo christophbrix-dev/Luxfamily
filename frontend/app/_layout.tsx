@@ -20,26 +20,32 @@ SplashScreen.preventAutoHideAsync();
  * (`ready === true`) so we don't false-flag returning users as brand-new.
  */
 function OnboardingGate() {
-  const { ready, hasOnboarded, user } = useApp();
+  const { ready, hasOnboarded, user, langPicked } = useApp();
   const router = useRouter();
   const segments = useSegments();
 
   useEffect(() => {
     if (!ready) return;
     const currentTop = segments[0] ?? "";
-    // Only push to onboarding once the user has actually authenticated
-    // (email login, guest mode, or Google). Otherwise they'd hit the
-    // wizard before ever seeing the login screen.
+    // Step 1 — pick a language before anything else. Skips itself so we
+    // don't loop, and skips deep-linked routes if the user is already inside
+    // the tabs (which shouldn't happen on a truly fresh install).
+    if (!langPicked && currentTop !== "pick-language") {
+      router.replace("/pick-language");
+      return;
+    }
+    // Step 2 — once authenticated, push new users into the onboarding wizard.
     const isAuthed = !!user;
     if (
       isAuthed &&
       !hasOnboarded &&
       currentTop !== "onboarding" &&
-      currentTop !== "login"
+      currentTop !== "login" &&
+      currentTop !== "pick-language"
     ) {
       router.replace("/onboarding");
     }
-  }, [ready, hasOnboarded, user, segments, router]);
+  }, [ready, hasOnboarded, user, langPicked, segments, router]);
 
   return null;
 }

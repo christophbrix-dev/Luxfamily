@@ -9,6 +9,7 @@ import { MapPreview } from "@/src/components/MapPreview";
 import { useApp } from "@/src/contexts/AppContext";
 import { PLACES } from "@/src/data/places";
 import { t } from "@/src/i18n/strings";
+import { pickLang } from "@/src/i18n/pickLang";
 import { radii, type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 
@@ -78,8 +79,8 @@ export default function Detail() {
                 <Text style={styles.ratingTxt}>{place.rating.toFixed(1)}</Text>
               </View>
             </View>
-            <Text style={styles.heroTitle}>{place.title[lang]}</Text>
-            <Text style={styles.heroSub}>{place.short[lang]}</Text>
+            <Text style={styles.heroTitle}>{pickLang(place.title, lang)}</Text>
+            <Text style={styles.heroSub}>{pickLang(place.short, lang)}</Text>
           </View>
         </View>
 
@@ -98,7 +99,7 @@ export default function Detail() {
             <StatCard
               icon="accessibility-outline"
               label="Access"
-              value={place.accessibility[lang]}
+              value={pickLang(place.accessibility, lang)}
             />
           </View>
 
@@ -120,13 +121,13 @@ export default function Detail() {
               </TouchableOpacity>
             </View>
             <View style={{ marginTop: 14, borderRadius: 18, overflow: "hidden" }}>
-              <MapPreview lat={place.lat} lng={place.lng} label={place.title[lang]} height={170} />
+              <MapPreview lat={place.lat} lng={place.lng} label={pickLang(place.title, lang)} height={170} />
             </View>
           </View>
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{t("about", lang)}</Text>
-            <Text style={styles.about}>{place.description[lang]}</Text>
+            <Text style={styles.about}>{pickLang(place.description, lang)}</Text>
             <View style={styles.tagRow}>
               {place.category.map((tag) => (
                 <View key={tag} style={styles.tag}>

@@ -1,7 +1,7 @@
 // Static seed data for Luxembourg family activities.
 // Translations are provided per language; pick via getPlace(id, lang).
 
-export type Lang = "en" | "de" | "fr";
+export type Lang = "en" | "de" | "fr" | "lb";
 
 export type LocalizedString = Record<Lang, string>;
 

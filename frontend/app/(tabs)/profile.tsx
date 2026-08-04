@@ -8,6 +8,7 @@ import { useApp } from "@/src/contexts/AppContext";
 import type { Lang } from "@/src/data/places";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { t } from "@/src/i18n/strings";
+import { pickLang } from "@/src/i18n/pickLang";
 import { radii, type Palette } from "@/src/theme";
 
 const LANGS: { code: Lang; label: string; flag: string }[] = [
@@ -31,7 +32,7 @@ export default function Profile() {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { PERSONAS } = require("@/src/data/onboarding") as typeof import("@/src/data/onboarding");
     const p = PERSONAS.find((x) => x.id === userProfile.persona);
-    return p?.labels[lang] ?? t("notSet", lang);
+    return pickLang(p?.labels, lang) ?? t("notSet", lang);
   })();
 
   return (

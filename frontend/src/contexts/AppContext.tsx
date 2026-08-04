@@ -21,6 +21,7 @@ import {
 } from "@/src/utils/googleAuth";
 
 const LANG_KEY = "lux.lang";
+const LANG_PICKED_KEY = "lux.langPicked";
 const SAVED_KEY = "lux.saved";
 const USER_KEY = "lux.user";
 const BOOKINGS_KEY = "lux.bookings";
@@ -103,6 +104,8 @@ type Ctx = {
   markOnboarded: () => void;
   resetOnboarding: () => void;
   signInWithGoogle: () => Promise<{ isNewUser: boolean } | null>;
+  langPicked: boolean;
+  markLangPicked: () => void;
 };
 
 const AppCtx = createContext<Ctx | null>(null);
@@ -117,14 +120,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<ThemeMode>("light");
   const [userProfile, setUserProfileState] = useState<UserProfile>(DEFAULT_PROFILE);
   const [hasOnboarded, setHasOnboarded] = useState(false);
+  const [langPicked, setLangPickedState] = useState(false);
 
   // Hydrate from storage on mount.
   useEffect(() => {
     (async () => {
-      const storedLang = await storage.getItem<string>(LANG_KEY, "en");
-      if (storedLang && ["en", "de", "fr"].includes(storedLang)) {
+      const storedLang = await storage.getItem<string>(LANG_KEY, "");
+      if (storedLang && ["en", "de", "fr", "lb"].includes(storedLang)) {
         setLangState(storedLang as Lang);
+        setLangPickedState(true);
       }
+      const storedLangPicked = await storage.getItem<string>(LANG_PICKED_KEY, "");
+      if (storedLangPicked === "true") setLangPickedState(true);
       const storedSaved = await storage.getItem<string>(SAVED_KEY, "[]");
       try {
         const parsed = JSON.parse(storedSaved || "[]");
@@ -232,6 +239,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     storage.setItem(LANG_KEY, l);
   }, []);
 
+  const markLangPicked = useCallback(() => {
+    setLangPickedState(true);
+    storage.setItem(LANG_PICKED_KEY, "true");
+  }, []);
+
   const signIn = useCallback((email: string, name?: string) => {
     const next: User = { email, name: name || email.split("@")[0], guest: false };
     setUser(next);
@@ -323,8 +335,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       markOnboarded,
       resetOnboarding,
       signInWithGoogle,
+      langPicked,
+      markLangPicked,
     }),
-    [ready, lang, setLang, user, signIn, signInGuest, signOutUser, saved, toggleSave, bookings, addBooking, preferences, setPreferences, theme, setTheme, userProfile, setUserProfile, hasOnboarded, markOnboarded, resetOnboarding, signInWithGoogle],
+    [ready, lang, setLang, user, signIn, signInGuest, signOutUser, saved, toggleSave, bookings, addBooking, preferences, setPreferences, theme, setTheme, userProfile, setUserProfile, hasOnboarded, markOnboarded, resetOnboarding, signInWithGoogle, langPicked, markLangPicked],
   );
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;

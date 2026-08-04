@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MapPreview } from "@/src/components/MapPreview";
 import { useApp } from "@/src/contexts/AppContext";
 import { t } from "@/src/i18n/strings";
+import { pickLang } from "@/src/i18n/pickLang";
 import { palette, radii, shadow } from "@/src/theme";
 import { api, ApiEvent } from "@/src/utils/api";
 
@@ -107,8 +108,8 @@ export default function EventDetail() {
             <View style={styles.typeBadge}>
               <Text style={styles.typeBadgeTxt}>EVENT</Text>
             </View>
-            <Text style={styles.heroTitle}>{ev.title[lang] ?? ev.title.en}</Text>
-            <Text style={styles.heroSub}>{ev.short[lang] ?? ev.short.en}</Text>
+            <Text style={styles.heroTitle}>{pickLang(ev.title, lang) ?? ev.title.en}</Text>
+            <Text style={styles.heroSub}>{pickLang(ev.short, lang) ?? ev.short.en}</Text>
           </View>
         </View>
 
@@ -116,7 +117,7 @@ export default function EventDetail() {
           <View style={styles.weatherPill}>
             <Ionicons name="partly-sunny-outline" size={14} color="#92400E" />
             <Text style={styles.weatherTxt}>
-              {t("greatForToday", lang)}: {ev.weather_fit[lang] ?? ev.weather_fit.en}
+              {t("greatForToday", lang)}: {pickLang(ev.weather_fit, lang) ?? ev.weather_fit.en}
             </Text>
           </View>
 
@@ -126,12 +127,12 @@ export default function EventDetail() {
             <Stat
               icon="pricetag-outline"
               label="Price"
-              value={ev.price_label[lang] ?? ev.price_label.en}
+              value={pickLang(ev.price_label, lang) ?? ev.price_label.en}
             />
             <Stat
               icon="accessibility-outline"
               label="Access"
-              value={ev.accessibility[lang] ?? ev.accessibility.en}
+              value={pickLang(ev.accessibility, lang) ?? ev.accessibility.en}
             />
           </View>
 
@@ -197,7 +198,7 @@ export default function EventDetail() {
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{t("about", lang)}</Text>
-            <Text style={styles.about}>{ev.description[lang] ?? ev.description.en}</Text>
+            <Text style={styles.about}>{pickLang(ev.description, lang) ?? ev.description.en}</Text>
             <View style={styles.tagRow}>
               {ev.category.map((tag) => (
                 <View key={tag} style={styles.tag}>

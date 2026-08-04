@@ -22,9 +22,10 @@ import { radii, type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 
 const LANGS: { code: Lang; label: string; flag: string }[] = [
-  { code: "en", label: "English", flag: "🇬🇧" },
+  { code: "lb", label: "Lëtzebuergesch", flag: "🇱🇺" },
   { code: "de", label: "Deutsch", flag: "🇩🇪" },
   { code: "fr", label: "Français", flag: "🇫🇷" },
+  { code: "en", label: "English", flag: "🇬🇧" },
 ];
 
 export default function Login() {

@@ -9,6 +9,7 @@ import { Chip } from "@/src/components/Chip";
 import { useApp } from "@/src/contexts/AppContext";
 import { PLACES } from "@/src/data/places";
 import { t } from "@/src/i18n/strings";
+import { pickLang } from "@/src/i18n/pickLang";
 import { type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 
@@ -124,7 +125,7 @@ export default function Calendar() {
                     </Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.bookingTitle}>{p.title[lang]}</Text>
+                    <Text style={styles.bookingTitle}>{pickLang(p.title, lang)}</Text>
                     <Text style={styles.bookingSub}>
                       {p.town} · {b.adults} {t("numAdults", lang)} · {b.children}{" "}
                       {t("numChildren", lang)}

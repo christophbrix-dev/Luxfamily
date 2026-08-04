@@ -15,6 +15,7 @@ import { radii, type Palette, shadowFor } from "@/src/theme";
 import { useApp } from "@/src/contexts/AppContext";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { t } from "@/src/i18n/strings";
+import { pickLang } from "@/src/i18n/pickLang";
 import { ApiEvent } from "@/src/utils/api";
 
 export default function SponsorChooser() {
@@ -90,7 +91,7 @@ export default function SponsorChooser() {
             <Ionicons name="star" size={14} color="#92400E" />
             <Text style={styles.eventBadgeTxt}>{t("featuredPlacement", lang)}</Text>
           </View>
-          <Text style={styles.eventTitle}>{event.title[lang] ?? event.title.en}</Text>
+          <Text style={styles.eventTitle}>{pickLang(event.title, lang) ?? event.title.en}</Text>
           <Text style={styles.eventMeta}>{event.start_date} · {event.town}</Text>
         </View>
 

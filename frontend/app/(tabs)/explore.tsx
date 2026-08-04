@@ -20,6 +20,7 @@ import LeafletMap, {
 import { useApp } from "@/src/contexts/AppContext";
 import { CANTONS, type Canton } from "@/src/data/places";
 import { t } from "@/src/i18n/strings";
+import { pickLang } from "@/src/i18n/pickLang";
 import { radii, type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { api, type ApiEvent } from "@/src/utils/api";
@@ -78,7 +79,7 @@ export default function Explore() {
       if (filters.sensoryFriendly && !e.sensory_friendly) return false;
       if (filters.freeParking && !e.free_parking) return false;
       if (q) {
-        const hay = `${e.title[lang] ?? ""} ${e.short[lang] ?? ""} ${e.town ?? ""}`.toLowerCase();
+        const hay = `${pickLang(e.title, lang) ?? ""} ${pickLang(e.short, lang) ?? ""} ${e.town ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -109,7 +110,7 @@ export default function Explore() {
         id: e.id,
         lat: e.lat,
         lng: e.lng,
-        title: e.title[lang] ?? e.title.en ?? "",
+        title: pickLang(e.title, lang) ?? e.title.en ?? "",
         town: e.town,
         canton: e.canton,
         category: e.category,
@@ -248,7 +249,7 @@ export default function Explore() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.resultTitle} numberOfLines={1}>
-                  {e.title[lang] ?? e.title.en}
+                  {pickLang(e.title, lang) ?? e.title.en}
                 </Text>
                 <Text style={styles.resultSub} numberOfLines={1}>
                   {[e.town, e.canton].filter(Boolean).join(" · ")}

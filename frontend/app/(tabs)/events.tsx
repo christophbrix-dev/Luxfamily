@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useApp } from "@/src/contexts/AppContext";
 import { t } from "@/src/i18n/strings";
+import { pickLang } from "@/src/i18n/pickLang";
 import { radii, type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { api, ApiEvent } from "@/src/utils/api";
@@ -79,8 +80,8 @@ function groupEvents(
   // Sort venues alphabetically for stable UX (title matters more than date
   // since they're all always-open).
   venues.sort((a, b) => {
-    const ta = (a.title[lang] ?? a.title.en ?? "").toLowerCase();
-    const tb = (b.title[lang] ?? b.title.en ?? "").toLowerCase();
+    const ta = (pickLang(a.title, lang) ?? a.title.en ?? "").toLowerCase();
+    const tb = (pickLang(b.title, lang) ?? b.title.en ?? "").toLowerCase();
     return ta.localeCompare(tb);
   });
 
@@ -364,7 +365,7 @@ function EventRow({
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Text style={styles.title} numberOfLines={1}>
-            {event.title[lang] ?? event.title.en}
+            {pickLang(event.title, lang) ?? event.title.en}
           </Text>
           {event.featured ? (
             <View style={featuredStyles.badge}>

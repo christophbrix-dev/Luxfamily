@@ -7,6 +7,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useApp } from "@/src/contexts/AppContext";
 import { PLACES } from "@/src/data/places";
 import { t } from "@/src/i18n/strings";
+import { pickLang } from "@/src/i18n/pickLang";
 import { radii, type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 
@@ -72,7 +73,7 @@ export default function Book() {
         <View style={styles.confirmCard}>
           <Image source={{ uri: place.image }} style={styles.confirmImg} />
           <View style={{ padding: 14, gap: 6 }}>
-            <Text style={styles.confirmCardTitle}>{place.title[lang]}</Text>
+            <Text style={styles.confirmCardTitle}>{pickLang(place.title, lang)}</Text>
             <Text style={styles.confirmCardMeta}>
               {new Date(DATE_OPTS[dateIdx].iso).toLocaleDateString(undefined, {
                 weekday: "long",
@@ -120,7 +121,7 @@ export default function Book() {
           <Image source={{ uri: place.image }} style={styles.placeImg} />
           <View style={{ flex: 1 }}>
             <Text style={styles.placeTitle} numberOfLines={2}>
-              {place.title[lang]}
+              {pickLang(place.title, lang)}
             </Text>
             <Text style={styles.placeMeta}>
               {place.town} · {place.time}
