@@ -517,10 +517,7 @@ class GoogleSessionResponse(BaseModel):
     user: GoogleAuthUser
 
 
-EMERGENT_SESSION_URL = os.environ.get(
-    "EMERGENT_SESSION_URL",
-    "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
-)
+EMERGENT_SESSION_URL = os.environ["EMERGENT_SESSION_URL"]
 
 
 @app.post("/api/auth/session", response_model=GoogleSessionResponse)
