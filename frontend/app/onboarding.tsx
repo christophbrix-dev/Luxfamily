@@ -24,23 +24,11 @@ import {
   type PersonaId,
 } from "@/src/data/onboarding";
 
-const palette = {
-  primary: "#059669",
-  primaryDark: "#065F46",
-  primaryLight: "#D1FAE5",
-  background: "#F7F8FA",
-  surface: "#FFFFFF",
-  surfaceMuted: "#F3F4F6",
-  border: "#E5E7EB",
-  textPrimary: "#111827",
-  textSecondary: "#4B5563",
-  textMuted: "#9CA3AF",
-  accent: "#10B981",
-};
-
 type Step = "welcome" | "persona" | "ages" | "interests" | "needs" | "cantons" | "budget" | "done";
 
 export default function OnboardingScreen() {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const router = useRouter();
   const { lang, setUserProfile, markOnboarded } = useApp();
 
@@ -479,6 +467,8 @@ export default function OnboardingScreen() {
 }
 
 function SummaryRow({ icon, label }: { icon: string; label: string }) {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   return (
     <View style={styles.summaryRow}>
       <View style={styles.summaryIcon}>
@@ -493,7 +483,7 @@ function SummaryRow({ icon, label }: { icon: string; label: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.background },
   topBar: {
     flexDirection: "row",

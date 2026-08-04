@@ -1,9 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useMemo } from "react";
 import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-import { palette, radii, shadow } from "@/src/theme";
+import { radii, type Palette, shadowFor } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
+import { t } from "@/src/i18n/strings";
 import { apiFetch } from "@/src/utils/api";
 
 type Partner = {
@@ -19,6 +21,9 @@ type Partner = {
 };
 
 export default function AdminPartners() {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
+  const { lang } = useApp();
   const router = useRouter();
   const [items, setItems] = useState<Partner[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -50,7 +55,7 @@ export default function AdminPartners() {
           <Ionicons name="chevron-back" size={18} color={palette.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.h1}>Partner submissions</Text>
+          <Text style={styles.h1}>{t("partnerSubmissions", lang)}</Text>
           <Text style={styles.sub}>{items?.length ?? 0} entries · moderation queue</Text>
         </View>
       </View>
@@ -61,7 +66,7 @@ export default function AdminPartners() {
         ) : items.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="people-outline" size={36} color={palette.textMuted} />
-            <Text style={styles.emptyTxt}>No partner submissions yet.</Text>
+            <Text style={styles.emptyTxt}>{t("noPartnerSubmissions", lang)}</Text>
           </View>
         ) : (
           items.map((p) => (
@@ -94,14 +99,14 @@ export default function AdminPartners() {
                     style={[styles.actionBtn, { backgroundColor: palette.primary }]}
                     testID={`partner-approve-${p.id}`}
                   >
-                    <Text style={styles.actionTxt}>Approve</Text>
+                    <Text style={styles.actionTxt}>{t("approve", lang)}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => update(p.id, "rejected")}
                     style={[styles.actionBtn, { backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA" }]}
                     testID={`partner-reject-${p.id}`}
                   >
-                    <Text style={[styles.actionTxt, { color: palette.red }]}>Reject</Text>
+                    <Text style={[styles.actionTxt, { color: palette.red }]}>{t("reject", lang)}</Text>
                   </TouchableOpacity>
                 </View>
               ) : null}
@@ -119,7 +124,7 @@ function statusStyle(s: string) {
   return { backgroundColor: "#FEF3C7" };
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
   topbar: {
     paddingHorizontal: 24,
     paddingTop: 28,

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -14,7 +14,8 @@ import {
 } from "react-native";
 
 import { CANTONS } from "@/src/data/places";
-import { palette, radii, shadow } from "@/src/theme";
+import { radii, type Palette, shadowFor } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { api, ApiEvent, LocalizedString } from "@/src/utils/api";
 
 const CATEGORIES = ["Animals", "Culture", "Playgrounds", "Water", "Nature", "Workshops", "Festivals"];
@@ -69,6 +70,8 @@ const EMPTY_DRAFT: Draft = {
 };
 
 export default function AdminEventEdit() {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const isNew = id === "new" || !id;
@@ -489,6 +492,8 @@ export default function AdminEventEdit() {
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -529,7 +534,7 @@ function LangField({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F1F5F9" },
   topbar: {
     paddingHorizontal: 24,

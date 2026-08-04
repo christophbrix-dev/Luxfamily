@@ -1,11 +1,17 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-import { palette, radii, shadow } from "@/src/theme";
+import { useApp } from "@/src/contexts/AppContext";
+import { t } from "@/src/i18n/strings";
+import { radii, type Palette, shadowFor } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
 
 export default function SponsorSuccess() {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
+  const { lang } = useApp();
   const router = useRouter();
   const { session_id } = useLocalSearchParams<{ session_id: string }>();
   const [info, setInfo] = useState<{ paid: boolean; amount_total: number; event_id: string; plan: string } | null>(null);
@@ -16,8 +22,8 @@ export default function SponsorSuccess() {
     fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/sponsor/session/${session_id}`)
       .then((r) => r.json())
       .then((d) => (d.detail ? setErr(d.detail) : setInfo(d)))
-      .catch((e) => setErr(e instanceof Error ? e.message : "Lookup failed"));
-  }, [session_id]);
+      .catch((e) => setErr(e instanceof Error ? e.message : t("lookupFailed", lang)));
+  }, [session_id, lang]);
 
   return (
     <View style={styles.wrap}>
@@ -30,18 +36,20 @@ export default function SponsorSuccess() {
           <View style={styles.iconCircle}>
             <Ionicons name="checkmark" size={36} color="#fff" />
           </View>
-          <Text style={styles.title}>{info?.paid ? "Payment successful!" : "Awaiting payment"}</Text>
+          <Text style={styles.title}>
+            {info?.paid ? t("paymentSuccess", lang) : t("paymentAwaiting", lang)}
+          </Text>
           <Text style={styles.sub}>
             {info?.paid
-              ? `Your featured slot is active. Plan: ${info.plan}.`
-              : "Payment is being processed. Please wait a moment."}
+              ? `${t("featuredSlotActive", lang)} ${info.plan}.`
+              : t("paymentProcessing", lang)}
           </Text>
           <View style={styles.amountBox}>
-            <Text style={styles.amountLbl}>Total paid</Text>
+            <Text style={styles.amountLbl}>{t("totalPaid", lang)}</Text>
             <Text style={styles.amount}>EUR {((info?.amount_total ?? 0) / 100).toFixed(2)}</Text>
           </View>
           <TouchableOpacity onPress={() => router.replace("/(tabs)/events")} style={styles.cta} testID="sponsor-done">
-            <Text style={styles.ctaTxt}>Back to app</Text>
+            <Text style={styles.ctaTxt}>{t("backToApp", lang)}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -49,8 +57,8 @@ export default function SponsorSuccess() {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: "#F1F5F9", justifyContent: "center", alignItems: "center", padding: 24 },
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: palette.surfaceMuted, justifyContent: "center", alignItems: "center", padding: 24 },
   err: { color: palette.red },
   card: {
     backgroundColor: palette.surface,

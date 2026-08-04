@@ -1,11 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Application from "expo-application";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useMemo } from "react";
 import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { palette, radii, shadow } from "@/src/theme";
+import { radii, type Palette, shadowFor } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
 
 const ROWS: { icon: keyof typeof import("@expo/vector-icons").Ionicons.glyphMap; label: string; url?: string; sub?: string }[] = [
   { icon: "document-text-outline", label: "Privacy policy", url: "https://familyluxembourg.lu/privacy" },
@@ -16,6 +17,8 @@ const ROWS: { icon: keyof typeof import("@expo/vector-icons").Ionicons.glyphMap;
 ];
 
 export default function About() {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const router = useRouter();
   const version = Application.nativeApplicationVersion ?? "1.0.0";
   const build = Application.nativeBuildVersion ?? "1";
@@ -66,7 +69,7 @@ export default function About() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.background },
   topbar: {
     paddingHorizontal: 18,

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useMemo } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -11,10 +11,15 @@ import {
   View,
 } from "react-native";
 
-import { palette, radii, shadow } from "@/src/theme";
+import { radii, type Palette, shadowFor } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
+import { t } from "@/src/i18n/strings";
 import { api, ApiSource } from "@/src/utils/api";
 
 export default function AdminSources() {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
+  const { lang } = useApp();
   const router = useRouter();
   const [items, setItems] = useState<ApiSource[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -100,7 +105,7 @@ export default function AdminSources() {
           <Ionicons name="chevron-back" size={18} color={palette.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.h1}>Auto-Importer Sources</Text>
+          <Text style={styles.h1}>{t("importSources", lang)}</Text>
           <Text style={styles.sub}>
             {items ? `${items.length} configured` : "Loading..."} · Runs every 24h
           </Text>
@@ -111,7 +116,7 @@ export default function AdminSources() {
         {err ? <Text style={styles.errTxt}>{err}</Text> : null}
 
         <View style={styles.formCard}>
-          <Text style={styles.formTitle}>Add a new feed</Text>
+          <Text style={styles.formTitle}>{t("addNewFeed", lang)}</Text>
           <TextInput
             value={newName}
             onChangeText={setNewName}
@@ -155,7 +160,7 @@ export default function AdminSources() {
           />
           <TouchableOpacity onPress={addSource} style={styles.addBtn} testID="src-add">
             <Ionicons name="add" size={16} color="#fff" />
-            <Text style={styles.addBtnTxt}>Add source</Text>
+            <Text style={styles.addBtnTxt}>{t("addSource", lang)}</Text>
           </TouchableOpacity>
         </View>
 
@@ -190,7 +195,7 @@ export default function AdminSources() {
                     <Text style={{ color: palette.red }}>✗ Error: {s.last_error}</Text>
                   )}
                   {!s.last_status && (
-                    <Text style={{ color: palette.textMuted }}>Never run</Text>
+                    <Text style={{ color: palette.textMuted }}>{t("neverRun", lang)}</Text>
                   )}
                 </Text>
               </View>
@@ -233,7 +238,7 @@ export default function AdminSources() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
   wrap: { flex: 1, backgroundColor: "#F1F5F9" },
   topbar: {
     paddingHorizontal: 24,

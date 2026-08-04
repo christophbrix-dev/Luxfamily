@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Image,
   KeyboardAvoidingView,
@@ -18,7 +18,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp } from "@/src/contexts/AppContext";
 import type { Lang } from "@/src/data/places";
 import { t } from "@/src/i18n/strings";
-import { palette, radii, shadow } from "@/src/theme";
+import { radii, type Palette, shadowFor } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
 
 const LANGS: { code: Lang; label: string; flag: string }[] = [
   { code: "en", label: "English", flag: "🇬🇧" },
@@ -27,6 +28,8 @@ const LANGS: { code: Lang; label: string; flag: string }[] = [
 ];
 
 export default function Login() {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const router = useRouter();
   const { lang, setLang, signIn, signInGuest, signInWithGoogle } = useApp();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -216,7 +219,7 @@ export default function Login() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.background },
   scroll: { flexGrow: 1 },
   hero: { height: 360, overflow: "hidden" },

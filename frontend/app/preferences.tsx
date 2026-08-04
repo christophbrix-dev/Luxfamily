@@ -1,13 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useApp } from "@/src/contexts/AppContext";
 import { CANTONS } from "@/src/data/places";
 import { t } from "@/src/i18n/strings";
-import { palette, radii, shadow } from "@/src/theme";
+import { radii, type Palette, shadowFor } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
 
 const CATEGORIES = ["Animals", "Culture", "Playgrounds", "Water", "Nature", "Workshops", "Festivals"];
 const AGE_PRESETS: [number, number, string][] = [
@@ -18,6 +19,8 @@ const AGE_PRESETS: [number, number, string][] = [
 ];
 
 export default function Preferences() {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const router = useRouter();
   const { preferences, setPreferences, lang } = useApp();
   const [prefs, setPrefs] = useState(preferences);
@@ -137,7 +140,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.background },
   topbar: {
     paddingHorizontal: 18,

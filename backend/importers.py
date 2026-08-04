@@ -1005,6 +1005,46 @@ async def _import_kids_in_lux(source: Dict[str, Any], db) -> tuple[int, int]:
 IMPORTERS["kids_in_lux"] = _import_kids_in_lux
 
 
+# --- visitluxembourg.com Discovery-Tours crawler -------------------------
+async def _import_visit_luxembourg(source: Dict[str, Any], db) -> tuple[int, int]:
+    import asyncio
+
+    def _run_sync() -> tuple[int, int]:
+        from crawlers import visit_luxembourg as v
+        from pymongo import MongoClient
+
+        client = MongoClient(os.environ["MONGO_URL"])
+        sdb    = client[os.environ["DB_NAME"]]
+        inserted = updated = failed = 0
+        try:
+            import httpx, time as _t
+            with httpx.Client() as hx:
+                urls = list(v.list_detail_urls(hx))
+                for url in urls:
+                    html = v.fetch(url, hx)
+                    if not html:
+                        failed += 1
+                        continue
+                    parsed = v.parse_detail(url, html)
+                    if not parsed:
+                        failed += 1
+                        continue
+                    status = v.upsert_event(sdb, parsed, source["id"])
+                    if status == "inserted":
+                        inserted += 1
+                    else:
+                        updated += 1
+                    _t.sleep(v.PAUSE_S)
+        finally:
+            client.close()
+        return inserted, failed
+
+    return await asyncio.to_thread(_run_sync)
+
+
+IMPORTERS["visit_luxembourg"] = _import_visit_luxembourg
+
+
 async def run_source(source: Dict[str, Any], db) -> Dict[str, Any]:
     """Run a single source and persist the result on the source record."""
     kind = source.get("kind")

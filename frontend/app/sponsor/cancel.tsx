@@ -1,11 +1,17 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useMemo } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-import { palette, radii, shadow } from "@/src/theme";
+import { useApp } from "@/src/contexts/AppContext";
+import { t } from "@/src/i18n/strings";
+import { radii, type Palette, shadowFor } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
 
 export default function SponsorCancel() {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
+  const { lang } = useApp();
   const router = useRouter();
   return (
     <View style={styles.wrap}>
@@ -13,20 +19,18 @@ export default function SponsorCancel() {
         <View style={styles.iconCircle}>
           <Ionicons name="close" size={36} color={palette.textPrimary} />
         </View>
-        <Text style={styles.title}>Payment cancelled</Text>
-        <Text style={styles.sub}>
-          No worries — nothing has been charged. You can try again anytime.
-        </Text>
+        <Text style={styles.title}>{t("paymentCancelled", lang)}</Text>
+        <Text style={styles.sub}>{t("paymentCancelledSub", lang)}</Text>
         <TouchableOpacity onPress={() => router.replace("/(tabs)/events")} style={styles.cta}>
-          <Text style={styles.ctaTxt}>Back to app</Text>
+          <Text style={styles.ctaTxt}>{t("backToApp", lang)}</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: "#F1F5F9", justifyContent: "center", alignItems: "center", padding: 24 },
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: palette.surfaceMuted, justifyContent: "center", alignItems: "center", padding: 24 },
   card: {
     backgroundColor: palette.surface,
     borderRadius: radii.xxl,

@@ -1,13 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp } from "@/src/contexts/AppContext";
 import { PLACES } from "@/src/data/places";
 import { t } from "@/src/i18n/strings";
-import { palette, radii, shadow } from "@/src/theme";
+import { radii, type Palette, shadowFor } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
 
 const DATE_OPTS = (() => {
   const out: { label: string; iso: string; day: string; month: string }[] = [];
@@ -25,6 +26,8 @@ const DATE_OPTS = (() => {
 })();
 
 export default function Book() {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -39,7 +42,7 @@ export default function Book() {
   if (!place) {
     return (
       <SafeAreaView style={styles.safe}>
-        <Text>Not found</Text>
+        <Text>{t("notFound", lang)}</Text>
       </SafeAreaView>
     );
   }
@@ -150,11 +153,11 @@ export default function Book() {
           })}
         </ScrollView>
 
-        <Text style={styles.sectionLabel}>Guests</Text>
+        <Text style={styles.sectionLabel}>{t("guests", lang)}</Text>
         <View style={styles.card}>
           <Stepper
             label={t("numAdults", lang)}
-            sub={`EUR ${place.priceAdult} each`}
+            sub={`${t("eachLabel", lang)} EUR ${place.priceAdult}`}
             value={adults}
             onChange={setAdults}
             min={1}
@@ -163,7 +166,7 @@ export default function Book() {
           <View style={styles.divider} />
           <Stepper
             label={t("numChildren", lang)}
-            sub={`EUR ${place.priceChild} each`}
+            sub={`${t("eachLabel", lang)} EUR ${place.priceChild}`}
             value={children}
             onChange={setChildren}
             min={0}
@@ -207,6 +210,8 @@ function Stepper({
   min: number;
   testID?: string;
 }) {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   return (
     <View style={styles.stepperRow}>
       <View style={{ flex: 1 }}>
@@ -236,7 +241,7 @@ function Stepper({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.background },
   header: {
     paddingHorizontal: 18,

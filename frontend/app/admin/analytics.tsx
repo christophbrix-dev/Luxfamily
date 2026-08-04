@@ -1,12 +1,17 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useMemo } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-import { palette, radii, shadow } from "@/src/theme";
+import { radii, type Palette, shadowFor } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
+import { t } from "@/src/i18n/strings";
 import { Analytics, api } from "@/src/utils/api";
 
 export default function AdminAnalytics() {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
+  const { lang } = useApp();
   const router = useRouter();
   const [data, setData] = useState<Analytics | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -31,7 +36,7 @@ export default function AdminAnalytics() {
         <TouchableOpacity onPress={() => router.replace("/admin/events")} style={styles.back}>
           <Ionicons name="chevron-back" size={18} color={palette.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.h1}>Analytics</Text>
+        <Text style={styles.h1}>{t("adminAnalytics", lang)}</Text>
       </View>
       <ScrollView contentContainerStyle={styles.scroll}>
         {err ? <Text style={{ color: palette.red }}>{err}</Text> : null}
@@ -48,23 +53,23 @@ export default function AdminAnalytics() {
 
             <View style={styles.bigCard}>
               <Ionicons name="eye-outline" size={20} color={palette.primary} />
-              <Text style={styles.bigLabel}>All-time views</Text>
+              <Text style={styles.bigLabel}>{t("allTimeViews", lang)}</Text>
               <Text style={styles.bigValue}>{data.total_views.toLocaleString()}</Text>
             </View>
 
             <View style={[styles.bigCard, styles.revCard]}>
               <Ionicons name="cash-outline" size={20} color="#92400E" />
-              <Text style={[styles.bigLabel, { color: "#92400E" }]}>Monthly featured revenue</Text>
+              <Text style={[styles.bigLabel, { color: "#92400E" }]}>{t("monthlyFeaturedRevenue", lang)}</Text>
               <Text style={[styles.bigValue, { color: "#92400E" }]}>EUR {monthlyRevenue.toFixed(0)}</Text>
               <Text style={styles.revHint}>
                 {data.featured} sponsored × EUR 49 / month. Promote partners in /admin/events.
               </Text>
             </View>
 
-            <Text style={styles.section}>Top events by views</Text>
+            <Text style={styles.section}>{t("topEventsByViews", lang)}</Text>
             <View style={styles.topCard}>
               {data.top_events.length === 0 ? (
-                <Text style={{ color: palette.textSecondary, padding: 12 }}>No views yet.</Text>
+                <Text style={{ color: palette.textSecondary, padding: 12 }}>{t("noViewsYet", lang)}</Text>
               ) : (
                 data.top_events.map((ev, idx) => (
                   <View key={ev.id} style={styles.topRow}>
@@ -99,7 +104,7 @@ function Stat({ label, value, accent, highlight }: { label: string; value: numbe
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
   topbar: {
     paddingHorizontal: 24,
     paddingTop: 28,

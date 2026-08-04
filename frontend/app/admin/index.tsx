@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -12,10 +12,15 @@ import {
   View,
 } from "react-native";
 
-import { palette, radii, shadow } from "@/src/theme";
+import { radii, type Palette, shadowFor } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
+import { t } from "@/src/i18n/strings";
 import { api, getAdminToken, setAdminToken } from "@/src/utils/api";
 
 export default function AdminLogin() {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
+  const { lang } = useApp();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -78,8 +83,8 @@ export default function AdminLogin() {
         <View style={styles.logo}>
           <Ionicons name="shield-checkmark" size={26} color="#fff" />
         </View>
-        <Text style={styles.title}>Admin Console</Text>
-        <Text style={styles.sub}>Wat Elo? event management</Text>
+        <Text style={styles.title}>{t("adminConsole", lang)}</Text>
+        <Text style={styles.sub}>{t("adminSub", lang)}</Text>
 
         <View style={styles.field}>
           <Ionicons name="mail-outline" size={18} color={palette.textSecondary} />
@@ -120,7 +125,7 @@ export default function AdminLogin() {
           {busy ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.ctaTxt}>Sign in</Text>
+            <Text style={styles.ctaTxt}>{t("signIn", lang)}</Text>
           )}
         </TouchableOpacity>
 
@@ -132,7 +137,7 @@ export default function AdminLogin() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
   wrap: {
     flex: 1,
     backgroundColor: "#F1F5F9",

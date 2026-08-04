@@ -213,6 +213,70 @@ export const STRINGS: Dict = {
   result:            { en: "result",            de: "Ergebnis",             fr: "résultat" },
   results:           { en: "results",           de: "Ergebnisse",           fr: "résultats" },
   openDetails:       { en: "Details",           de: "Details",              fr: "Détails" },
+
+  // ------- Booking flow -------
+  guests:            { en: "Guests",            de: "Gäste",                fr: "Invités" },
+  eachLabel:         { en: "each",              de: "pro Person",           fr: "par personne" },
+  notFound:          { en: "Not found",         de: "Nicht gefunden",       fr: "Introuvable" },
+  back:              { en: "Back",              de: "Zurück",               fr: "Retour" },
+
+  // ------- Sponsor flow -------
+  sponsorTitle:      { en: "Sponsor this event", de: "Event bewerben",       fr: "Sponsoriser cet événement" },
+  featuredPlacement: { en: "FEATURED PLACEMENT", de: "FEATURED PLATZIERUNG", fr: "PLACEMENT PREMIUM" },
+  sponsorIntro: {
+    en: "Boost your event with a featured placement at the top of Home and Events for families across Luxembourg.",
+    de: "Bring dein Event mit einer Featured-Platzierung ganz oben auf Home & Events vor Familien in ganz Luxemburg.",
+    fr: "Boostez votre événement avec un placement mis en avant en haut de l'Accueil et des Événements pour les familles luxembourgeoises.",
+  },
+  sponsorTrust: {
+    en: "Secure payment with Stripe. Cancel anytime by contacting support.",
+    de: "Sichere Zahlung mit Stripe. Jederzeit kündbar über den Support.",
+    fr: "Paiement sécurisé avec Stripe. Annulation à tout moment via le support.",
+  },
+  plan1Month:        { en: "1 month",           de: "1 Monat",              fr: "1 mois" },
+  plan3Months:       { en: "3 months",          de: "3 Monate",             fr: "3 mois" },
+  plan6Months:       { en: "6 months",          de: "6 Monate",             fr: "6 mois" },
+  planTryIt:         { en: "Try it",            de: "Ausprobieren",         fr: "Essayer" },
+  planMostPopular:   { en: "Most popular",      de: "Beliebt",              fr: "Le plus populaire" },
+  planBestValue:     { en: "Best value",        de: "Bestes Angebot",       fr: "Meilleur rapport" },
+  planSave18:        { en: "Save EUR 18",       de: "Spare EUR 18",         fr: "Économisez 18 EUR" },
+  planSave65:        { en: "Save EUR 65",       de: "Spare EUR 65",         fr: "Économisez 65 EUR" },
+  eventNotFound:     { en: "Event not found",   de: "Event nicht gefunden", fr: "Événement introuvable" },
+  checkoutFailed:    { en: "Checkout failed",   de: "Zahlung fehlgeschlagen", fr: "Paiement échoué" },
+  lookupFailed:      { en: "Lookup failed",     de: "Abruf fehlgeschlagen", fr: "Recherche échouée" },
+  paymentSuccess:    { en: "Payment successful!", de: "Zahlung erfolgreich!", fr: "Paiement réussi !" },
+  paymentAwaiting:   { en: "Awaiting payment",  de: "Zahlung wird verarbeitet", fr: "En attente du paiement" },
+  featuredSlotActive:{ en: "Your featured slot is active. Plan:", de: "Dein Featured-Platz ist aktiv. Plan:", fr: "Votre placement premium est actif. Formule :" },
+  paymentProcessing: {
+    en: "Payment is being processed. Please wait a moment.",
+    de: "Zahlung wird verarbeitet. Bitte einen Moment warten.",
+    fr: "Le paiement est en cours de traitement. Merci de patienter.",
+  },
+  paymentCancelled:  { en: "Payment cancelled", de: "Zahlung abgebrochen",  fr: "Paiement annulé" },
+  paymentCancelledSub: {
+    en: "No worries — nothing has been charged. You can try again anytime.",
+    de: "Kein Problem — es wurde nichts abgebucht. Du kannst es jederzeit erneut versuchen.",
+    fr: "Pas d'inquiétude — aucun montant n'a été prélevé. Vous pouvez réessayer à tout moment.",
+  },
+  totalPaid:         { en: "Total paid",        de: "Gezahlter Betrag",     fr: "Total payé" },
+  backToApp:         { en: "Back to app",       de: "Zurück zur App",       fr: "Retour à l'app" },
+
+  // ------- Admin Console -------
+  adminConsole:      { en: "Admin Console",     de: "Admin-Konsole",        fr: "Console d'administration" },
+  adminSub:          { en: "Wat Elo? event management", de: "Wat Elo? Event-Verwaltung", fr: "Wat Elo? gestion d'événements" },
+  adminAnalytics:    { en: "Analytics",         de: "Statistiken",          fr: "Statistiques" },
+  allTimeViews:      { en: "All-time views",    de: "Views insgesamt",      fr: "Vues totales" },
+  monthlyFeaturedRevenue: { en: "Monthly featured revenue", de: "Featured-Einnahmen (Monat)", fr: "Revenus premium (mensuel)" },
+  topEventsByViews:  { en: "Top events by views", de: "Top-Events nach Views", fr: "Top événements par vues" },
+  noViewsYet:        { en: "No views yet.",     de: "Noch keine Views.",    fr: "Aucune vue pour l'instant." },
+  partnerSubmissions:{ en: "Partner submissions", de: "Partner-Einreichungen", fr: "Soumissions partenaires" },
+  noPartnerSubmissions: { en: "No partner submissions yet.", de: "Noch keine Einreichungen.", fr: "Aucune soumission pour l'instant." },
+  approve:           { en: "Approve",           de: "Annehmen",             fr: "Approuver" },
+  reject:            { en: "Reject",            de: "Ablehnen",             fr: "Rejeter" },
+  importSources:     { en: "Auto-Importer Sources", de: "Auto-Importer Quellen", fr: "Sources d'importation" },
+  addNewFeed:        { en: "Add a new feed",    de: "Neue Quelle hinzufügen", fr: "Ajouter une source" },
+  addSource:         { en: "Add source",        de: "Quelle hinzufügen",    fr: "Ajouter la source" },
+  neverRun:          { en: "Never run",         de: "Nie ausgeführt",       fr: "Jamais exécuté" },
 };
 
 export function t(key: keyof typeof STRINGS, lang: Lang): string {
