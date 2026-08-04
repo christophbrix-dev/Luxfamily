@@ -8,6 +8,7 @@ import React, {
 } from "react";
 
 import type { Lang } from "@/src/data/places";
+import type { PersonaId } from "@/src/data/onboarding";
 import { storage } from "@/src/utils/storage";
 
 const LANG_KEY = "lux.lang";
@@ -16,6 +17,8 @@ const USER_KEY = "lux.user";
 const BOOKINGS_KEY = "lux.bookings";
 const PREFS_KEY = "lux.prefs";
 const THEME_KEY = "lux.theme";
+const PROFILE_KEY = "lux.profile";
+const ONBOARDED_KEY = "lux.onboarded";
 
 export type Preferences = {
   ageRange: [number, number];
@@ -29,6 +32,22 @@ const DEFAULT_PREFS: Preferences = {
   favoriteCantons: [],
   favoriteCategories: [],
   notifyOnNew: false,
+};
+
+export type UserProfile = {
+  persona: PersonaId | null;
+  childAgeGroups: string[];
+  interests: string[];
+  needs: string[];
+  completedAt: number | null;    // null if user skipped
+};
+
+const DEFAULT_PROFILE: UserProfile = {
+  persona: null,
+  childAgeGroups: [],
+  interests: [],
+  needs: [],
+  completedAt: null,
 };
 
 export type ThemeMode = "light" | "dark" | "system";
@@ -65,6 +84,11 @@ type Ctx = {
   setPreferences: (p: Preferences) => void;
   theme: ThemeMode;
   setTheme: (t: ThemeMode) => void;
+  userProfile: UserProfile;
+  setUserProfile: (p: UserProfile) => void;
+  hasOnboarded: boolean;
+  markOnboarded: () => void;
+  resetOnboarding: () => void;
 };
 
 const AppCtx = createContext<Ctx | null>(null);
@@ -77,6 +101,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [preferences, setPreferencesState] = useState<Preferences>(DEFAULT_PREFS);
   const [theme, setThemeState] = useState<ThemeMode>("light");
+  const [userProfile, setUserProfileState] = useState<UserProfile>(DEFAULT_PROFILE);
+  const [hasOnboarded, setHasOnboarded] = useState(false);
 
   // Hydrate from storage on mount.
   useEffect(() => {
@@ -111,8 +137,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (storedTheme === "dark" || storedTheme === "system" || storedTheme === "light") {
         setThemeState(storedTheme);
       }
+      const storedProfile = await storage.getItem<string>(PROFILE_KEY, "");
+      if (storedProfile) {
+        try {
+          setUserProfileState({ ...DEFAULT_PROFILE, ...JSON.parse(storedProfile) });
+        } catch {}
+      }
+      const storedOnboarded = await storage.getItem<string>(ONBOARDED_KEY, "");
+      setHasOnboarded(storedOnboarded === "1");
       setReady(true);
     })();
+  }, []);
+
+  const setUserProfile = useCallback((p: UserProfile) => {
+    setUserProfileState(p);
+    storage.setItem(PROFILE_KEY, JSON.stringify(p));
+  }, []);
+
+  const markOnboarded = useCallback(() => {
+    setHasOnboarded(true);
+    storage.setItem(ONBOARDED_KEY, "1");
+  }, []);
+
+  const resetOnboarding = useCallback(() => {
+    setHasOnboarded(false);
+    setUserProfileState(DEFAULT_PROFILE);
+    storage.removeItem(ONBOARDED_KEY);
+    storage.removeItem(PROFILE_KEY);
   }, []);
 
   const setPreferences = useCallback((p: Preferences) => {
@@ -189,8 +240,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setPreferences,
       theme,
       setTheme,
+      userProfile,
+      setUserProfile,
+      hasOnboarded,
+      markOnboarded,
+      resetOnboarding,
     }),
-    [ready, lang, setLang, user, signIn, signInGuest, signOutUser, saved, toggleSave, bookings, addBooking, preferences, setPreferences, theme, setTheme],
+    [ready, lang, setLang, user, signIn, signInGuest, signOutUser, saved, toggleSave, bookings, addBooking, preferences, setPreferences, theme, setTheme, userProfile, setUserProfile, hasOnboarded, markOnboarded, resetOnboarding],
   );
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;

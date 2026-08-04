@@ -17,8 +17,19 @@ const LANGS: { code: Lang; label: string; flag: string }[] = [
 
 export default function Profile() {
   const router = useRouter();
-  const { lang, setLang, user, signOutUser, bookings, saved, theme, setTheme } = useApp();
+  const { lang, setLang, user, signOutUser, bookings, saved, theme, setTheme, userProfile, resetOnboarding } = useApp();
   const initial = (user?.name?.[0] ?? "U").toUpperCase();
+
+  const personaLabel = (() => {
+    if (userProfile.persona === "skipped") return "Not set";
+    if (!userProfile.persona) return "Not set";
+    // Look up the human label from PERSONAS data.
+    // Avoid a top-of-file import cycle by requiring inline.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { PERSONAS } = require("@/src/data/onboarding") as typeof import("@/src/data/onboarding");
+    const p = PERSONAS.find((x) => x.id === userProfile.persona);
+    return p?.labels[lang] ?? "Not set";
+  })();
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -75,6 +86,24 @@ export default function Profile() {
 
         <Text style={styles.sectionLabel}>Settings</Text>
         <View style={styles.settingsCard}>
+          <TouchableOpacity
+            style={styles.settingsRow}
+            onPress={() => {
+              resetOnboarding();
+              router.push("/onboarding" as never);
+            }}
+            testID="profile-row-personalization"
+          >
+            <View style={styles.settingsIcon}>
+              <Ionicons name="sparkles-outline" size={18} color={palette.primary} />
+            </View>
+            <Text style={styles.settingsTxt}>Personalization</Text>
+            <View style={{ flex: 1 }} />
+            <Text style={{ fontSize: 11, color: palette.textMuted, marginRight: 8 }}>
+              {personaLabel}
+            </Text>
+            <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
+          </TouchableOpacity>
           {[
             { icon: "options-outline" as const, label: t("preferencesFilters", lang), to: "/preferences" },
             { icon: "business-outline" as const, label: "For businesses", to: "/business" },
