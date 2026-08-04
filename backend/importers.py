@@ -18,13 +18,17 @@ sensible defaults; rows are deduplicated via (source_id, external_id).
 
 import json
 import logging
+import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 from bs4 import BeautifulSoup
+from dateutil import parser as dateutil_parser
 from icalendar import Calendar
+
+from crawler_utils import RobotsBlocked, polite_get
 
 logger = logging.getLogger("lux-backend.importers")
 
@@ -38,17 +42,43 @@ def _default_localized(value: str) -> Dict[str, str]:
 
 
 def _to_iso_date(value: Any) -> Optional[str]:
-    """Coerce an iCal/CKAN date value to a YYYY-MM-DD string."""
+    """Coerce various date formats to a YYYY-MM-DD string. Understands ISO,
+    German (24. Juni 2026 / 24.06.2026), French (24 juin 2026 / 24/06/2026),
+    plain timestamps and `datetime` objects."""
+    if value is None:
+        return None
     if isinstance(value, datetime):
         return value.date().isoformat()
     if isinstance(value, date):
         return value.isoformat()
-    if isinstance(value, str):
-        try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00")).date().isoformat()
-        except ValueError:
-            return value[:10] if len(value) >= 10 else None
-    return None
+    if not isinstance(value, str):
+        return None
+    s = value.strip()
+    if not s:
+        return None
+    # Fast path: already ISO.
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00")).date().isoformat()
+    except ValueError:
+        pass
+    # dateutil handles FR/DE month names and slash/dot separators.
+    try:
+        # dayfirst=True so 06/07/2026 is 6 July (LU/FR/DE convention).
+        parsed = dateutil_parser.parse(s, dayfirst=True, fuzzy=True)
+        return parsed.date().isoformat()
+    except (ValueError, dateutil_parser.ParserError, OverflowError):
+        return None
+
+
+def _extract_time_range(value: str) -> str:
+    """Best-effort time-range extractor: pulls '14h30' or '14:30' patterns."""
+    if not value:
+        return ""
+    hits = re.findall(r"\b(\d{1,2})[:h](\d{2})\b", value)
+    if not hits:
+        return ""
+    times = [f"{int(h):02d}:{m}" for h, m in hits[:2]]
+    return " - ".join(times) if len(times) == 2 else times[0]
 
 
 def _build_event_doc(
@@ -103,12 +133,14 @@ def _build_event_doc(
 
 
 async def _fetch(url: str, timeout: float = 30.0) -> bytes:
-    async with httpx.AsyncClient(
-        timeout=timeout, follow_redirects=True, headers={"User-Agent": "FamilyLuxembourg/1.0"}
-    ) as cli:
-        r = await cli.get(url)
-        r.raise_for_status()
-        return r.content
+    """Polite fetch: obeys robots.txt and per-host rate limit."""
+    resp = await polite_get(url, timeout=timeout)
+    return resp.content
+
+
+async def _fetch_text(url: str, timeout: float = 30.0) -> str:
+    resp = await polite_get(url, timeout=timeout)
+    return resp.text
 
 
 # ---------------------------------------------------------------------------
@@ -278,6 +310,7 @@ IMPORTERS = {
     "ical": _import_ical,
     "data_public_lu": _import_data_public_lu,
     "html_scraper": None,  # filled in below after the function is declared
+    "json_ld": None,       # filled in below after the function is declared
 }
 
 
@@ -398,6 +431,203 @@ async def _import_html_scraper(source: Dict[str, Any], db) -> Tuple[int, int]:
 IMPORTERS["html_scraper"] = _import_html_scraper
 
 
+# ---------------------------------------------------------------------------
+# JSON-LD (schema.org/Event) importer
+# ---------------------------------------------------------------------------
+async def _import_json_ld(source: Dict[str, Any], db) -> Tuple[int, int]:
+    """Extract schema.org Event objects from JSON-LD blocks on a page.
+
+    Most modern venue and ticketing sites (Philharmonie, Rockhal, Mudam,
+    Ticket-Régie, EventBrite, etc.) embed one or more
+    ``<script type="application/ld+json">`` blocks describing their events
+    in structured schema.org format. This importer parses those and yields
+    much cleaner data than CSS scraping.
+
+    The source ``selectors`` field can optionally include:
+      - ``list_url``: if the URL is a listing page whose JSON-LD only lists
+        ItemList/Event links, we visit each event page.
+    """
+    html = await _fetch_text(source["url"])
+    events = _extract_jsonld_events(html, base_url=source["url"])
+    # If nothing found on the listing page itself, try to enumerate linked
+    # event pages via schema.org ItemList and follow up to 20 of them.
+    if not events:
+        links = _extract_event_links(html, base_url=source["url"])
+        for link in links[:20]:
+            try:
+                sub_html = await _fetch_text(link)
+                events.extend(_extract_jsonld_events(sub_html, base_url=link))
+            except RobotsBlocked as rb:
+                logger.info("Skipping %s: %s", link, rb)
+            except Exception as exc:
+                logger.warning("Sub-page %s failed: %s", link, exc)
+
+    inserted = 0
+    skipped = 0
+    today = datetime.now(timezone.utc).date()
+
+    for ev in events:
+        external_id = ev.get("@id") or ev.get("url") or ev.get("identifier") or ""
+        title = ev.get("name") or "Event"
+        if isinstance(title, list):
+            title = title[0] if title else "Event"
+        start_iso = _to_iso_date(ev.get("startDate"))
+        if not start_iso or not title:
+            skipped += 1
+            continue
+        if datetime.fromisoformat(start_iso).date() < today - timedelta(days=1):
+            skipped += 1
+            continue
+
+        # Coerce id fallback if missing.
+        if not external_id:
+            external_id = f"{source['id']}:{start_iso}:{str(title)[:60]}"
+
+        existing = await db.events.find_one(
+            {"source_id": source["id"], "external_id": external_id}, {"_id": 0, "id": 1}
+        )
+        if existing:
+            skipped += 1
+            continue
+
+        end_iso = _to_iso_date(ev.get("endDate"))
+        description = ev.get("description") or ""
+        if isinstance(description, list):
+            description = description[0] if description else ""
+
+        # Location handling
+        loc = ev.get("location") or {}
+        if isinstance(loc, list):
+            loc = loc[0] if loc else {}
+        town = source.get("town_default", "Luxembourg")
+        lat = float(source.get("lat_default", 49.6116))
+        lng = float(source.get("lng_default", 6.1319))
+        if isinstance(loc, dict):
+            addr = loc.get("address") or {}
+            if isinstance(addr, dict):
+                town = addr.get("addressLocality") or town
+            geo = loc.get("geo") or {}
+            if isinstance(geo, dict):
+                try:
+                    lat = float(geo.get("latitude", lat))
+                    lng = float(geo.get("longitude", lng))
+                except (TypeError, ValueError):
+                    pass
+
+        # Image handling — may be str, list, or {url: ...}
+        image_val = ev.get("image") or ""
+        if isinstance(image_val, list):
+            image_val = image_val[0] if image_val else ""
+        if isinstance(image_val, dict):
+            image_val = image_val.get("url", "")
+        image = _abs_url(source["url"], str(image_val))
+
+        # Time handling
+        time_str = ""
+        try:
+            sdt = ev.get("startDate")
+            if isinstance(sdt, str) and "T" in sdt:
+                dt = dateutil_parser.parse(sdt)
+                time_str = dt.strftime("%H:%M")
+                edt = ev.get("endDate")
+                if isinstance(edt, str) and "T" in edt:
+                    time_str += " - " + dateutil_parser.parse(edt).strftime("%H:%M")
+        except Exception:
+            pass
+
+        doc = _build_event_doc(
+            source=source,
+            external_id=str(external_id),
+            title=str(title),
+            description=str(description),
+            start_date=start_iso,
+            end_date=end_iso,
+            time_str=time_str,
+            town=str(town),
+            lat=lat,
+            lng=lng,
+            image=image,
+        )
+        await db.events.insert_one(doc)
+        inserted += 1
+
+    return inserted, skipped
+
+
+def _extract_jsonld_events(html: str, *, base_url: str) -> List[Dict[str, Any]]:
+    """Parse all <script type=application/ld+json> blocks and yield Event objects."""
+    soup = BeautifulSoup(html, "lxml")
+    out: List[Dict[str, Any]] = []
+    for tag in soup.find_all("script", attrs={"type": "application/ld+json"}):
+        try:
+            raw = tag.string or tag.get_text() or ""
+            if not raw.strip():
+                continue
+            data = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        _collect_events(data, out)
+    return out
+
+
+def _collect_events(node: Any, out: List[Dict[str, Any]]) -> None:
+    """Recursively walk JSON-LD tree, collecting Event nodes."""
+    if isinstance(node, dict):
+        node_type = node.get("@type") or node.get("type")
+        types = [node_type] if isinstance(node_type, str) else (node_type or [])
+        if any(t and "Event" in t for t in types):
+            out.append(node)
+        # Descend into @graph / itemListElement / arrays
+        for key in ("@graph", "itemListElement", "item", "subEvent", "workPerformed"):
+            if key in node:
+                _collect_events(node[key], out)
+    elif isinstance(node, list):
+        for item in node:
+            _collect_events(item, out)
+
+
+def _extract_event_links(html: str, *, base_url: str) -> List[str]:
+    """Fallback: pull URLs from ItemList JSON-LD or from anchor tags that
+    plausibly link to an event detail page."""
+    soup = BeautifulSoup(html, "lxml")
+    urls: List[str] = []
+    for tag in soup.find_all("script", attrs={"type": "application/ld+json"}):
+        try:
+            data = json.loads(tag.string or tag.get_text() or "")
+        except Exception:
+            continue
+        _collect_urls(data, urls)
+    # Also try anchor tags with event-ish paths.
+    if not urls:
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if any(seg in href.lower() for seg in ("/event", "/agenda", "/manifestation", "/veranstaltung")):
+                urls.append(_abs_url(base_url, href))
+    # Dedup, keep order
+    seen = set()
+    unique = []
+    for u in urls:
+        if u and u not in seen:
+            seen.add(u)
+            unique.append(u)
+    return unique
+
+
+def _collect_urls(node: Any, out: List[str]) -> None:
+    if isinstance(node, dict):
+        url = node.get("url")
+        if isinstance(url, str) and url.startswith("http"):
+            out.append(url)
+        for v in node.values():
+            _collect_urls(v, out)
+    elif isinstance(node, list):
+        for v in node:
+            _collect_urls(v, out)
+
+
+IMPORTERS["json_ld"] = _import_json_ld
+
+
 async def run_source(source: Dict[str, Any], db) -> Dict[str, Any]:
     """Run a single source and persist the result on the source record."""
     kind = source.get("kind")
@@ -419,6 +649,14 @@ async def run_source(source: Dict[str, Any], db) -> Dict[str, Any]:
                 "last_error": None,
                 "last_imported_count": inserted,
                 "last_skipped_count": skipped,
+            }
+        except RobotsBlocked as rb:
+            logger.warning("Source %s blocked by robots.txt: %s", source.get("name"), rb)
+            result = {
+                "last_run_at": started,
+                "last_status": "blocked_by_robots",
+                "last_error": str(rb)[:300],
+                "last_imported_count": 0,
             }
         except Exception as exc:
             logger.exception("Importer %s failed", source.get("name"))

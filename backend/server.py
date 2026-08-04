@@ -276,7 +276,7 @@ def _event_to_response(doc: Dict[str, Any]) -> EventResponse:
 # ---- Source models ----
 class SourceBase(BaseModel):
     name: str
-    kind: Literal["ical", "data_public_lu", "html_scraper"]
+    kind: Literal["ical", "data_public_lu", "html_scraper", "json_ld"]
     url: str
     active: bool = True
     canton_default: str = "Luxembourg"
@@ -296,7 +296,7 @@ class SourceCreate(SourceBase):
 
 class SourceUpdate(BaseModel):
     name: Optional[str] = None
-    kind: Optional[Literal["ical", "data_public_lu", "html_scraper"]] = None
+    kind: Optional[Literal["ical", "data_public_lu", "html_scraper", "json_ld"]] = None
     url: Optional[str] = None
     active: Optional[bool] = None
     canton_default: Optional[str] = None
@@ -826,6 +826,25 @@ async def admin_run_source(
 @app.post("/api/admin/sources/run-all")
 async def admin_run_all(_: Dict[str, Any] = Depends(require_admin)):
     return {"runs": await run_all_active(db)}
+
+
+class RobotsCheckRequest(BaseModel):
+    url: str
+
+
+@app.post("/api/admin/sources/robots-check")
+async def admin_robots_check(
+    payload: RobotsCheckRequest,
+    _: Dict[str, Any] = Depends(require_admin),
+):
+    """Diagnostic: probe a URL to see whether our crawler is allowed and what
+    Crawl-delay the site publishes."""
+    from crawler_utils import robots_check
+
+    try:
+        return await robots_check(payload.url)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"robots-check failed: {exc}")
 
 
 # ---------------------------------------------------------------------------

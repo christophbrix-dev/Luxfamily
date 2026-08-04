@@ -100,7 +100,7 @@ export type ApiEvent = {
 export type ApiSource = {
   id: string;
   name: string;
-  kind: "ical" | "data_public_lu";
+  kind: "ical" | "data_public_lu" | "html_scraper" | "json_ld";
   url: string;
   active: boolean;
   canton_default: string;
@@ -111,9 +111,10 @@ export type ApiSource = {
   lat_default: number;
   lng_default: number;
   image_default: string;
+  selectors?: Record<string, string> | null;
   created_at: string;
   last_run_at?: string | null;
-  last_status?: "ok" | "error" | null;
+  last_status?: "ok" | "error" | "blocked_by_robots" | null;
   last_error?: string | null;
   last_imported_count?: number | null;
   last_skipped_count?: number | null;
@@ -159,5 +160,20 @@ export const api = {
       `/api/admin/sources/${id}/run`,
       { method: "POST", admin: true },
     ),
+  runAllSources: () =>
+    apiFetch<{ runs: unknown[] }>(`/api/admin/sources/run-all`, { method: "POST", admin: true }),
+  robotsCheck: (url: string) =>
+    apiFetch<{
+      url: string;
+      host: string;
+      user_agent: string;
+      allowed: boolean;
+      crawl_delay_seconds: number;
+      applied_min_delay_seconds: number;
+    }>("/api/admin/sources/robots-check", {
+      method: "POST",
+      body: { url },
+      admin: true,
+    }),
   analytics: () => apiFetch<Analytics>("/api/admin/analytics/overview", { admin: true }),
 };
