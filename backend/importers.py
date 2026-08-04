@@ -119,7 +119,7 @@ def _build_event_doc(
         "lat": lat,
         "lng": lng,
         "bookable": False,
-        "published": False,  # admin reviews before publishing
+        "published": True,   # crawler results auto-publish per user request
         "rating": 4.5,
         "featured": False,
         "featured_until": None,
@@ -626,6 +626,334 @@ def _collect_urls(node: Any, out: List[str]) -> None:
 
 
 IMPORTERS["json_ld"] = _import_json_ld
+
+
+# ---------------------------------------------------------------------------
+# Sitemap importer — for domain-wide event discovery
+# ---------------------------------------------------------------------------
+_SITEMAP_EVENT_PATTERNS = re.compile(
+    r"/(events?|agenda|manifestations?|veranstaltungen?|programme?|programm"
+    r"|expo|expositions?|kalender|calendar|whats?[-_]on"
+    r"|actualit(e|é)s?|ateliers?|workshops?"
+    r"|concerts?|spectacles?|festivals?|kids?|jeunesse|jeunes|enfants?"
+    r"|familles?|familien?)([/_-]|$)",
+    re.IGNORECASE,
+)
+
+
+async def _import_sitemap(source: Dict[str, Any], db) -> Tuple[int, int]:
+    """Read a domain's sitemap.xml, filter for event-like URLs, then extract
+    JSON-LD Event objects from each candidate page.
+
+    Great fit for communes and small venues that don't expose a clean event
+    feed but do have sitemap entries for each event page.
+
+    ``source.url`` may point to /sitemap.xml directly, or to any URL on the
+    domain (we auto-discover the sitemap via /robots.txt or /sitemap.xml).
+    Optional ``selectors.max_pages`` (default 40) caps sub-page fetches.
+    """
+    from urllib.parse import urlparse, urljoin
+
+    selectors = source.get("selectors") or {}
+    max_pages = int(selectors.get("max_pages") or 20)
+
+    parsed = urlparse(source["url"])
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+
+    # Resolve the actual sitemap URL
+    sitemap_url = source["url"] if source["url"].endswith(".xml") else None
+    if not sitemap_url:
+        # Try robots.txt first (sites often list all sitemaps there)
+        try:
+            robots = await _fetch_text(origin + "/robots.txt")
+            for line in robots.splitlines():
+                if line.lower().startswith("sitemap:"):
+                    sitemap_url = line.split(":", 1)[1].strip()
+                    break
+        except Exception:
+            pass
+    if not sitemap_url:
+        sitemap_url = origin + "/sitemap.xml"
+
+    # Fetch sitemap (may be a sitemap index containing more sitemaps)
+    try:
+        xml = await _fetch_text(sitemap_url)
+    except Exception as exc:
+        raise RuntimeError(f"Could not fetch sitemap {sitemap_url}: {exc}")
+
+    all_urls = _collect_sitemap_urls(xml, base=origin)
+
+    # Recursively expand sitemap indexes (one level deep). We recurse when
+    # a URL looks like another sitemap: ends with .xml OR the path contains
+    # "sitemap" (e.g. paginated sitemap indexes like ?page=1).
+    def _looks_like_sitemap(u: str) -> bool:
+        low = u.lower()
+        return low.endswith(".xml") or "sitemap" in low
+
+    nested = [u for u in all_urls if _looks_like_sitemap(u)]
+    if nested and len(all_urls) < 30:
+        expanded: List[str] = []
+        for nested_url in nested[:10]:
+            try:
+                sub_xml = await _fetch_text(nested_url)
+                expanded.extend(_collect_sitemap_urls(sub_xml, base=origin))
+            except Exception as e:
+                logger.info("nested sitemap %s failed: %s", nested_url, e)
+        # Replace originals with what we found inside them
+        all_urls = expanded or all_urls
+
+    # Filter to event-like paths, dedup, cap
+    candidates: List[str] = []
+    seen = set()
+    for u in all_urls:
+        if _SITEMAP_EVENT_PATTERNS.search(u) and u not in seen:
+            seen.add(u)
+            candidates.append(u)
+        if len(candidates) >= max_pages:
+            break
+
+    logger.info(
+        "[sitemap] %s → %d total sitemap URLs, %d event-like candidates",
+        source["name"], len(all_urls), len(candidates),
+    )
+    if not candidates and all_urls:
+        # Log a few examples of what IS in the sitemap so admin can adjust patterns
+        logger.info("[sitemap] sample non-matching URLs: %s", all_urls[:5])
+
+    inserted = 0
+    skipped = 0
+    today = datetime.now(timezone.utc).date()
+
+    for page_url in candidates:
+        try:
+            html = await _fetch_text(page_url)
+        except RobotsBlocked:
+            skipped += 1
+            continue
+        except Exception as exc:
+            logger.info("skip %s: %s", page_url, exc)
+            skipped += 1
+            continue
+
+        events = _extract_jsonld_events(html, base_url=page_url)
+        if not events:
+            # Fallback: try OpenGraph metadata as a "lite" event record
+            og = _extract_open_graph_event(html, page_url=page_url)
+            if og:
+                events = [og]
+        for ev in events:
+            title = ev.get("name") or ""
+            if isinstance(title, list):
+                title = title[0] if title else ""
+            start_iso = _to_iso_date(ev.get("startDate"))
+            if not (title and start_iso):
+                skipped += 1
+                continue
+            if datetime.fromisoformat(start_iso).date() < today - timedelta(days=1):
+                skipped += 1
+                continue
+
+            external_id = ev.get("@id") or ev.get("url") or page_url
+            existing = await db.events.find_one(
+                {"source_id": source["id"], "external_id": external_id}, {"_id": 0, "id": 1}
+            )
+            if existing:
+                skipped += 1
+                continue
+
+            end_iso = _to_iso_date(ev.get("endDate"))
+            desc = ev.get("description") or ""
+            if isinstance(desc, list):
+                desc = desc[0] if desc else ""
+
+            loc = ev.get("location") or {}
+            if isinstance(loc, list):
+                loc = loc[0] if loc else {}
+            town = source.get("town_default", "Luxembourg")
+            lat = float(source.get("lat_default", 49.6116))
+            lng = float(source.get("lng_default", 6.1319))
+            if isinstance(loc, dict):
+                addr = loc.get("address") or {}
+                if isinstance(addr, dict):
+                    town = addr.get("addressLocality") or town
+                geo = loc.get("geo") or {}
+                if isinstance(geo, dict):
+                    try:
+                        lat = float(geo.get("latitude", lat))
+                        lng = float(geo.get("longitude", lng))
+                    except (TypeError, ValueError):
+                        pass
+
+            image_val = ev.get("image") or ""
+            if isinstance(image_val, list):
+                image_val = image_val[0] if image_val else ""
+            if isinstance(image_val, dict):
+                image_val = image_val.get("url", "")
+            image = _abs_url(page_url, str(image_val))
+
+            time_str = ""
+            try:
+                sdt = ev.get("startDate")
+                if isinstance(sdt, str) and "T" in sdt:
+                    time_str = dateutil_parser.parse(sdt).strftime("%H:%M")
+                    edt = ev.get("endDate")
+                    if isinstance(edt, str) and "T" in edt:
+                        time_str += " - " + dateutil_parser.parse(edt).strftime("%H:%M")
+            except Exception:
+                pass
+
+            doc = _build_event_doc(
+                source=source,
+                external_id=str(external_id),
+                title=str(title),
+                description=str(desc),
+                start_date=start_iso,
+                end_date=end_iso,
+                time_str=time_str,
+                town=str(town),
+                lat=lat,
+                lng=lng,
+                image=image,
+            )
+            await db.events.insert_one(doc)
+            inserted += 1
+
+    return inserted, skipped
+
+
+def _collect_sitemap_urls(xml_text: str, *, base: str) -> List[str]:
+    """Extract every <loc> URL from a sitemap or sitemap-index XML string."""
+    urls: List[str] = []
+    try:
+        soup = BeautifulSoup(xml_text, "lxml-xml")
+    except Exception:
+        soup = BeautifulSoup(xml_text, "lxml")
+    for loc in soup.find_all("loc"):
+        text = (loc.get_text() or "").strip()
+        if text:
+            urls.append(text)
+    return urls
+
+
+def _extract_open_graph_event(html: str, *, page_url: str) -> Optional[Dict[str, Any]]:
+    """Best-effort: if a page is clearly an event page but lacks JSON-LD,
+    return a minimal Event dict from OpenGraph + <time> tags + URL-slug
+    date parsing. Returns None if we can't confidently detect a date."""
+    soup = BeautifulSoup(html, "lxml")
+
+    def og(prop: str) -> str:
+        t = soup.find("meta", attrs={"property": prop}) or soup.find("meta", attrs={"name": prop})
+        return (t.get("content") if t else "") or ""
+
+    title = og("og:title") or (soup.title.get_text(strip=True) if soup.title else "")
+    desc = og("og:description")
+    image = og("og:image")
+
+    # 1. URL-slug date parsing (Mudam etc. embed date in slug — most reliable
+    #    for our LU sources because <time> tags often only contain a time-of-day)
+    start = _extract_date_from_url(page_url)
+
+    # 2. <time datetime="..."> tags (require a value that includes a year)
+    if not start:
+        for tag in soup.find_all("time"):
+            dt = tag.get("datetime") or tag.get_text(strip=True)
+            iso = _to_iso_date(dt) if dt else None
+            if iso and iso.startswith(("19", "20")):
+                start = iso
+                break
+
+    # 3. Meta tags (some CMSes)
+    if not start:
+        for prop in ("event:start_time", "article:published_time",
+                      "event:start_date", "startDate"):
+            dt = og(prop)
+            iso = _to_iso_date(dt) if dt else None
+            if iso and iso.startswith(("19", "20")):
+                start = iso
+                break
+
+    # 4. Last resort: date-like strings in the visible page text
+    if not start:
+        text_blob = soup.get_text(" ")[:5000]
+        date_match = re.search(
+            r"\b(\d{1,2}[./-]\d{1,2}[./-]\d{2,4}"
+            r"|\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December"
+            r"|Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember"
+            r"|janvier|février|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre)"
+            r"\s+\d{4})\b",
+            text_blob, re.IGNORECASE,
+        )
+        if date_match and _to_iso_date(date_match.group(1)):
+            start = date_match.group(1)
+
+    if not start or not title:
+        return None
+
+    return {
+        "@id": page_url,
+        "name": title,
+        "description": desc,
+        "startDate": start,
+        "image": image,
+    }
+
+
+# Match date fragments in URL slugs: "28-aug-2026", "2-sept-2026",
+# "8-ao%C3%BBt-2026" (URL-encoded "août"), "2026-08-28", "28-08-2026".
+_URL_DATE_MONTHS = {
+    "jan": 1, "januar": 1, "january": 1, "janvier": 1,
+    "feb": 2, "februar": 2, "february": 2, "fevrier": 2, "février": 2, "fév": 2,
+    "mar": 3, "märz": 3, "marz": 3, "march": 3, "mars": 3,
+    "apr": 4, "april": 4, "avril": 4, "avr": 4,
+    "mai": 5, "may": 5,
+    "jun": 6, "juni": 6, "june": 6, "juin": 6,
+    "jul": 7, "juli": 7, "july": 7, "juillet": 7, "juil": 7,
+    "aug": 8, "august": 8, "aout": 8, "août": 8,
+    "sep": 9, "sept": 9, "september": 9, "septembre": 9,
+    "oct": 10, "okt": 10, "october": 10, "oktober": 10, "octobre": 10,
+    "nov": 11, "november": 11, "novembre": 11,
+    "dec": 12, "dez": 12, "december": 12, "dezember": 12, "décembre": 12, "déc": 12,
+}
+
+
+def _extract_date_from_url(url: str) -> str:
+    """Look for date-like patterns in the last segment(s) of a URL slug."""
+    from urllib.parse import unquote
+    slug = unquote(url).lower()
+
+    # Pattern 1: YYYY-MM-DD anywhere
+    m = re.search(r"(20\d{2})[-/](\d{1,2})[-/](\d{1,2})", slug)
+    if m:
+        y, mo, d = m.groups()
+        try:
+            return f"{int(y):04d}-{int(mo):02d}-{int(d):02d}"
+        except ValueError:
+            pass
+
+    # Pattern 2: DD-MMM-YYYY (e.g. "28-aug-2026", "2-sept-2026")
+    m = re.search(r"\b(\d{1,2})[-_ ]([a-zàâçéèêëîïôûùüÿñæœ]+)[-_ ](20\d{2})\b", slug)
+    if m:
+        d, mon_name, y = m.groups()
+        mon = _URL_DATE_MONTHS.get(mon_name[:5]) or _URL_DATE_MONTHS.get(mon_name[:4]) or _URL_DATE_MONTHS.get(mon_name[:3])
+        if mon:
+            try:
+                return f"{int(y):04d}-{mon:02d}-{int(d):02d}"
+            except ValueError:
+                pass
+
+    # Pattern 3: DD-MM-YYYY (numeric)
+    m = re.search(r"\b(\d{1,2})[-/](\d{1,2})[-/](20\d{2})\b", slug)
+    if m:
+        d, mo, y = m.groups()
+        try:
+            return f"{int(y):04d}-{int(mo):02d}-{int(d):02d}"
+        except ValueError:
+            pass
+
+    return ""
+
+
+IMPORTERS["sitemap"] = _import_sitemap
 
 
 async def run_source(source: Dict[str, Any], db) -> Dict[str, Any]:

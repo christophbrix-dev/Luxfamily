@@ -276,7 +276,7 @@ def _event_to_response(doc: Dict[str, Any]) -> EventResponse:
 # ---- Source models ----
 class SourceBase(BaseModel):
     name: str
-    kind: Literal["ical", "data_public_lu", "html_scraper", "json_ld"]
+    kind: Literal["ical", "data_public_lu", "html_scraper", "json_ld", "sitemap"]
     url: str
     active: bool = True
     canton_default: str = "Luxembourg"
@@ -296,7 +296,7 @@ class SourceCreate(SourceBase):
 
 class SourceUpdate(BaseModel):
     name: Optional[str] = None
-    kind: Optional[Literal["ical", "data_public_lu", "html_scraper", "json_ld"]] = None
+    kind: Optional[Literal["ical", "data_public_lu", "html_scraper", "json_ld", "sitemap"]] = None
     url: Optional[str] = None
     active: Optional[bool] = None
     canton_default: Optional[str] = None
@@ -391,22 +391,23 @@ async def lifespan(_: FastAPI):
     else:
         logger.info("Admin user already exists: %s", ADMIN_EMAIL)
 
-    # 24h background importer cron. We skip the scheduler in pytest runs to
-    # keep the test suite hermetic — toggle with DISABLE_SCHEDULER=1.
+    # Background importer cron: 3x daily at 05:00, 12:00, 18:00 Europe/Luxembourg.
+    # We skip the scheduler in pytest runs to keep the test suite hermetic
+    # (toggle with DISABLE_SCHEDULER=1).
     scheduler: Optional[AsyncIOScheduler] = None
     if os.environ.get("DISABLE_SCHEDULER") != "1":
-        scheduler = AsyncIOScheduler(timezone="UTC")
+        from apscheduler.triggers.cron import CronTrigger
+
+        scheduler = AsyncIOScheduler(timezone="Europe/Luxembourg")
         scheduler.add_job(
             run_all_active,
-            "interval",
-            hours=24,
+            CronTrigger(hour="5,12,18", minute=0, timezone="Europe/Luxembourg"),
             args=[db],
             id="importers",
             replace_existing=True,
-            next_run_time=datetime.now(timezone.utc) + timedelta(minutes=2),
         )
         scheduler.start()
-        logger.info("Importer scheduler started (24h interval)")
+        logger.info("Importer scheduler started (3x daily: 05:00, 12:00, 18:00 Europe/Luxembourg)")
 
     try:
         yield

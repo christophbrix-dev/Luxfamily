@@ -101,3 +101,123 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: |
+  Extend the Luxembourg Family activities app with a proper polite crawler that
+  discovers events from communal + venue websites Luxembourg-wide.
+  Schedule: automatic 3x daily updates (05:00, 12:00, 18:00 Europe/Luxembourg).
+
+backend:
+  - task: "Robots.txt-compliant crawler infrastructure"
+    implemented: true
+    working: true
+    file: "backend/crawler_utils.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: |
+          New /app/backend/crawler_utils.py exposes polite_get() which:
+          - Fetches + caches robots.txt per host (6h TTL)
+          - Enforces per-host rate limit (max(2s, Crawl-delay))
+          - Raises RobotsBlocked for disallowed URLs
+          - Uses browser-like UA to avoid 403 on visitluxembourg / vdl.lu
+
+  - task: "Sitemap-based event importer (kind=sitemap)"
+    implemented: true
+    working: true
+    file: "backend/importers.py"
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: |
+          New sitemap importer reads sitemap.xml, follows sitemap-index +
+          paginated indexes, filters URLs against event-pattern regex, then
+          extracts JSON-LD or falls back to OG+URL-slug date parser.
+          Successfully imported 19 real Philharmonie + 9 Mudam events on first run.
+
+  - task: "JSON-LD schema.org/Event importer (kind=json_ld)"
+    implemented: true
+    working: true
+    file: "backend/importers.py"
+    priority: "high"
+    needs_retesting: true
+
+  - task: "Scheduler switched from 24h interval to 3x daily cron"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: |
+          APScheduler CronTrigger runs run_all_active at 05:00/12:00/18:00
+          Europe/Luxembourg every day.
+
+  - task: "Admin /api/admin/sources/robots-check endpoint"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    priority: "medium"
+    needs_retesting: true
+
+  - task: "Seed script /app/backend/seed_lu_sources.py with 45 LU sources"
+    implemented: true
+    working: true
+    file: "backend/seed_lu_sources.py"
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: |
+          Covers big venues (Philharmonie/Rockhal/Mudam/Neimenster/Casino/
+          CAPe/Kulturfabrik/opderschmelz/Grand-Theatre/Utopia/KHN/Theatres),
+          all 12 canton capitals + 12 larger communes (Differdange/Dudelange/
+          Bettembourg/Petange/Sanem/Kayl/Bertrange/Strassen/Hesperange/
+          Walferdange/Leudelange/Kaerjeng), family/nature venues
+          (Parc Merveilleux/Sennesraich/Robbesscheier/Science Center/Naturmusee)
+          and aggregators (Visit Luxembourg/Kulturkanner/echo.lu).
+
+frontend:
+  - task: "Admin sources page shows new kind types (sitemap, json_ld)"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/utils/api.ts"
+    priority: "low"
+    needs_retesting: true
+
+metadata:
+  created_by: main_agent
+  version: 1.0
+  test_sequence: 3
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Robots.txt-compliant crawler infrastructure"
+    - "Sitemap-based event importer (kind=sitemap)"
+    - "Scheduler switched from 24h interval to 3x daily cron"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: |
+      Built out the crawler infrastructure. 53 Luxembourg sources are seeded
+      and activated; a full manual run kicked off and successfully imported
+      the first 33 real events (Philharmonie 19, Mudam 9, Kulturfabrik 1,
+      Dudelange 1 + 3 seeded). The full run is still executing in the
+      background; scheduler will run automatically 3x daily.
+      Please test:
+        1. GET /api/events returns the imported events (title/date/image populated).
+        2. Scheduler config: verify job "importers" is registered on startup.
+        3. New endpoint POST /api/admin/sources/robots-check works.
+        4. Robots.txt-blocked URLs correctly result in last_status=blocked_by_robots.

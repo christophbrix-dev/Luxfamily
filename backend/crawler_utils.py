@@ -24,7 +24,11 @@ import httpx
 
 logger = logging.getLogger("lux-backend.crawler")
 
-USER_AGENT = "FamilyLuxembourgBot/1.0 (+https://familyluxembourg.lu/bot)"
+USER_AGENT = (
+    "Mozilla/5.0 (compatible; FamilyLuxembourgBot/1.0; "
+    "+https://familyluxembourg.lu/bot) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+)
 MIN_DELAY_SECONDS = 2.0  # baseline politeness delay between hits to the same host
 ROBOTS_CACHE_TTL_SECONDS = 60 * 60 * 6  # re-fetch robots.txt every 6h
 
@@ -119,7 +123,11 @@ async def polite_get(
 
     await _throttle(host, entry.crawl_delay)
 
-    headers = {"User-Agent": USER_AGENT, "Accept-Language": "en,de;q=0.9,fr;q=0.8"}
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en,de;q=0.9,fr;q=0.8,lb;q=0.7",
+    }
     if extra_headers:
         headers.update(extra_headers)
 

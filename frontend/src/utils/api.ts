@@ -100,7 +100,7 @@ export type ApiEvent = {
 export type ApiSource = {
   id: string;
   name: string;
-  kind: "ical" | "data_public_lu" | "html_scraper" | "json_ld";
+  kind: "ical" | "data_public_lu" | "html_scraper" | "json_ld" | "sitemap";
   url: string;
   active: boolean;
   canton_default: string;
