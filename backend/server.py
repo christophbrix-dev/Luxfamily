@@ -280,7 +280,7 @@ def _event_to_response(doc: Dict[str, Any]) -> EventResponse:
 # ---- Source models ----
 class SourceBase(BaseModel):
     name: str
-    kind: Literal["ical", "data_public_lu", "html_scraper", "json_ld", "sitemap"]
+    kind: Literal["ical", "data_public_lu", "html_scraper", "json_ld", "sitemap", "kids_in_lux", "visit_luxembourg"]
     url: str
     active: bool = True
     canton_default: str = "Luxembourg"
@@ -300,7 +300,7 @@ class SourceCreate(SourceBase):
 
 class SourceUpdate(BaseModel):
     name: Optional[str] = None
-    kind: Optional[Literal["ical", "data_public_lu", "html_scraper", "json_ld", "sitemap"]] = None
+    kind: Optional[Literal["ical", "data_public_lu", "html_scraper", "json_ld", "sitemap", "kids_in_lux", "visit_luxembourg"]] = None
     url: Optional[str] = None
     active: Optional[bool] = None
     canton_default: Optional[str] = None
