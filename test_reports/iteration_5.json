@@ -1,0 +1,43 @@
+{
+  "summary": "Backend-only verification of the newly-integrated Emergent Google Auth flow alongside the existing admin JWT flow. 15/15 targeted tests in /app/backend/tests/test_google_auth.py pass, plus 8/8 pre-existing auth+health regression tests. All 9 review-request items verified against the live public EXPO_BACKEND_URL and Mongo (localhost). Details: (1) POST /api/auth/session {'session_id':'totally_invalid'} → 401 with detail 'Invalid or expired session' — confirmed real upstream call to https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data returned non-200 and the wrapper propagated the correct message. (2) session_id='' → 400 'session_id is required'. (2b bonus) whitespace-only session_id → 400 (strip() branch works). (3) missing session_id field → 422 (Pydantic). (4) GET /api/auth/me no header → 401. (5) GET /api/auth/me Bearer bogus_token → 401 (not 403 — OAuth2PasswordBearer(auto_error=False) is correctly wired; the HTTPAuthorizationCredentials dependency has indeed been removed). (6) Admin login → JWT → /auth/me returns admin@familyluxembourg.lu with role=admin. (7) POST /api/auth/logout unauth → 401; with admin JWT → 204 (JWT itself remains valid post-logout, which is correct because logout only clears session_token rows, not JWT state). (8) Mongo user_sessions indexes verified via db.command('listIndexes','user_sessions'): {session_token:1, unique:true}, {user_id:1}, {expires_at:1, expireAfterSeconds:0} — all three present. (9) Unified get_current_user Path-1 (session_token) validated end-to-end by inserting a real row into user_sessions + users, calling /auth/me with Authorization: Bearer <session_token> → 200 with the correct user; then POST /auth/logout deletes the row and the same token then returns 401 — confirms both branches of the unified auth dependency work. Also verified expired session_token (expires_at in the past) → 401 'Session expired' via the tz-aware datetime comparison in server.py:346-352. NO ACTUAL EMERGENT OAUTH ROUNDTRIP TRIGGERED (per review request); MOCKED behavior relied on: real upstream Emergent endpoint returning non-200 for our fake session_id (this is the real production behavior, not a mock).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_5.json",
+    "/app/test_reports/pytest/google_auth_results.xml",
+    "/app/backend/tests/test_google_auth.py"
+  ],
+  "action_items": [
+    "No action required for Google Auth backend — all 9 verification points pass.",
+    "Optional hardening (not required by review): POST /api/auth/logout with admin JWT currently returns 204 but the JWT remains usable afterwards (only session_token rows are deleted). If the product wants true JWT invalidation, add a token-revocation list. Current behavior is documented and consistent with stateless JWT semantics.",
+    "Optional: consider adding a rate limit to POST /api/auth/session (currently one httpx call per request to demobackend.emergentagent.com — a burst could be used to probe session_ids). Not blocking."
+  ],
+  "critical_code_review_comments": [
+    "server.py L337 get_current_user correctly uses OAuth2PasswordBearer(auto_error=False) and raises its own 401 when token is missing — this is why bogus_token now returns 401 (Path-1 miss → Path-2 jwt.InvalidTokenError → 401) instead of 403. Good fix.",
+    "server.py L346-352 expires_at handling normalizes naive datetimes to UTC before comparison — prevents the classic tz-aware/naive TypeError. Tested with a real expired row and it correctly returns 401 'Session expired'.",
+    "server.py L399-405 TTL index creation is wrapped in try/except which is fine for idempotency, but consider logging the exception at INFO level so ops can spot silent conflicts.",
+    "server.py L532 uses payload.session_id.strip() for both the empty-check and the upstream header — good. The empty-string path returns 400 before touching Emergent, avoiding unnecessary outbound calls.",
+    "server.py L615-621 POST /api/auth/logout depends on both get_current_user AND oauth2_scheme — this correctly enforces auth (401 if missing) and also gives access to the raw token for the delete. Clean pattern.",
+    "Recommendation: user_sessions collection has no index on (user_id, expires_at) — if you later add a 'list active sessions for user' endpoint or a cleanup job, add a compound index. Not needed today."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_google_auth.py (new — 15 tests, 6 classes)"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15 new Google-Auth tests + 8/8 regression = 23/23)",
+    "frontend": "not tested (backend-only per review request)"
+  },
+  "seed_data_creation": "Two ephemeral test docs inserted into Mongo during test_session_token_bearer_returns_user (users id=TEST_user_*, user_sessions session_token=TEST_sess_*) and one expired session (TEST_expired_*) — all cleaned up in each test's finally block. Verified DB is clean post-run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Google Auth backend is fully verified. The test suite /app/backend/tests/test_google_auth.py can be re-run any time — it is self-cleaning (inserts and deletes TEST_-prefixed rows). If a future change modifies the session_token branch of get_current_user, TestGoogleSessionTokenPath::test_session_token_bearer_returns_user is the definitive integration check. Note: tests DO hit the real Emergent demobackend endpoint for the 401 case (relying on its real behavior for invalid session_ids). We did NOT and CANNOT test the full OAuth roundtrip without a live Google sign-in. Frontend integration of /api/auth/session and Authorization: Bearer <session_token> was not tested per review scope.",
+  "rca_of_issue": "N/A — no bugs found; this iteration is a feature-verification pass."
+}

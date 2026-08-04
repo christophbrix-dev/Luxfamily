@@ -20,17 +20,26 @@ SplashScreen.preventAutoHideAsync();
  * (`ready === true`) so we don't false-flag returning users as brand-new.
  */
 function OnboardingGate() {
-  const { ready, hasOnboarded } = useApp();
+  const { ready, hasOnboarded, user } = useApp();
   const router = useRouter();
   const segments = useSegments();
 
   useEffect(() => {
     if (!ready) return;
     const currentTop = segments[0] ?? "";
-    if (!hasOnboarded && currentTop !== "onboarding") {
+    // Only push to onboarding once the user has actually authenticated
+    // (email login, guest mode, or Google). Otherwise they'd hit the
+    // wizard before ever seeing the login screen.
+    const isAuthed = !!user;
+    if (
+      isAuthed &&
+      !hasOnboarded &&
+      currentTop !== "onboarding" &&
+      currentTop !== "login"
+    ) {
       router.replace("/onboarding");
     }
-  }, [ready, hasOnboarded, segments, router]);
+  }, [ready, hasOnboarded, user, segments, router]);
 
   return null;
 }

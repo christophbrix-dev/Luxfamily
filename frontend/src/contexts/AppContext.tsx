@@ -10,6 +10,15 @@ import React, {
 import type { Lang } from "@/src/data/places";
 import type { PersonaId } from "@/src/data/onboarding";
 import { storage } from "@/src/utils/storage";
+import {
+  fetchCurrentUser,
+  googleLogout,
+  readWebCallbackSessionId,
+  cleanWebCallbackUrl,
+  finalizeGoogleLogin,
+  startGoogleLogin,
+  type GoogleAuthUser,
+} from "@/src/utils/googleAuth";
 
 const LANG_KEY = "lux.lang";
 const SAVED_KEY = "lux.saved";
@@ -89,6 +98,7 @@ type Ctx = {
   hasOnboarded: boolean;
   markOnboarded: () => void;
   resetOnboarding: () => void;
+  signInWithGoogle: () => Promise<{ isNewUser: boolean } | null>;
 };
 
 const AppCtx = createContext<Ctx | null>(null);
@@ -145,6 +155,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       const storedOnboarded = await storage.getItem<string>(ONBOARDED_KEY, "");
       setHasOnboarded(storedOnboarded === "1");
+
+      // Google Auth bootstrap:
+      // 1. If we just landed back from Emergent redirect (web), exchange the
+      //    session_id before doing anything else — it's one-time.
+      const callbackSessionId = readWebCallbackSessionId();
+      if (callbackSessionId) {
+        try {
+          const res = await finalizeGoogleLogin(callbackSessionId);
+          if (res) {
+            const gUser: User = {
+              email: res.user.email,
+              name: res.user.name || res.user.email.split("@")[0],
+              guest: false,
+            };
+            setUser(gUser);
+            storage.setItem(USER_KEY, JSON.stringify(gUser));
+          }
+        } catch (e) {
+          // Silent fail — user sees the login screen and can retry.
+          console.warn("Google session exchange failed:", e);
+        } finally {
+          cleanWebCallbackUrl();
+        }
+      }
+
+      // 2. Restore session from stored token (if any).
+      const g = await fetchCurrentUser();
+      if (g) {
+        const gUser: User = {
+          email: g.email,
+          name: g.name || g.email.split("@")[0],
+          guest: false,
+        };
+        setUser(gUser);
+        storage.setItem(USER_KEY, JSON.stringify(gUser));
+      }
+
       setReady(true);
     })();
   }, []);
@@ -196,6 +243,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const signOutUser = useCallback(() => {
     setUser(null);
     storage.removeItem(USER_KEY);
+    // Also clear the Emergent Google session (idempotent).
+    googleLogout().catch(() => {});
+  }, []);
+
+  /**
+   * On web: this navigates away and never returns. The session_id lands back
+   * at the app root and is picked up by the bootstrap effect.
+   * On mobile: waits for the OS auth-session flow to close and exchanges
+   * the session_id here. Returns `{ isNewUser }` so the caller can decide
+   * to route the user to /onboarding.
+   */
+  const signInWithGoogle = useCallback(async () => {
+    const { sessionId } = await startGoogleLogin();
+    if (!sessionId) return null;
+    const res = await finalizeGoogleLogin(sessionId);
+    if (!res) return null;
+    const gUser: User = {
+      email: res.user.email,
+      name: res.user.name || res.user.email.split("@")[0],
+      guest: false,
+    };
+    setUser(gUser);
+    storage.setItem(USER_KEY, JSON.stringify(gUser));
+    // "New user" heuristic: they haven't gone through onboarding yet.
+    const storedOnboarded = await storage.getItem<string>(ONBOARDED_KEY, "");
+    return { isNewUser: storedOnboarded !== "1" };
   }, []);
 
   const toggleSave = useCallback((id: number) => {
@@ -245,8 +318,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       hasOnboarded,
       markOnboarded,
       resetOnboarding,
+      signInWithGoogle,
     }),
-    [ready, lang, setLang, user, signIn, signInGuest, signOutUser, saved, toggleSave, bookings, addBooking, preferences, setPreferences, theme, setTheme, userProfile, setUserProfile, hasOnboarded, markOnboarded, resetOnboarding],
+    [ready, lang, setLang, user, signIn, signInGuest, signOutUser, saved, toggleSave, bookings, addBooking, preferences, setPreferences, theme, setTheme, userProfile, setUserProfile, hasOnboarded, markOnboarded, resetOnboarding, signInWithGoogle],
   );
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;

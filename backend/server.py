@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
 import bcrypt
+import httpx
 import jwt
 import stripe
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -338,6 +339,23 @@ async def get_current_user(token: Optional[str] = Depends(oauth2_scheme)) -> Dic
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
         )
+
+    # Path 1: Google-Auth session token — look up in user_sessions collection.
+    session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
+    if session:
+        expires_at = session.get("expires_at")
+        if isinstance(expires_at, datetime):
+            # Normalize to timezone-aware for comparison.
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at < datetime.now(timezone.utc):
+                raise HTTPException(status_code=401, detail="Session expired")
+        user = await db.users.find_one({"id": session["user_id"]}, {"_id": 0})
+        if user:
+            return user
+        raise HTTPException(status_code=401, detail="User not found")
+
+    # Path 2: Legacy JWT (used by admin email/password login).
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user_id = payload.get("sub")
@@ -377,6 +395,14 @@ async def lifespan(_: FastAPI):
     await db.partners.create_index("created_at")
     await db.sponsorships.create_index("session_id", unique=True)
     await db.sponsorships.create_index("event_id")
+    # Google Auth session storage
+    await db.user_sessions.create_index("session_token", unique=True)
+    await db.user_sessions.create_index("user_id")
+    # TTL index — MongoDB auto-removes rows after expires_at.
+    try:
+        await db.user_sessions.create_index("expires_at", expireAfterSeconds=0)
+    except Exception:
+        pass  # already exists with different options — non-fatal
 
     # Idempotent admin seeding.
     existing = await db.users.find_one({"email": ADMIN_EMAIL})
@@ -469,6 +495,130 @@ async def me(current: Dict[str, Any] = Depends(get_current_user)):
         role=current["role"],
         name=current.get("name"),
     )
+
+
+# ---------------------------------------------------------------------------
+# Google Auth (Emergent-managed) — exchange session_id → session_token.
+# ---------------------------------------------------------------------------
+class GoogleSessionRequest(BaseModel):
+    session_id: str
+
+
+class GoogleAuthUser(BaseModel):
+    id: str
+    email: str
+    name: Optional[str] = None
+    picture: Optional[str] = None
+    role: str = "user"
+
+
+class GoogleSessionResponse(BaseModel):
+    session_token: str
+    user: GoogleAuthUser
+
+
+EMERGENT_SESSION_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data"
+
+
+@app.post("/api/auth/session", response_model=GoogleSessionResponse)
+async def exchange_google_session(payload: GoogleSessionRequest):
+    """Redeem a one-time Emergent session_id (returned by the OAuth redirect)
+    for a 7-day session_token this backend controls.
+
+    - Never accepts a session_token — only a fresh session_id.
+    - Upserts the user by email (reuse existing user_id if present).
+    - Stores the session in `user_sessions` with a TTL index.
+    """
+    if not payload.session_id.strip():
+        raise HTTPException(status_code=400, detail="session_id is required")
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        try:
+            resp = await client.get(
+                EMERGENT_SESSION_URL,
+                headers={"X-Session-ID": payload.session_id.strip()},
+            )
+        except httpx.HTTPError as exc:
+            logger.warning("Emergent session-data fetch failed: %s", exc)
+            raise HTTPException(status_code=401, detail="Session verification failed")
+
+    if resp.status_code != 200:
+        logger.info("Emergent session-data returned %s", resp.status_code)
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+
+    data = resp.json()
+    email = (data.get("email") or "").strip().lower()
+    session_token = data.get("session_token")
+    name = data.get("name") or ""
+    picture = data.get("picture") or ""
+
+    if not email or not session_token:
+        raise HTTPException(status_code=401, detail="Malformed session data")
+
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(days=7)
+
+    # Upsert user by email — reuse existing user_id when known.
+    existing = await db.users.find_one({"email": email}, {"_id": 0})
+    if existing:
+        user_id = existing["id"]
+        role = existing.get("role", "user")
+        # Update name/picture if changed
+        await db.users.update_one(
+            {"id": user_id},
+            {"$set": {"name": name or existing.get("name", ""),
+                       "picture": picture or existing.get("picture", ""),
+                       "provider": "google",
+                       "last_login_at": now.isoformat()}},
+        )
+    else:
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        role = "user"
+        await db.users.insert_one({
+            "id": user_id,
+            "email": email,
+            "name": name,
+            "picture": picture,
+            "provider": "google",
+            "role": role,
+            "hashed_password": "",           # Google users have no password
+            "created_at": now.isoformat(),
+            "last_login_at": now.isoformat(),
+        })
+
+    # Insert the session row (idempotent on session_token uniqueness).
+    await db.user_sessions.update_one(
+        {"session_token": session_token},
+        {
+            "$set": {
+                "session_token": session_token,
+                "user_id": user_id,
+                "created_at": now,
+                "expires_at": expires_at,
+            }
+        },
+        upsert=True,
+    )
+
+    return GoogleSessionResponse(
+        session_token=session_token,
+        user=GoogleAuthUser(
+            id=user_id,
+            email=email,
+            name=name or None,
+            picture=picture or None,
+            role=role,
+        ),
+    )
+
+
+@app.post("/api/auth/logout", status_code=204)
+async def logout(current: Dict[str, Any] = Depends(get_current_user),
+                  token: Optional[str] = Depends(oauth2_scheme)):
+    """Invalidate the current session token (if it's a Google session)."""
+    if token:
+        await db.user_sessions.delete_one({"session_token": token})
+    return None
 
 
 # ---- Public events ----

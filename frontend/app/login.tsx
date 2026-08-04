@@ -28,15 +28,18 @@ const LANGS: { code: Lang; label: string; flag: string }[] = [
 
 export default function Login() {
   const router = useRouter();
-  const { lang, setLang, signIn, signInGuest } = useApp();
+  const { lang, setLang, signIn, signInGuest, signInWithGoogle } = useApp();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const submit = () => {
     if (!email.trim()) return;
     signIn(email.trim().toLowerCase(), mode === "signup" ? name.trim() : undefined);
+    // Onboarding gate in _layout will redirect to /onboarding if this is
+    // a brand-new user; otherwise the router settles on tabs.
     router.replace("/(tabs)/home");
   };
 
@@ -44,6 +47,30 @@ export default function Login() {
     signInGuest();
     router.replace("/(tabs)/home");
   };
+
+  const doGoogle = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await signInWithGoogle();
+      if (!res) return; // web navigation happened
+      if (res.isNewUser) {
+        router.replace("/onboarding");
+      } else {
+        router.replace("/(tabs)/home");
+      }
+    } catch (e) {
+      console.warn("Google sign-in failed:", e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const googleLabel = lang === "de"
+    ? "Mit Google fortfahren"
+    : lang === "fr"
+      ? "Continuer avec Google"
+      : "Continue with Google";
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
@@ -117,6 +144,25 @@ export default function Login() {
                   {t("createAccount", lang)}
                 </Text>
               </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              onPress={doGoogle}
+              disabled={busy}
+              style={[styles.googleBtn, busy && { opacity: 0.6 }]}
+              testID="google-btn"
+              accessibilityLabel={googleLabel}
+            >
+              <Ionicons name="logo-google" size={18} color="#111827" />
+              <Text style={styles.googleTxt}>{googleLabel}</Text>
+            </TouchableOpacity>
+
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerTxt}>
+                {lang === "de" ? "oder" : lang === "fr" ? "ou" : "or"}
+              </Text>
+              <View style={styles.dividerLine} />
             </View>
 
             {mode === "signup" ? (
@@ -255,4 +301,31 @@ const styles = StyleSheet.create({
   ctaTxt: { color: "#fff", fontSize: 15, fontWeight: "700" },
   skipBtn: { paddingVertical: 14, alignItems: "center", marginTop: 4 },
   skipTxt: { color: palette.textSecondary, fontWeight: "600", fontSize: 14 },
+  googleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    paddingVertical: 14,
+    borderWidth: 1.5,
+    borderColor: palette.border,
+    marginBottom: 14,
+  },
+  googleTxt: { color: "#111827", fontSize: 15, fontWeight: "700" },
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 14,
+  },
+  dividerLine: { flex: 1, height: 1, backgroundColor: palette.border },
+  dividerTxt: {
+    fontSize: 11,
+    color: palette.textMuted,
+    fontWeight: "700",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
 });
