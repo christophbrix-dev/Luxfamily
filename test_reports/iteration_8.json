@@ -1,0 +1,46 @@
+{
+  "summary": "Third and final retest of the Northern-user FOR YOU dedupe. Full Playwright flow executed on mobile viewport (390x844) exactly as prescribed: guest → onboarding (family / 4-8 / default 5 interests {playgrounds, animals, nature, workshops, culture_kids} / no needs / preferredCantons=[Diekirch] / budget=any) → 'Show me events' → tab-events. The new fingerprint()+overlaps() dedupe in personalization.ts (l.181-214) now works CORRECTLY for both Sënnesräich AND Merveilleux clusters — the crawler duplicates ('Actualités - Parc Sënnesräich - Centre de loisirs', 'Braddel Babbel - Le spectacle - Parc Sënnesräich', 'Programm Zooschule Sommersaison ... | Parc Merveilleux Bettembourg') are all suppressed via token-set overlap on 'sennesraich' / 'merveilleux' / 'bettembourg'. FOR YOU top-6 observed: [1] Park Sënnesräich (Sensory Park) — Lullange · Clervaux, [2] Robbesscheier Munshausen (Adventure Farm) — Munshausen · Clervaux, [3] Vianden Castle + Chairlift — Vianden · Diekirch, [4] Parc Merveilleux Bettembourg — Bettembourg · Esch-sur-Alzette, [5] Felt, Shapes and Textures with Lisa Junius – 4 Aug 2026 — Kirchberg · Luxembourg, [6] Visit for children and grandparents (DE) – 28 Jul 2026 — Kirchberg · Luxembourg. MIGO — Mini-Golf & Indoor Playground (Eschweiler · Wiltz) is present in the ranked list at index 42 of 57 (general AUGUST 2026 section), NOT in FOR YOU. PASS-CRITERIA RESULT (2/3 pass): [1] ≤1 Sënnesräich in FOR YOU → PASS (exactly 1: 'Park Sënnesräich (Sensory Park)'); [2] MIGO in FOR YOU → FAIL (still only in general list at row 42); [3] ≥3 unique Northern-LU venues in FOR YOU → PASS (Park Sënnesräich[Clervaux], Robbesscheier[Clervaux], Vianden Castle[Diekirch]). ROOT CAUSE OF REMAINING FAIL: the dedupe is now correct, but SLOTS 5 & 6 are taken by two Kirchberg (Luxembourg-canton) Mudam-workshop crawler rows that score higher than MIGO. Those workshops match Workshops + Kids' culture interests (+2 for interests) plus age-group bonus (+0.5) plus a small budget bonus (+0.3) minus canton penalty (-0.3) ≈ 2.5. MIGO likely only hits 'Playgrounds' (+1) + age (+0.5) + neighbour-canton (+0.4) + budget (+0.3) ≈ 2.2, so it loses positions 5-6 to the multi-interest workshops.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "MIGO not in FOR YOU top-6 for Diekirch-only Northern user",
+        "issue": "The new fingerprint dedupe works as designed and successfully suppresses the two crawler duplicate clusters. However positions 5 & 6 of FOR YOU are now occupied by two Kirchberg (canton=Luxembourg) Mudam workshops ('Felt, Shapes and Textures with Lisa Junius', 'Visit for children and grandparents (DE)') because they match TWO interests (workshops + culture_kids) whereas MIGO only matches ONE (playgrounds). Even with the neighbour-canton bonus (+0.4 for Wiltz → Diekirch), MIGO's total score is lower. To satisfy the third criterion, either (a) raise cantonAffinity weight for preferred/neighbour cantons (e.g. +1.2 preferred, +0.8 neighbour, -0.6 far), or (b) apply a hard geographic filter to FOR YOU when preferredCantons is set (preferred+neighbours only), or (c) enforce a soft quota (min 1 event per preferred canton and 1 per neighbour cluster in the top-6), or (d) tag MIGO with additional matching categories in seed (e.g. Workshops or Sports) so it scores as high as the Mudam rows.",
+        "affected_testIDs": ["event-row-*"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "shadow* style props", "issue": "'shadow* style props are deprecated. Use boxShadow' console warnings on the Events tab (non-blocking). Reference: /app/frontend/app/(tabs)/events.tsx styles.forYouWrap/forYouRow/etc."},
+      {"component": "pointerEvents prop", "issue": "'props.pointerEvents is deprecated. Use style.pointerEvents' console warning during onboarding transitions (non-blocking)."}
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_8.json",
+    "/tmp/events_v3.png (screenshot: FOR YOU top-6 after fingerprint dedupe)",
+    "/tmp/after_onb2.png (screenshot: Home tab after onboarding completion)"
+  ],
+  "action_items": [
+    "The fingerprint/overlap dedupe fix works — Sënnesräich crawler duplicates and Merveilleux 'Programm Zooschule' duplicate are correctly removed. No further change needed to the dedupe logic.",
+    "To finally surface MIGO in FOR YOU for a Diekirch-only user, increase geographic weighting when profile.preferredCantons is non-empty. Concrete tweak in /app/frontend/src/utils/personalization.ts::cantonAffinity — e.g. change {direct: 1, neighbour: 0.4, far: -0.3} → {direct: 1.5, neighbour: 1.0, far: -0.8}. Alternatively, apply a hard canton-radius filter to the withHits list before sorting when preferredCantons.length>0 (preferred ∪ neighbours only).",
+    "Optionally guarantee at least one representative per preferredCanton in FOR YOU as a soft quota, so at least Vianden-castle-style far-cluster items don't crowd out a MIGO/Wiltz row.",
+    "Optional cleanup unchanged from iteration_6/7: migrate shadow* → boxShadow and props.pointerEvents → style.pointerEvents to silence RN 0.76+ deprecation warnings."
+  ],
+  "critical_code_review_comments": [
+    "personalization.ts:187-199 — fingerprint()+overlaps() correctly resolves the earlier ineffective venueKey heuristic. Cluster tokens 'sennesraich', 'merveilleux', 'bettembourg' now propagate through the crawler prefixes and dedup those rows out of the top-6. Verified in DOM.",
+    "personalization.ts:145-154 — cantonAffinity weights (+1 direct / +0.4 neighbour / -0.3 far) are too weak relative to interest weight (+1 per matched interest). A single-interest event in the preferred canton (MIGO) is beaten by any 2-interest event outside it (Mudam workshops) even with the neighbour bonus. This is the direct cause of the remaining MIGO-not-in-FOR-YOU failure.",
+    "events.tsx:100 — useMemo dependency on `filtered` correctly re-runs rankForProfile after the fingerprint change; no stale-memo issue.",
+    "The 'Felt, Shapes and Textures with Lisa Junius – 4 Aug 2026' and 'Visit for children and grandparents (DE) – 28 Jul 2026' rows are single Mudam-workshop crawler rows with meaningful fingerprints ({'shapes','textures','junius'} / {'visit','children','grandparents'}) that don't overlap with any Northern venue, so they cannot be deduped further without a separate quota rule."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "not re-tested this iteration (unchanged since iteration_6: 7/7)",
+    "frontend": "67% on the 3 stated pass criteria (2/3 pass: ≤1 Sënnesräich PASS, ≥3 Northern venues PASS, MIGO in FOR YOU FAIL)"
+  },
+  "seed_data_creation": "None. Reused existing MIGO + Sënnesräich + Robbesscheier + Vianden seed data from prior iterations.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The venue-fingerprint dedupe fix (personalization.ts l.187-214) is FUNCTIONING CORRECTLY — Sënnesräich cluster collapses to 1 row and Merveilleux cluster collapses to 1 row in FOR YOU top-6. The single remaining failure (MIGO not in top-6) is now a SCORING issue, not a dedupe issue: two Mudam Kirchberg workshops score higher because they hit 2 interests vs. MIGO's 1. Fix is to strengthen cantonAffinity when preferredCantons is set (see action items). To retest, replay the identical Diekirch-only Northern-user flow via a single Playwright script (state does not persist across separate mcp_browser_automation calls). Reliable extraction: locate the element with textContent === 'Matched to your interests', walk up parents until finding one with [data-testid^=\"event-row-\"] descendants, take first 6.",
+  "rca_of_issue": "Iteration_7 dedupe (first-2-words venueKey) → replaced this iteration with fingerprint()+overlaps() token-set match; the new algorithm PASSES pass-criteria 1 and 3. Pass-criterion 2 (MIGO in FOR YOU) now fails for a NEW reason: two Kirchberg Mudam workshops score 2.5 (workshops+culture_kids +2, age +0.5, budget +0.3, canton -0.3) vs. MIGO's 2.2 (playgrounds +1, age +0.5, neighbour-canton +0.4, budget +0.3). The interest signal dominates the geographic signal. Recommended mitigation: bump cantonAffinity to {direct:1.5, neighbour:1.0, far:-0.8} OR pre-filter withHits by preferred+neighbour canton when preferredCantons is non-empty."
+}

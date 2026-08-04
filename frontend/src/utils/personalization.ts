@@ -175,25 +175,41 @@ export function rankForProfile(
   const withHits = scored.filter((s) => s.score > 0);
   withHits.sort((a, b) => b.score - a.score);
 
-  // Dedupe by venue-key so crawler-imported near-duplicates of a seeded venue
-  // (e.g. 3 different "Sënnesräich" rows) don't monopolise the FOR YOU slots.
-  // Venue-key = first two title words, lowercased, punctuation-stripped.
-  const venueKey = (title: string): string =>
-    title
+  // Venue-fingerprint dedupe: two events refer to the same venue when their
+  // "significant word" sets overlap. This survives crawler prefixes like
+  // "Actualités - …" or "Braddel Babbel - Le spectacle - Parc Sënnesräich".
+  const STOPWORDS = new Set([
+    "actualites", "actualite", "spectacle", "programm", "programme",
+    "centre", "parc", "park", "castle", "chateau", "schloss", "musee",
+    "the", "and", "the", "der", "die", "das", "les", "des", "with",
+    "loisirs", "de", "du", "of", "la", "le", "el",
+  ]);
+  const fingerprint = (title: string): Set<string> => {
+    const norm = title
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")   // strip accents
       .toLowerCase()
-      .replace(/[^\p{L}\p{N}\s]+/gu, " ")
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .join(" ");
+      .replace(/[^a-z0-9\s]/g, " ");
+    const words = norm.split(/\s+/).filter((w) => w.length >= 5 && !STOPWORDS.has(w));
+    return new Set(words);
+  };
+  const overlaps = (a: Set<string>, b: Set<string>): boolean => {
+    for (const w of a) if (b.has(w)) return true;
+    return false;
+  };
 
-  const seen = new Set<string>();
+  const seenFps: Set<string>[] = [];
   const dedup: ApiEvent[] = [];
   for (const s of withHits) {
-    const key = venueKey(s.ev.title?.en ?? s.ev.title?.de ?? "");
-    if (key && seen.has(key)) continue;
-    seen.add(key);
-    dedup.push(s.ev);
+    const fp = fingerprint(s.ev.title?.en ?? s.ev.title?.de ?? s.ev.title?.fr ?? "");
+    if (fp.size === 0) {
+      dedup.push(s.ev);
+    } else if (seenFps.some((prev) => overlaps(prev, fp))) {
+      continue;   // near-duplicate of an already-selected venue
+    } else {
+      seenFps.push(fp);
+      dedup.push(s.ev);
+    }
     if (dedup.length >= 6) break;
   }
 
