@@ -58,7 +58,7 @@ export default function Preferences() {
         </TouchableOpacity>
       </View>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Section title={t("ageRange", lang)}>
+        <Section title={t("ageRange", lang)} styles={styles}>
           <View style={styles.chips}>
             {AGE_PRESETS.map(([min, max, label]) => {
               const active = prefs.ageRange[0] === min && prefs.ageRange[1] === max;
@@ -76,7 +76,7 @@ export default function Preferences() {
           </View>
         </Section>
 
-        <Section title={t("favouriteCantons", lang)}>
+        <Section title={t("favouriteCantons", lang)} styles={styles}>
           <View style={styles.chips}>
             {CANTONS.map((c) => {
               const active = prefs.favoriteCantons.includes(c);
@@ -94,7 +94,7 @@ export default function Preferences() {
           </View>
         </Section>
 
-        <Section title={t("favouriteCategories", lang)}>
+        <Section title={t("favouriteCategories", lang)} styles={styles}>
           <View style={styles.chips}>
             {CATEGORIES.map((c) => {
               const active = prefs.favoriteCategories.includes(c);
@@ -112,7 +112,7 @@ export default function Preferences() {
           </View>
         </Section>
 
-        <Section title={t("notifications", lang)}>
+        <Section title={t("notifications", lang)} styles={styles}>
           <View style={styles.row}>
             <Text style={styles.rowTxt}>{t("notifyOnMatch", lang)}</Text>
             <Switch
@@ -131,7 +131,17 @@ export default function Preferences() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+type Styles = ReturnType<typeof makeStyles>;
+
+function Section({
+  title,
+  styles,
+  children,
+}: {
+  title: string;
+  styles: Styles;
+  children: React.ReactNode;
+}) {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
