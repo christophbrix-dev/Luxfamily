@@ -50,7 +50,6 @@ Expo mobile app + FastAPI backend for discovering family activities, places and 
 - Real Mudam/Philharmonie/Rockhal feeds — contact venues OR use html_scraper with their actual listing pages
 - Move image storage from base64 → S3 once docs exceed 1 MB
 - Wire `/api/partners` endpoint so business submissions write to MongoDB (currently emails)
-
 ## Hygiene-Bundle applied (2026-08-22)
 - Metro-Build-Cache aus Git ausgenommen (`.gitignore`)
 - Backend: ungenutzte Imports und Variablen entfernt (crawlers, importers, tests, server)
@@ -60,3 +59,26 @@ Expo mobile app + FastAPI backend for discovering family activities, places and 
 - **Crash-Fix**: `/preferences`-Screen `styles = useMemo(...)` → kein Re-Create der StyleSheet-Instanz beim Öffnen
 - **i18n-Fix**: `lb` fällt sauber auf `de` zurück in `event/[id]`, `pick-language` und `WeatherWidget`
 
+
+## OSM POI Ingest (2026-08-22) — 8.138 Familien-Spots aus OpenStreetMap
+- **Neue Backend-Dateien**: `osm_taxonomy.py` (7 Gruppen / 30 Kinds mit i18n de/fr/lb/en), `osm_ingest.py` (Geofabrik PBF-Parser, kein Overpass-Dependency)
+- **Neue MongoDB-Collection**: `db.places` mit Indexes auf `id`, `kind`, `group`, `(lat,lng)`, `family_score`
+- **Neue Public Endpoints**:
+  - `GET /api/places/meta` → Taxonomie mit i18n-Labels
+  - `GET /api/places?kind=&group=&min_score=&near_lat=&near_lng=&radius_km=` → gefilterte Liste
+  - `GET /api/places/{id}` → Detail inkl. `tags_raw`
+- **Neue Admin Endpoints**:
+  - `POST /api/admin/osm/ingest` (Body optional: `{categories: [...]}`) → startet Background-Ingest
+  - `GET /api/admin/osm/status` → Job-Status + `place_count` + `by_kind`-Statistik
+- **Ingest-Kennzahlen** (Erst-Lauf, ~76 s auf lokalem Container):
+  - 8.143 POIs upserted, 30 Kategorien
+  - 1.869 Parks, 1.862 Picknick, 1.383 Spielplätze, 581 Aussichtspunkte,
+    495 Wanderrouten, 375 Radrouten, 211 Naturlehrpfade, 194 Burgen/Schlösser,
+    156 Reiterhöfe, 145 Höhlen/Felsen, 135 Schwimmbäder, 109 Grillplätze,
+    100 Kinos/Theater, 99 Schutzhütten, 96 Museen, 85 Naturschutzgebiete,
+    32 Skateparks, 29 Bauernhöfe, 21 Bibliotheken, 18 Klettern, 16 Badeseen,
+    13 Wasserspielplätze, 11 Minigolf, 7 Bowling, 2 Freizeitparks
+- **Datenquelle**: Geofabrik PBF (`https://download.geofabrik.de/europe/luxembourg-latest.osm.pbf`)
+  → 47 MB, gecacht in `/tmp/luxembourg-latest.osm.pbf` mit 24 h TTL
+- **Lizenz**: ODbL-1.0 (in jedem Place-Record vermerkt via `source_license`)
+- **Package hinzugefügt**: `osmium` (pyosmium) — high-performance PBF Parser

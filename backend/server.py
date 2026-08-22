@@ -393,6 +393,12 @@ async def lifespan(_: FastAPI):
     await db.partners.create_index("created_at")
     await db.sponsorships.create_index("session_id", unique=True)
     await db.sponsorships.create_index("event_id")
+    # OSM POI collection
+    await db.places.create_index("id", unique=True)
+    await db.places.create_index("kind")
+    await db.places.create_index("group")
+    await db.places.create_index([("lat", 1), ("lng", 1)])
+    await db.places.create_index("family_score")
     # Google Auth session storage
     await db.user_sessions.create_index("session_token", unique=True)
     await db.user_sessions.create_index("user_id")
@@ -1065,4 +1071,150 @@ async def admin_analytics(_: Dict[str, Any] = Depends(require_admin)):
             {"id": t["id"], "title": t["title"].get("en", ""), "view_count": t.get("view_count", 0)}
             for t in top
         ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# OSM POI (Places) — populated by osm_ingest.py
+# ---------------------------------------------------------------------------
+from osm_taxonomy import CATEGORIES as OSM_CATEGORIES, GROUPS as OSM_GROUPS  # noqa: E402
+from osm_ingest import ingest_all as osm_ingest_all, ingest_category as osm_ingest_category, JOB_STATE as OSM_JOB_STATE  # noqa: E402
+
+
+def _place_to_dict(doc: Dict[str, Any]) -> Dict[str, Any]:
+    doc.pop("_id", None)
+    # Don't expose the huge tags_raw blob on list endpoints; detail endpoint keeps it.
+    return doc
+
+
+@app.get("/api/places/meta")
+async def places_meta():
+    """Return the OSM taxonomy so the frontend can build category filters."""
+    return {
+        "groups": OSM_GROUPS,
+        "categories": {
+            k: {
+                "label_de": v["label_de"],
+                "label_fr": v["label_fr"],
+                "label_lb": v["label_lb"],
+                "label_en": v["label_en"],
+                "group": v["group"],
+                "base_score": v["base_score"],
+            }
+            for k, v in OSM_CATEGORIES.items()
+        },
+    }
+
+
+@app.get("/api/places")
+async def list_places(
+    kind: Optional[str] = None,
+    group: Optional[str] = None,
+    min_score: int = 0,
+    limit: int = 200,
+    near_lat: Optional[float] = None,
+    near_lng: Optional[float] = None,
+    radius_km: float = 10.0,
+):
+    """Public list of OSM POIs with optional filters.
+
+    Keeping the projection light — clients wanting `tags_raw` should hit the
+    detail endpoint.
+    """
+    query: Dict[str, Any] = {"family_score": {"$gte": min_score}}
+    if kind:
+        query["kind"] = kind
+    if group:
+        query["group"] = group
+
+    if near_lat is not None and near_lng is not None:
+        # ~1° lat ≈ 111 km; radius filter in degrees (rough but fast — good
+        # enough for tiny Luxembourg).
+        deg = radius_km / 111.0
+        query["lat"] = {"$gte": near_lat - deg, "$lte": near_lat + deg}
+        query["lng"] = {
+            "$gte": near_lng - deg * 1.5,
+            "$lte": near_lng + deg * 1.5,
+        }
+
+    projection = {"_id": 0, "tags_raw": 0}
+    cursor = (
+        db.places.find(query, projection)
+        .sort("family_score", -1)
+        .limit(min(max(limit, 1), 1000))
+    )
+    docs = await cursor.to_list(length=None)
+    return docs
+
+
+@app.get("/api/places/{place_id}")
+async def get_place(place_id: str):
+    doc = await db.places.find_one({"id": place_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Place not found")
+    return doc
+
+
+# ---- Admin OSM ingest ----------------------------------------------
+@app.post("/api/admin/osm/ingest")
+async def admin_osm_ingest(
+    request: Request,
+    _: Dict[str, Any] = Depends(require_admin),
+):
+    """Kick off an OSM POI ingest.
+
+    Body (optional JSON):
+        {"categories": ["playground", "castle"]}   # subset
+        {}                                           # all categories
+
+    Returns immediately — the job runs as a background asyncio task and
+    progress can be polled via GET /api/admin/osm/status.
+    """
+    if OSM_JOB_STATE.get("status") == "running":
+        return {
+            "accepted": False,
+            "message": "An ingest job is already running.",
+            "job": OSM_JOB_STATE,
+        }
+
+    body: Dict[str, Any] = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
+    categories = body.get("categories") if isinstance(body, dict) else None
+    if categories:
+        unknown = [c for c in categories if c not in OSM_CATEGORIES]
+        if unknown:
+            raise HTTPException(400, f"Unknown categories: {unknown}")
+
+    async def _run():
+        try:
+            await osm_ingest_all(categories=categories, db=db)
+        except Exception:
+            logger.exception("OSM ingest failed")
+
+    import asyncio as _asyncio
+    _asyncio.create_task(_run())
+    return {
+        "accepted": True,
+        "message": "OSM ingest started",
+        "categories": categories or "all",
+    }
+
+
+@app.get("/api/admin/osm/status")
+async def admin_osm_status(_: Dict[str, Any] = Depends(require_admin)):
+    """Poll the status of the most recent OSM ingest job."""
+    place_count = await db.places.count_documents({})
+    by_kind_cursor = db.places.aggregate([
+        {"$group": {"_id": "$kind", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+    ])
+    by_kind = {doc["_id"]: doc["count"] async for doc in by_kind_cursor}
+    return {
+        "job": OSM_JOB_STATE,
+        "place_count": place_count,
+        "by_kind": by_kind,
     }
