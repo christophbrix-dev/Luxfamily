@@ -37,7 +37,10 @@ export default function PickLanguage() {
   const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const router = useRouter();
   const { setLang, markLangPicked } = useApp();
-  const [selected, setSelected] = useState<Lang>("lb");
+  // German is preselected because the UI dictionary has no Luxembourgish
+  // entries yet — picking `lb` falls back to German anyway (see pickLang).
+  // Switch this back to "lb" once src/i18n/strings.ts carries lb translations.
+  const [selected, setSelected] = useState<Lang>("de");
 
   const onConfirm = () => {
     setLang(selected);

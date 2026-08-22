@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { StyleSheet, Text } from "react-native";
 
 import { useApp } from "@/src/contexts/AppContext";
+import { pickLang } from "@/src/i18n/pickLang";
 import { fetchLuxembourgWeather, WeatherSnapshot, WEATHER_DESCRIPTIONS } from "@/src/utils/weather";
 
 export function WeatherWidget({ testID }: { testID?: string }) {
@@ -21,7 +22,7 @@ export function WeatherWidget({ testID }: { testID?: string }) {
   }, []);
 
   const desc = snap ? WEATHER_DESCRIPTIONS[snap.weatherCode] ?? WEATHER_DESCRIPTIONS[3] : null;
-  const label = desc ? desc[lang] : "...";
+  const label = desc ? pickLang(desc, lang) : "...";
   const iconName = (desc?.icon ?? "partly-sunny-outline") as keyof typeof Ionicons.glyphMap;
 
   return (

@@ -163,13 +163,13 @@ export default function EventDetail() {
             ) : null}
             {[
               { icon: "accessibility-outline", label: "Wheelchair", val: ev.accessibility_wheelchair ? "Accessible" : null },
-              { icon: "happy-outline", label: "Sensory friendly (ADHD/Autism)", val: ev.sensory_friendly ? (ev.sensory_notes?.[lang] || "Yes") : null },
-              { icon: "car-outline", label: "Parking", val: ev.parking?.[lang] },
-              { icon: "restaurant-outline", label: "Food on-site", val: ev.food_onsite?.[lang] },
+              { icon: "happy-outline", label: "Sensory friendly (ADHD/Autism)", val: ev.sensory_friendly ? (pickLang(ev.sensory_notes, lang) || "Yes") : null },
+              { icon: "car-outline", label: "Parking", val: pickLang(ev.parking, lang) },
+              { icon: "restaurant-outline", label: "Food on-site", val: pickLang(ev.food_onsite, lang) },
               { icon: "fast-food-outline", label: "Own food", val: ev.food_allowed ? "Allowed" : "Not allowed" },
               { icon: "card-outline", label: "Payment", val: ev.payment_methods?.length ? ev.payment_methods.join(" · ") : null },
-              { icon: "time-outline", label: "Opening hours", val: ev.opening_hours?.[lang] },
-              { icon: "people-outline", label: "Peak hours", val: ev.peak_hours?.[lang] },
+              { icon: "time-outline", label: "Opening hours", val: pickLang(ev.opening_hours, lang) },
+              { icon: "people-outline", label: "Peak hours", val: pickLang(ev.peak_hours, lang) },
               { icon: "water-outline", label: "Changing facilities", val: ev.changing_facilities ? "Available" : null },
               { icon: "body-outline", label: "Restrooms", val: ev.restrooms ? "Available" : null },
             ]
@@ -185,12 +185,12 @@ export default function EventDetail() {
                   </View>
                 </View>
               ))}
-            {ev.preparation_tips?.[lang] ? (
+            {pickLang(ev.preparation_tips, lang) ? (
               <View style={{ marginTop: 14, padding: 12, backgroundColor: "#FEF3C7", borderRadius: 12, flexDirection: "row", gap: 8 }}>
                 <Ionicons name="bulb-outline" size={16} color="#92400E" style={{ marginTop: 2 }} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 11, fontWeight: "800", color: "#92400E", letterSpacing: 0.3 }}>HOW TO PREPARE</Text>
-                  <Text style={{ fontSize: 13, color: "#78350F", marginTop: 4, lineHeight: 19 }}>{ev.preparation_tips[lang]}</Text>
+                  <Text style={{ fontSize: 13, color: "#78350F", marginTop: 4, lineHeight: 19 }}>{pickLang(ev.preparation_tips, lang)}</Text>
                 </View>
               </View>
             ) : null}
