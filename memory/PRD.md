@@ -50,3 +50,13 @@ Expo mobile app + FastAPI backend for discovering family activities, places and 
 - Real Mudam/Philharmonie/Rockhal feeds — contact venues OR use html_scraper with their actual listing pages
 - Move image storage from base64 → S3 once docs exceed 1 MB
 - Wire `/api/partners` endpoint so business submissions write to MongoDB (currently emails)
+
+## Hygiene-Bundle applied (2026-08-22)
+- Metro-Build-Cache aus Git ausgenommen (`.gitignore`)
+- Backend: ungenutzte Imports und Variablen entfernt (crawlers, importers, tests, server)
+- yarn.lock eingecheckt (reproduzierbare Installs) + GitHub Actions CI + `typecheck` script
+- README mit Stack/Setup/Env-Variablen aufgefüllt (104 Zeilen)
+- **Security-Fix**: Stripe-Webhook antwortet jetzt 503 wenn `STRIPE_WEBHOOK_SECRET` fehlt (schließt vorherige Fake-Payment-Lücke)
+- **Crash-Fix**: `/preferences`-Screen `styles = useMemo(...)` → kein Re-Create der StyleSheet-Instanz beim Öffnen
+- **i18n-Fix**: `lb` fällt sauber auf `de` zurück in `event/[id]`, `pick-language` und `WeatherWidget`
+
