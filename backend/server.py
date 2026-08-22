@@ -8,7 +8,6 @@ Provides:
  - Brute-force protection on /api/auth/login via slowapi
 """
 
-import json
 import logging
 import os
 import uuid
@@ -911,16 +910,26 @@ async def _grant_featured(session) -> None:
 
 @app.post("/api/sponsor/webhook")
 async def stripe_webhook(request: Request):
+    # A missing secret must close this endpoint, not open it. Without signature
+    # verification anyone who knows the URL could POST a fabricated
+    # "checkout.session.completed" and grant themselves a paid featured slot.
+    if not STRIPE_WEBHOOK_SECRET:
+        logger.error(
+            "Rejected Stripe webhook: STRIPE_WEBHOOK_SECRET is not configured. "
+            "Set it in the environment so incoming events can be verified."
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Webhook processing is not configured on this server.",
+        )
+
     payload = await request.body()
     sig = request.headers.get("stripe-signature", "")
-    if STRIPE_WEBHOOK_SECRET:
-        try:
-            event = stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)
-        except (ValueError, stripe.error.SignatureVerificationError):
-            raise HTTPException(400, "Invalid webhook signature")
-    else:
-        # No webhook secret configured (e.g. preview environment). Trust payload.
-        event = json.loads(payload)
+    try:
+        event = stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)
+    except (ValueError, stripe.error.SignatureVerificationError):
+        raise HTTPException(400, "Invalid webhook signature")
+
     if event.get("type") == "checkout.session.completed":
         session = event["data"]["object"]
         if session.get("payment_status") == "paid":
