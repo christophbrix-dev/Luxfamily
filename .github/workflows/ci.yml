@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (typecheck + lint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Typecheck
+        run: yarn typecheck
+
+      - name: Lint
+        run: yarn lint
+
+  backend:
+    name: Backend (syntax + pyflakes)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # The full requirements.txt pulls heavy ML packages and a private wheel
+      # URL, so CI installs only what the static checks need. Runtime imports
+      # are covered by the compile step below, not by an install.
+      - name: Install linters
+        run: pip install flake8==7.3.0
+
+      - name: Compile all modules
+        run: python -m compileall -q .
+
+      # E9 = syntax errors, F = pyflakes (undefined names, unused imports,
+      # shadowed variables). Cosmetic whitespace rules are deliberately not
+      # gated — they would only add noise.
+      - name: Pyflakes
+        run: flake8 --select=E9,F --count .
