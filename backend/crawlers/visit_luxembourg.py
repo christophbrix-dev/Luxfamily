@@ -15,7 +15,6 @@ Run:
     cd /app/backend && python crawlers/visit_luxembourg.py
 """
 import os
-import re
 import sys
 import time
 import urllib.parse as up

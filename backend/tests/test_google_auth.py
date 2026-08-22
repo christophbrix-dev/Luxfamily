@@ -6,7 +6,6 @@ import uuid
 import asyncio
 from datetime import datetime, timezone, timedelta
 
-import pytest
 import requests
 from motor.motor_asyncio import AsyncIOMotorClient
 

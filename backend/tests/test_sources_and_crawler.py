@@ -1,6 +1,4 @@
 # Sources API, robots-check, single-source run, family-fields on events
-import time
-import requests
 import pytest
 from conftest import BASE_URL
 

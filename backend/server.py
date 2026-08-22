@@ -11,7 +11,6 @@ Provides:
 import json
 import logging
 import os
-import re
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone

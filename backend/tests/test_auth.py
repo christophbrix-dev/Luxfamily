@@ -1,5 +1,4 @@
 # Auth: login, /auth/me, wrong password
-import requests
 from conftest import BASE_URL, ADMIN_EMAIL, ADMIN_PASSWORD
 
 

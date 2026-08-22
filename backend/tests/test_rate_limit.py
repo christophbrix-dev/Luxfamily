@@ -1,5 +1,4 @@
 # Slowapi rate limit on /api/auth/login: more than 10/min should 429
-import requests
 import pytest
 from conftest import BASE_URL
 

@@ -16,7 +16,6 @@ import asyncio
 import json
 import logging
 import re
-import sys
 from typing import Any, Dict, List
 
 from bs4 import BeautifulSoup

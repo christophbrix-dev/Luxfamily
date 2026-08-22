@@ -1,7 +1,6 @@
 # Admin event CRUD: create, update, delete, draft toggle
 import uuid
-import requests
-import pytest
+
 from conftest import BASE_URL
 
 

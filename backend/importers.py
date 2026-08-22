@@ -654,7 +654,7 @@ async def _import_sitemap(source: Dict[str, Any], db) -> Tuple[int, int]:
     domain (we auto-discover the sitemap via /robots.txt or /sitemap.xml).
     Optional ``selectors.max_pages`` (default 40) caps sub-page fetches.
     """
-    from urllib.parse import urlparse, urljoin
+    from urllib.parse import urlparse
 
     selectors = source.get("selectors") or {}
     max_pages = int(selectors.get("max_pages") or 20)
@@ -967,16 +967,16 @@ async def _import_kids_in_lux(source: Dict[str, Any], db) -> tuple[int, int]:
 
     def _run_sync() -> tuple[int, int]:
         # Late-import to keep the module boot fast when the source isn't used.
+        import time as _t
+
         from crawlers import kids_in_lux as k
         from pymongo import MongoClient
 
         client = MongoClient(os.environ["MONGO_URL"])
         sdb    = client[os.environ["DB_NAME"]]
-        src_row = sdb.sources.find_one({"id": source["id"]}) or source
 
         inserted = updated = failed = 0
         try:
-            import httpx
             with httpx.Client() as hx:
                 for index_url, cats, ev_type in k.INDEX_URLS:
                     details = k.list_detail_urls(index_url, hx)
@@ -994,7 +994,6 @@ async def _import_kids_in_lux(source: Dict[str, Any], db) -> tuple[int, int]:
                             inserted += 1
                         else:
                             updated += 1
-                        import time as _t
                         _t.sleep(k.PAUSE_S)
         finally:
             client.close()
@@ -1011,6 +1010,8 @@ async def _import_visit_luxembourg(source: Dict[str, Any], db) -> tuple[int, int
     import asyncio
 
     def _run_sync() -> tuple[int, int]:
+        import time as _t
+
         from crawlers import visit_luxembourg as v
         from pymongo import MongoClient
 
@@ -1018,7 +1019,6 @@ async def _import_visit_luxembourg(source: Dict[str, Any], db) -> tuple[int, int
         sdb    = client[os.environ["DB_NAME"]]
         inserted = updated = failed = 0
         try:
-            import httpx, time as _t
             with httpx.Client() as hx:
                 urls = list(v.list_detail_urls(hx))
                 for url in urls:

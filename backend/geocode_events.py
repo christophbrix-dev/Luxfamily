@@ -11,7 +11,6 @@ already-geocoded events are skipped, so you can safely re-run it.
 """
 import os
 import re
-import sys
 import time
 import json
 from typing import Optional, Tuple

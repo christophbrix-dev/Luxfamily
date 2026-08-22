@@ -1,5 +1,4 @@
 # Public events listing & detail
-import requests
 from conftest import BASE_URL
 
 

@@ -14,11 +14,8 @@ Run:
     (safe to re-run — already-fetched events are skipped)
 """
 import os
-import re
 import time
 import urllib.parse as up
-import threading
-from queue import Queue
 from typing import Optional
 from html.parser import HTMLParser
 
