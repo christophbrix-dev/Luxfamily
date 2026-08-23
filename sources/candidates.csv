@@ -1,0 +1,101 @@
+﻿Status,Gemeinde,Website,robots,Crawl-Delay,Sitemap,Veranstaltungsseiten,Beispiel-URL,JSON-LD,Hinweis
+KANDIDAT,Petingen,https://petange.lu/,erlaubt,,https://petange.lu/sitemap_index.xml,960,https://petange.lu/events/,ja,
+KANDIDAT,Helperknapp,https://helperknapp.lu/,erlaubt,,https://helperknapp.lu/sitemap_index.xml,868,https://helperknapp.lu/events/,ja,
+KANDIDAT,Mamer,http://www.mamer.lu/,erlaubt,,https://mamer.lu/sitemap_index.xml,853,https://mamer.lu/events/marche-au-frais-2/,ja,
+KANDIDAT,Lenningen,https://lenningen.lu/,erlaubt,,https://lenningen.lu/sitemap_index.xml,784,https://lenningen.lu/events/,ja,
+KANDIDAT,Frisingen,https://frisange.lu/,erlaubt,,https://frisange.lu/sitemap_index.xml,629,https://frisange.lu/events/,ja,
+KANDIDAT,Contern,https://contern.lu/,erlaubt,,https://contern.lu/sitemap_index.xml,439,https://contern.lu/events/,ja,
+KANDIDAT,Park Hosingen,https://hosingen.lu/,erlaubt,,https://hosingen.lu/sitemap_index.xml,383,https://hosingen.lu/events/,ja,
+KANDIDAT,Manternach,https://manternach.lu/,erlaubt,,https://manternach.lu/sitemap_index.xml,366,https://manternach.lu/events/,ja,
+KANDIDAT,Rümelingen,https://rumelange.lu/,erlaubt,,https://rumelange.lu/sitemap_index.xml,355,https://rumelange.lu/events/,ja,
+KANDIDAT,Tandel,http://www.tandel.lu,erlaubt,,https://tandel.lu/sitemap_index.xml,335,https://tandel.lu/events/,ja,
+KANDIDAT,Bous-Waldbredimus,https://bouswaldbredimus.lu/,erlaubt,,https://bouswaldbredimus.lu/sitemap_index.xml,329,https://bouswaldbredimus.lu/events/,ja,
+KANDIDAT,Flaxweiler,https://www.flaxweiler.lu/,erlaubt,,https://flaxweiler.lu/sitemap_index.xml,275,https://flaxweiler.lu/events/,ja,
+KANDIDAT,Nommern,https://nommern.lu/,erlaubt,,https://nommern.lu/sitemap_index.xml,272,https://nommern.lu/events/,ja,
+KANDIDAT,Colmar-Berg,https://colmar-berg.lu/,erlaubt,,https://www.colmar-berg.lu/sitemap_index.xml,267,https://www.colmar-berg.lu/events/,ja,
+KANDIDAT,Rambruch,http://www.rambrouch.lu,erlaubt,,https://rambrouch.lu/sitemap_index.xml,240,https://rambrouch.lu/events/,ja,
+KANDIDAT,Kiischpelt,https://kiischpelt.lu/,erlaubt,,https://kiischpelt.lu/sitemap_index.xml,224,https://kiischpelt.lu/events/,ja,
+KANDIDAT,Befort,http://www.beaufort.lu/,erlaubt,,https://beaufort.lu/sitemap_index.xml,219,https://beaufort.lu/events/,ja,
+KANDIDAT,Bettendorf,http://www.bettendorf.lu/,erlaubt,,https://bettendorf.lu/sitemap_index.xml,205,https://bettendorf.lu/events/,ja,
+KANDIDAT,Feulen,http://www.feulen.lu/,erlaubt,,https://feulen.lu/sitemap_index.xml,198,https://feulen.lu/events/,ja,
+KANDIDAT,Esch-Sauer,https://esch-sur-sure.lu,erlaubt,,https://esch-sur-sure.lu/sitemap_index.xml,197,https://esch-sur-sure.lu/events/,ja,
+KANDIDAT,Dippach,https://www.dippach.lu/,erlaubt,,https://www.dippach.lu/wp-sitemap.xml,171,https://www.dippach.lu/agenda/atelier-workshop-meng-energiegemeinschaft-grenne/,ja,
+KANDIDAT,Dalheim,http://www.dalheim.lu/,erlaubt,,https://dalheim.lu/sitemap_index.xml,157,https://dalheim.lu/events/,ja,
+KANDIDAT,Consdorf,http://www.consdorf.lu/,erlaubt,,https://consdorf.lu/sitemap_index.xml,152,https://consdorf.lu/events/,ja,
+KANDIDAT,Reckingen,https://reckange.lu/,erlaubt,,https://reckange.lu/sitemap_index.xml,140,https://reckange.lu/events/,ja,
+KANDIDAT,Ell,http://www.ell.lu/,erlaubt,,https://www.ell.lu/sitemap_index.xml,127,https://www.ell.lu/events/,ja,
+KANDIDAT,Biwer,http://www.biwer.lu,erlaubt,,https://biwer.lu/sitemap_index.xml,103,https://biwer.lu/events/,ja,
+KANDIDAT,Useldingen,https://useldeng.lu/,erlaubt,,https://useldeng.lu/sitemap_index.xml,98,https://useldeng.lu/events/,ja,
+KANDIDAT,Lintgen,http://www.lintgen.lu/,erlaubt,,https://lintgen.lu/sitemap_index.xml,93,https://lintgen.lu/events/,ja,
+KANDIDAT,Bech,http://www.bech.lu/,erlaubt,,https://bech.lu/sitemap_index.xml,85,https://bech.lu/events/,ja,
+KANDIDAT,Burscheid,http://www.bourscheid.lu,erlaubt,,https://bourscheid.lu/sitemap_index.xml,73,https://bourscheid.lu/events/,ja,
+KANDIDAT,Wormeldingen,https://wormeldange.lu/,erlaubt,,https://wormeldange.lu/sitemap_index.xml,70,https://wormeldange.lu/events/,ja,
+KANDIDAT,Préizerdaul,https://preizerdaul.lu/,erlaubt,,https://preizerdaul.lu/sitemap_index.xml,68,https://preizerdaul.lu/events/,ja,
+KANDIDAT,Bauschleiden,https://www.boulaide.lu,erlaubt,,https://boulaide.lu/sitemap_index.xml,67,https://boulaide.lu/events/,ja,
+KANDIDAT,Weiler zum Turm,https://weiler-la-tour.lu/,erlaubt,,https://weiler-la-tour.lu/sitemap_index.xml,55,https://weiler-la-tour.lu/events/,ja,
+KANDIDAT,Fels,http://www.larochette.lu/,erlaubt,,https://larochette.lu/sitemap_index.xml,31,https://larochette.lu/events/,ja,
+KANDIDAT,Heffingen,http://www.heffingen.lu,erlaubt,,https://heffingen.lu/sitemap_index.xml,27,https://heffingen.lu/events/,ja,
+KANDIDAT,Wintger,https://wincrange.lu,erlaubt,,https://wincrange.lu/sitemap_index.xml,13,https://wincrange.lu/events/,ja,
+KANDIDAT,Groussbus-Wal,https://g-w.lu/,erlaubt,,https://g-w.lu/sitemap_index.xml,9,https://g-w.lu/events/,ja,
+KANDIDAT,Käerjeng,https://www.kaerjeng.lu/,erlaubt,,https://www.kaerjeng.lu/sitemap.xml,1,https://www.kaerjeng.lu/evenement/themendag-prevention-des-addictions-cohesion-sociale/,ja,
+KANDIDAT,Schieren,https://www.schieren.lu/,erlaubt,,,1,https://www.schieren.lu/agenda/,ja,"keine Sitemap, Pfad geraten"
+KANDIDAT,Differdingen,https://differdange.lu/,erlaubt,,https://differdange.lu/sitemap.xml,2950,https://differdange.lu/agenda/,nein,
+KANDIDAT,Ettelbrück,https://ettelbruck.lu/,erlaubt,,https://ettelbruck.lu/wp-sitemap.xml,408,https://ettelbruck.lu/en/events/collecte-des-dechets-menagers/,nein,
+KANDIDAT,Ernztalgemeinde,https://aerenzdall.lu/,erlaubt,,https://aerenzdall.lu/wp-sitemap.xml,274,https://aerenzdall.lu/actualite/agenda/echo-grouss-botz-aerenzdallgemeng-nvlcnn,nein,
+KANDIDAT,Leudelingen,http://www.leudelange.lu,erlaubt,,https://www.leudelange.lu/sitemap_index.xml,133,https://www.leudelange.lu/fr/events/,nein,
+KANDIDAT,Goesdorf,https://goesdorf.lu/,erlaubt,,https://goesdorf.lu/sitemap_index.xml,123,https://goesdorf.lu/events/,nein,
+KANDIDAT,Lorentzweiler,http://www.lorentzweiler.lu/,erlaubt,,https://www.lorentzweiler.lu/sitemap_index.xml,118,https://www.lorentzweiler.lu/event/,nein,
+KANDIDAT,Düdelingen,https://www.dudelange.lu/,erlaubt,,https://www.dudelange.lu/wp-sitemap.xml,83,https://www.dudelange.lu/index.php/actualites/meng-stad-recette-de-paques/,nein,
+KANDIDAT,Saeul,http://www.saeul.lu/,erlaubt,,https://saeul.lu/sitemap_index.xml,56,https://saeul.lu/events/,nein,
+KANDIDAT,Kopstal,https://www.kopstal.lu/,erlaubt,,https://www.kopstal.lu/sitemap.xml,43,http://www.kopstal.lu/fr/actualites/actualites/programme-naturentdecker-sicona,nein,
+KANDIDAT,Ulflingen,https://www.troisvierges.lu/,erlaubt,,https://www.troisvierges.lu/sitemap.xml,27,https://www.troisvierges.lu/actualites/,nein,
+KANDIDAT,Bettemburg,https://bettembourg.lu/,erlaubt,,https://bettembourg.lu/sitemap_index.xml,26,https://bettembourg.lu/events/,nein,
+KANDIDAT,Putscheid,https://putscheid.lu/,erlaubt,,https://putscheid.lu/sitemap_index.xml,19,https://putscheid.lu/events/,nein,
+KANDIDAT,Schifflingen,https://schifflange.lu/,erlaubt,,https://schifflange.lu/sitemap.xml,17,https://schifflange.lu/evenements/infoevent-am-kader-vum-idahobit-day/,nein,
+KANDIDAT,Vichten,https://vichten.lu/,erlaubt,,https://vichten.lu/sitemap_index.xml,15,https://vichten.lu/events/,nein,
+KANDIDAT,Echternach,https://echternach.lu,erlaubt,,https://echternach.lu/sitemap_index.xml,6,https://echternach.lu/events/,nein,
+KANDIDAT,Reisdorf,http://www.reisdorf.lu/,erlaubt,,https://reisdorf.lu/sitemap_index.xml,2,https://reisdorf.lu/events/,nein,
+KANDIDAT,Stauseegemeinde,https://lac-haute-sure.lu,erlaubt,,https://lac-haute-sure.lu/sitemap_index.xml,2,https://lac-haute-sure.lu/events/,nein,
+KANDIDAT,Bartringen,https://www.bertrange.lu/,erlaubt,,,1,https://www.bertrange.lu/fr/actualites,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Berdorf,https://www.berdorf.lu/,erlaubt,,,1,https://www.berdorf.lu/agenda,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Erpeldingen an der Sauer,https://www.erpeldange.lu,erlaubt,,,1,https://www.erpeldange.lu/actualites,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Fischbach,https://acfischbach.lu/,erlaubt,,,1,https://acfischbach.lu/agenda/,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Garnich,https://garnich.lu,erlaubt,,,1,https://garnich.lu/agenda/,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Grevenmacher,https://grevenmacher.lu/,erlaubt,,,1,https://grevenmacher.lu/agenda/,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Habscht,http://www.habscht.lu,erlaubt,,,1,https://www.habscht.lu/agenda,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Junglinster,https://www.junglinster.lu/,erlaubt,,,1,https://www.junglinster.lu/agenda,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Kayl,http://www.kayl.lu,erlaubt,,,1,https://www.kayl.lu/agenda/,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Kehlen,https://www.kehlen.lu/,erlaubt,,,1,https://www.kehlen.lu/fr/agenda,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Koerich,https://www.koerich.lu/,erlaubt,,,1,https://www.koerich.lu/fr/agenda,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Mersch,https://www.mersch.lu/,erlaubt,,,1,https://www.mersch.lu/agenda,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Mertert,http://www.mertert.lu,erlaubt,,,1,https://mertert.lu/events/,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Monnerich,https://www.mondercange.lu/,erlaubt,,,1,https://www.mondercange.lu/agenda,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Sandweiler,https://www.sandweiler.lu/,erlaubt,,,1,https://www.sandweiler.lu/fr/agenda,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Sassenheim,http://www.sanem.lu/,erlaubt,,,1,http://www.sanem.lu/fr/agenda/,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Schengen,https://www.schengen.lu/,erlaubt,,,1,https://www.schengen.lu/events/,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Schüttringen,https://www.schuttrange.lu/,erlaubt,,,1,https://www.schuttrange.lu/agenda,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Stadtbredimus,https://www.stadtbredimus.lu/,erlaubt,,,1,https://www.stadtbredimus.lu/actualites,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Steinfort,https://www.steinfort.lu/,erlaubt,,,1,https://www.steinfort.lu/agenda,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Strassen,http://www.strassen.lu/,erlaubt,,,1,https://www.strassen.lu/fr/agenda,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Weiswampach,https://www.weiswampach.lu/,erlaubt,,,1,https://www.weiswampach.lu/events,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Wiltz,https://www.wiltz.lu,erlaubt,,,1,https://www.wiltz.lu/fr/agenda,nein,"keine Sitemap, Pfad geraten"
+KANDIDAT,Winseler,https://winseler.lu,erlaubt,,,1,https://winseler.lu/events/,nein,"keine Sitemap, Pfad geraten"
+NICHTS GEFUNDEN,Bad-Mondorf,https://www.mondorf-les-bains.lu/,erlaubt,,https://www.mondorf-les-bains.lu/sitemap.xml,0,,,
+NICHTS GEFUNDEN,Beckerich,https://beckerich.lu,erlaubt,,,0,,,
+NICHTS GEFUNDEN,Betzdorf,https://betzdorf.lu/,erlaubt,,,0,,,
+NICHTS GEFUNDEN,Clerf,https://www.clervaux.lu/,erlaubt,,,0,,,
+NICHTS GEFUNDEN,Diekirch,https://diekirch.lu,erlaubt,,,0,,,
+NICHTS GEFUNDEN,Esch an der Alzette,http://www.esch.lu,erlaubt,,,0,,,
+NICHTS GEFUNDEN,Hesperingen,http://www.hesperange.lu/,erlaubt,,,0,,,
+NICHTS GEFUNDEN,Luxemburg,https://www.vdl.lu/,erlaubt,,https://www.vdl.lu/sitemap.xml,0,,,
+NICHTS GEFUNDEN,Mertzig,https://www.mertzig.lu/,erlaubt,,,0,,,
+NICHTS GEFUNDEN,Niederanven,https://www.niederanven.lu/,erlaubt,,https://www.niederanven.lu/sitemap.xml,0,,,
+NICHTS GEFUNDEN,Redingen an der Attert,https://www.redange.lu,erlaubt,,,0,,,
+NICHTS GEFUNDEN,Remich,https://remich.lu/,erlaubt,,,0,,,
+NICHTS GEFUNDEN,Roeser,https://www.roeser.lu/,erlaubt,10.0,https://www.roeser.lu/sitemap.xml,0,,,
+NICHTS GEFUNDEN,Rosport-Mompach,https://rosportmompach.lu,erlaubt,,,0,,,
+NICHTS GEFUNDEN,Vianden,https://vianden.lu/,erlaubt,,https://vianden.lu/sitemap_index.xml,0,,,
+NICHTS GEFUNDEN,Waldbillig,https://waldbillig.lu/,erlaubt,,,0,,,
+GESPERRT,Bissen,http://www.bissen.lu,verbietet,,,,,,robots.txt untersagt das Crawlen
+GESPERRT,Steinsel,http://www.steinsel.lu/,verbietet,,,,,,robots.txt untersagt das Crawlen
+GESPERRT,Walferdingen,http://www.walferdange.lu/,verbietet,,,,,,robots.txt untersagt das Crawlen
