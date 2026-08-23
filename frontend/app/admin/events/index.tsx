@@ -184,6 +184,35 @@ export default function AdminEvents() {
 }
 
 const styles = StyleSheet.create({
+  sponsorBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: "#FEF3C7",
+  },
+  sponsorBadgeTxt: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#92400E",
+    letterSpacing: 0.4,
+  },
+  autoBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: palette.borderSoft,
+  },
+  autoBadgeTxt: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: palette.textMuted,
+  },
   wrap: { flex: 1, backgroundColor: "#F1F5F9" },
   topbar: {
     paddingHorizontal: 24,

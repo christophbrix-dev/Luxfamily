@@ -238,7 +238,7 @@ export default function EventsTab() {
             <Text style={styles.retryTxt}>{t("tryAgain", lang)}</Text>
           </TouchableOpacity>
         </View>
-      ) : events.length === 0 ? (
+      ) : !events || events.length === 0 ? (
         <ScrollView
           contentContainerStyle={styles.emptyWrap}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
