@@ -18,10 +18,10 @@ import { t } from "@/src/i18n/strings";
 import { pickLang } from "@/src/i18n/pickLang";
 import { radii, type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
-import { api, ApiEvent } from "@/src/utils/api";
+import { api, ApiEventSummary } from "@/src/utils/api";
 import { needsToFilters, rankForProfile } from "@/src/utils/personalization";
 
-type EventGroup = { label: string; items: ApiEvent[]; kind?: "venue" | "dated" };
+type EventGroup = { label: string; items: ApiEventSummary[]; kind?: "venue" | "dated" };
 
 /**
  * True when this DB record is a curated always-open venue rather than a
@@ -29,7 +29,7 @@ type EventGroup = { label: string; items: ApiEvent[]; kind?: "venue" | "dated" }
  * They should not be sorted chronologically — instead we put them in their
  * own "Always open" group.
  */
-function isVenue(event: ApiEvent): boolean {
+function isVenue(event: ApiEventSummary): boolean {
   return (event.source_name ?? "").startsWith("Curated");
 }
 
@@ -49,12 +49,12 @@ function monthLabel(d: Date, lang: "en" | "de" | "fr"): string {
  * curated venues into a single "Always open" bucket at the end.
  */
 function groupEvents(
-  events: ApiEvent[],
+  events: ApiEventSummary[],
   lang: "en" | "de" | "fr",
   alwaysOpenLabel: string,
 ): EventGroup[] {
-  const venues: ApiEvent[] = [];
-  const dated: ApiEvent[]  = [];
+  const venues: ApiEventSummary[] = [];
+  const dated: ApiEventSummary[]  = [];
   for (const e of events) (isVenue(e) ? venues : dated).push(e);
 
   // Sort dated events chronologically (ascending) with featured on top per day.
@@ -64,7 +64,7 @@ function groupEvents(
   });
 
   // Group dated events by month, preserving insertion order (already sorted).
-  const monthMap = new Map<string, ApiEvent[]>();
+  const monthMap = new Map<string, ApiEventSummary[]>();
   for (const e of dated) {
     const d   = new Date(e.start_date);
     const key = monthLabel(d, lang);
@@ -96,7 +96,7 @@ export default function EventsTab() {
   const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const router = useRouter();
   const { lang, userProfile } = useApp();
-  const [events, setEvents] = useState<ApiEvent[] | null>(null);
+  const [events, setEvents] = useState<ApiEventSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -326,7 +326,7 @@ function EventRow({
   lang,
   onPress,
 }: {
-  event: ApiEvent;
+  event: ApiEventSummary;
   lang: "en" | "de" | "fr";
   onPress: () => void;
 }) {

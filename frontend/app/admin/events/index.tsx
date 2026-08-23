@@ -11,11 +11,11 @@ import {
 } from "react-native";
 
 import { palette, radii, shadow } from "@/src/theme";
-import { api, ApiEvent, setAdminToken } from "@/src/utils/api";
+import { api, ApiEventSummary, setAdminToken } from "@/src/utils/api";
 
 export default function AdminEvents() {
   const router = useRouter();
-  const [events, setEvents] = useState<ApiEvent[] | null>(null);
+  const [events, setEvents] = useState<ApiEventSummary[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -49,10 +49,14 @@ export default function AdminEvents() {
     }
   };
 
-  const togglePublish = async (ev: ApiEvent) => {
+  const togglePublish = async (ev: ApiEventSummary) => {
     try {
-      const updated = await api.updateEvent(ev.id, { published: !ev.published });
-      setEvents((prev) => (prev ? prev.map((p) => (p.id === ev.id ? updated : p)) : prev));
+      await api.updateEvent(ev.id, { published: !ev.published });
+      // updateEvent returns a full document; this list deliberately holds
+      // summaries, so patch the one field in place.
+      setEvents((prev) =>
+        prev ? prev.map((p) => (p.id === ev.id ? { ...p, published: !ev.published } : p)) : prev,
+      );
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Update failed");
     }

@@ -36,7 +36,7 @@ jobs:
         run: yarn lint
 
   backend:
-    name: Backend (syntax + pyflakes)
+    name: Backend (lint + tests)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -47,12 +47,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
 
-      # The full requirements.txt pulls heavy ML packages and a private wheel
-      # URL, so CI installs only what the static checks need. Runtime imports
-      # are covered by the compile step below, not by an install.
-      - name: Install linters
-        run: pip install flake8==7.3.0
+      # requirements.txt is now just what the server imports, so CI can install
+      # it for real — the heavy ML packages and the private wheel that used to
+      # make this impossible are gone.
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
 
       - name: Compile all modules
         run: python -m compileall -q .
@@ -62,3 +64,9 @@ jobs:
       # gated — they would only add noise.
       - name: Pyflakes
         run: flake8 --select=E9,F --count .
+
+      # Offline suite only: it runs the real app against an in-memory MongoDB,
+      # so it needs no server and no credentials. The integration tests in
+      # backend/tests skip themselves when no backend is reachable.
+      - name: Tests
+        run: pytest tests/offline -q

@@ -53,13 +53,23 @@ Erwartet eine erreichbare MongoDB und eine `backend/.env`:
 | `DB_NAME` | ja | Datenbankname |
 | `JWT_SECRET` | ja | Signaturschlüssel für Admin-Tokens |
 | `ADMIN_EMAIL` | ja | wird beim Start idempotent angelegt |
-| `ADMIN_PASSWORD` | ja | Passwort für dieses Konto |
+| `ADMIN_PASSWORD` | ja | Passwort für dieses Konto — maßgeblich, siehe unten |
 | `JWT_ALGORITHM` | nein | Vorgabe `HS256` |
 | `JWT_EXPIRE_MINUTES` | nein | Vorgabe 10080 (7 Tage) |
 | `STRIPE_SECRET_KEY` | für Sponsoring | Stripe-API-Schlüssel |
 | `STRIPE_WEBHOOK_SECRET` | für Sponsoring | **ohne diesen Wert lehnt der Webhook ab** |
 | `FRONTEND_URL` | für Sponsoring | Basis für Stripe-Rücksprungadressen |
 | `DISABLE_SCHEDULER` | nein | `1` schaltet den Importer-Cron ab |
+
+#### Admin-Passwort ändern
+
+`ADMIN_PASSWORD` ist maßgeblich: Weicht der Wert beim Start vom gespeicherten
+Hash ab, wird der Hash ersetzt. Zum Ändern also den Wert in der Umgebung setzen
+und das Backend neu starten — das Konto selbst bleibt erhalten, nur das Passwort
+wechselt. Im Log erscheint dann `Admin password rotated`.
+
+Vorher gab es dafür keinen Weg: Die Variable wurde nur beim allerersten Start
+ausgewertet, und einen Endpunkt zum Passwortwechsel gibt es nicht.
 
 Der Importer läuft automatisch um 05:00, 12:00 und 18:00 Europe/Luxembourg.
 Manuell auslösbar über `POST /api/admin/sources/run-all`.

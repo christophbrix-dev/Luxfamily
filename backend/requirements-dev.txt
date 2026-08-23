@@ -1,0 +1,15 @@
+# Development, test and one-off tooling. Not installed in the runtime image.
+-r requirements.txt
+
+# --- tests ---
+pytest==9.0.3
+requests==2.34.2              # the integration tests in backend/tests
+mongomock-motor==0.0.36       # in-memory MongoDB for backend/tests/offline
+
+# --- linting ---
+flake8==7.3.0
+
+# --- one-off asset tooling (backend/gen_app_icon.py only) ---
+# Pulls a private wheel and a large dependency tree, which is why it is not a
+# runtime dependency. Install explicitly when you need to regenerate the icon:
+#   pip install emergentintegrations==0.2.0

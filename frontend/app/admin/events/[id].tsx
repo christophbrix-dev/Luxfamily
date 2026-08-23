@@ -85,16 +85,16 @@ export default function AdminEventEdit() {
     if (isNew) return;
     (async () => {
       try {
-        const list = await api.adminEvents();
-        const found = list.find((p) => p.id === id);
-        if (found) {
-          const { id: _i, created_at: _c, updated_at: _u, created_by: _b, ...rest } = found;
-          void _i;
-          void _c;
-          void _u;
-          void _b;
-          setDraft(rest as Draft);
-        }
+        // Fetch just this event. This used to download the entire admin list
+        // and find the row client-side, which forced the list endpoint to keep
+        // returning full documents for every event.
+        const found = await api.adminEvent(id);
+        const { id: _i, created_at: _c, updated_at: _u, created_by: _b, ...rest } = found;
+        void _i;
+        void _c;
+        void _u;
+        void _b;
+        setDraft(rest as Draft);
       } catch (e) {
         setErr(e instanceof Error ? e.message : "Load failed");
       } finally {

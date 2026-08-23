@@ -8,6 +8,8 @@ Provides:
  - Brute-force protection on /api/auth/login via slowapi
 """
 
+import asyncio
+import hashlib
 import logging
 import os
 import uuid
@@ -22,14 +24,28 @@ import jwt
 import stripe
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
-from fastapi import Body, Depends, FastAPI, HTTPException, Request, status
+from fastapi import (
+    BackgroundTasks,
+    Body,
+    Depends,
+    FastAPI,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from fastapi.security import OAuth2PasswordBearer
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field
+from pymongo.errors import DuplicateKeyError, OperationFailure
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from starlette.datastructures import MutableHeaders
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 
 from importers import run_all_active, run_source
 
@@ -56,6 +72,14 @@ def _require_env(name: str) -> str:
 MONGO_URL = _require_env("MONGO_URL")
 DB_NAME = _require_env("DB_NAME")
 JWT_SECRET = _require_env("JWT_SECRET")
+if len(JWT_SECRET.encode("utf-8")) < 32:
+    # RFC 7518 3.2: an HS256 key shorter than the hash output weakens the
+    # signature. Warn loudly rather than fail, so an existing deployment with a
+    # short secret still boots.
+    logger.warning(
+        "JWT_SECRET is only %d bytes; use at least 32 for HS256",
+        len(JWT_SECRET.encode("utf-8")),
+    )
 JWT_ALGORITHM = os.environ.get("JWT_ALGORITHM", "HS256")
 JWT_EXPIRE_MINUTES = int(os.environ.get("JWT_EXPIRE_MINUTES", "10080"))
 ADMIN_EMAIL = _require_env("ADMIN_EMAIL").lower()
@@ -65,6 +89,15 @@ STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "").rstrip("/")
 stripe.api_key = STRIPE_SECRET_KEY
+
+# Comma-separated browser origins allowed to call the API. The native app sends
+# no Origin header, so this only gates the Expo web build and the /admin panel.
+CORS_ORIGINS = [
+    o.strip().rstrip("/") for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()
+] or ([FRONTEND_URL] if FRONTEND_URL else ["*"])
+
+# Salt for pseudonymising viewer IPs in the analytics log.
+VIEW_IP_SALT = os.environ.get("VIEW_IP_SALT") or JWT_SECRET
 
 # Plan -> (cents, days)
 SPONSOR_PLANS: Dict[str, Dict[str, int]] = {
@@ -171,6 +204,10 @@ class EventCreate(EventBase):
     pass
 
 
+# Event fields that may legitimately be cleared back to null via PATCH.
+NULLABLE_EVENT_FIELDS = {"end_date", "featured_until"}
+
+
 class EventUpdate(BaseModel):
     title: Optional[LocalizedString] = None
     short: Optional[LocalizedString] = None
@@ -218,6 +255,51 @@ class EventResponse(EventBase):
     created_at: str
     updated_at: str
     created_by: Optional[str] = None
+
+
+class EventSummary(BaseModel):
+    """Trimmed shape for list endpoints.
+
+    List screens render a thumbnail, title, town, date and a few badges — they
+    never show the long localized prose. Sending whole documents instead cost
+    roughly 500 KB for 200 events; this is about a third of that. Detail screens
+    fetch /api/events/{id} for the rest.
+
+    Every field the current list screens read is here — events.tsx, explore.tsx
+    and the admin list — so adding one here is required before a list screen can
+    use it.
+    """
+
+    id: str
+    title: LocalizedString
+    short: LocalizedString
+    type: str = "Event"
+    canton: str
+    town: str
+    category: List[str] = Field(default_factory=list)
+    age_min: int = 0
+    age_max: int = 99
+    start_date: str
+    end_date: Optional[str] = None
+    time: str = ""
+    price_adult: float = 0.0
+    price_child: float = 0.0
+    image: str = ""
+    lat: float
+    lng: float
+    featured: bool = False
+    published: bool = True
+    rating: float = 4.5
+    view_count: int = 0
+    source_name: Optional[str] = None
+    accessibility_wheelchair: bool = False
+    sensory_friendly: bool = False
+    free_parking: bool = False
+
+
+# Mongo projection matching EventSummary, so the trimming happens in the
+# database rather than after we've already paid to transfer the documents.
+SUMMARY_PROJECTION: Dict[str, Any] = {"_id": 0, **{f: 1 for f in EventSummary.model_fields}}
 
 
 TokenResponse.model_rebuild()
@@ -379,16 +461,105 @@ async def require_admin(current: Dict[str, Any] = Depends(get_current_user)) -> 
 # ---------------------------------------------------------------------------
 # Lifespan: indexes + seed admin
 # ---------------------------------------------------------------------------
+IMPORTER_LOCK_ID = "importers"
+IMPORTER_LEASE_MINUTES = 60
+WORKER_ID = str(uuid.uuid4())
+
+
+async def _acquire_importer_lease(db_) -> bool:
+    """Claim the right to run the importers for the next lease window.
+
+    Uvicorn runs several workers and the deployment may run several replicas —
+    each starts its own APScheduler, so every scheduled tick crawled every feed
+    N times over. This takes a short lease in Mongo so exactly one of them does
+    the work; the lease expires on its own if a worker dies mid-run.
+    """
+    now = datetime.now(timezone.utc)
+    try:
+        await db_.locks.insert_one({"_id": IMPORTER_LOCK_ID, "lease_until": now})
+    except DuplicateKeyError:
+        pass  # lock document already exists, which is the normal case
+    result = await db_.locks.update_one(
+        {"_id": IMPORTER_LOCK_ID, "lease_until": {"$lte": now}},
+        {
+            "$set": {
+                "lease_until": now + timedelta(minutes=IMPORTER_LEASE_MINUTES),
+                "holder": WORKER_ID,
+                "acquired_at": now,
+            }
+        },
+    )
+    return result.modified_count == 1
+
+
+async def _release_importer_lease(db_) -> None:
+    await db_.locks.update_one(
+        {"_id": IMPORTER_LOCK_ID, "holder": WORKER_ID},
+        {"$set": {"lease_until": datetime.now(timezone.utc)}},
+    )
+
+
+async def _run_importers_once() -> None:
+    """Scheduled entry point: run every active source, but only once globally."""
+    if not await _acquire_importer_lease(db):
+        logger.info("Importer run skipped — another worker holds the lease")
+        return
+    try:
+        results = await run_all_active(db)
+        logger.info("Importer run finished for %d sources", len(results))
+    except Exception:
+        logger.exception("Scheduled importer run failed")
+    finally:
+        await _release_importer_lease(db)
+
+
+async def _ensure_index(collection, keys, **opts) -> None:
+    """create_index that survives an options conflict with an older index.
+
+    Adding `unique` or a TTL to an index that already exists raises
+    IndexOptionsConflict rather than migrating it. Log and carry on instead of
+    failing startup — the index simply stays as it was until someone drops it.
+    """
+    try:
+        await collection.create_index(keys, **opts)
+    except OperationFailure as exc:
+        logger.warning(
+            "Could not create index %s on %s: %s", opts.get("name", keys), collection.name, exc
+        )
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await db.users.create_index("email", unique=True)
     await db.users.create_index("id", unique=True)
     await db.events.create_index("id", unique=True)
     await db.events.create_index("start_date")
+
+    # Compound indexes matching the actual list queries. Without them Mongo
+    # scans on `published` and sorts the whole result set in memory.
+    await _ensure_index(
+        db.events,
+        [("published", 1), ("featured", -1), ("start_date", 1)],
+        name="pub_featured_start",
+    )
+    await _ensure_index(
+        db.events,
+        [("published", 1), ("canton", 1), ("featured", -1), ("start_date", 1)],
+        name="pub_canton_featured_start",
+    )
+    # Backs the analytics top-events sort.
+    await _ensure_index(db.events, [("published", 1), ("view_count", -1)], name="pub_viewcount")
     await db.events.create_index([("source_id", 1), ("external_id", 1)], sparse=True)
+
     await db.sources.create_index("id", unique=True)
     await db.event_views.create_index("event_id")
     await db.event_views.create_index("viewed_at")
+    # The per-IP/minute dedup buckets carry `expires_at` but nothing ever
+    # deleted them, so the collection grew without bound. This is the TTL that
+    # actually reaps it.
+    await _ensure_index(
+        db.event_views_dedup, "expires_at", expireAfterSeconds=0, name="dedup_ttl"
+    )
     await db.partners.create_index("id", unique=True)
     await db.partners.create_index("created_at")
     await db.sponsorships.create_index("session_id", unique=True)
@@ -408,7 +579,13 @@ async def lifespan(_: FastAPI):
     except Exception:
         pass  # already exists with different options — non-fatal
 
-    # Idempotent admin seeding.
+    # Admin seeding. ADMIN_PASSWORD is authoritative: if it no longer matches
+    # the stored hash, the stored hash is replaced on boot.
+    #
+    # It used to seed only when the account was absent, which meant there was no
+    # way to rotate the password at all — changing the variable did nothing, and
+    # no endpoint existed to change it either. Rotating now means updating
+    # ADMIN_PASSWORD in the environment and restarting.
     existing = await db.users.find_one({"email": ADMIN_EMAIL})
     if not existing:
         admin_doc = {
@@ -421,6 +598,17 @@ async def lifespan(_: FastAPI):
         }
         await db.users.insert_one(admin_doc)
         logger.info("Seeded admin user %s", ADMIN_EMAIL)
+    elif not verify_password(ADMIN_PASSWORD, existing.get("hashed_password", "")):
+        await db.users.update_one(
+            {"email": ADMIN_EMAIL},
+            {
+                "$set": {
+                    "hashed_password": hash_password(ADMIN_PASSWORD),
+                    "password_rotated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            },
+        )
+        logger.warning("Admin password rotated from ADMIN_PASSWORD for %s", ADMIN_EMAIL)
     else:
         logger.info("Admin user already exists: %s", ADMIN_EMAIL)
 
@@ -433,11 +621,12 @@ async def lifespan(_: FastAPI):
 
         scheduler = AsyncIOScheduler(timezone="Europe/Luxembourg")
         scheduler.add_job(
-            run_all_active,
+            _run_importers_once,
             CronTrigger(hour="5,12,18", minute=0, timezone="Europe/Luxembourg"),
-            args=[db],
             id="importers",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
         scheduler.start()
         logger.info("Importer scheduler started (3x daily: 05:00, 12:00, 18:00 Europe/Luxembourg)")
@@ -458,12 +647,54 @@ app = FastAPI(lifespan=lifespan, title="Wat Elo? API")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+class ETagMiddleware(BaseHTTPMiddleware):
+    """Strong ETag on GET responses, answering If-None-Match with a 304.
+
+    The event list barely changes between app launches, but every pull-to-refresh
+    re-downloaded the whole payload because nothing on the response said
+    otherwise. Hashing the rendered body is enough here — the payloads are small
+    and already buffered.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        if request.method != "GET" or response.status_code != 200:
+            return response
+        if not hasattr(response, "body_iterator"):
+            return response
+
+        body = b"".join([chunk async for chunk in response.body_iterator])
+        etag = '"%s"' % hashlib.sha256(body).hexdigest()[:32]
+
+        headers = MutableHeaders(raw=list(response.raw_headers))
+        headers["ETag"] = etag
+        headers.setdefault("Cache-Control", "private, max-age=60, must-revalidate")
+        del headers["content-length"]  # recomputed by Response below
+
+        if request.headers.get("if-none-match") == etag:
+            return Response(status_code=304, headers=dict(headers))
+        return Response(content=body, status_code=200, headers=dict(headers))
+
+
+# Middleware order matters: add_middleware puts the newest one outermost, so
+# this registers as CORS(GZip(ETag(app))). ETag therefore hashes the raw JSON
+# rather than the compressed bytes — keeping the tag stable across encodings —
+# and CORS still decorates 304 responses.
+app.add_middleware(ETagMiddleware)
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+if CORS_ORIGINS == ["*"]:
+    logger.warning("CORS_ORIGINS not set — allowing every origin. Set it in production.")
+
+# allow_credentials stays False: auth is a Bearer token, never a cookie, and
+# browsers reject `allow_origins=["*"]` combined with credentials anyway, so the
+# previous pairing was both permissive and non-functional.
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_credentials=False,
+    allow_origins=CORS_ORIGINS,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 
@@ -653,26 +884,41 @@ async def delete_my_account(current: Dict[str, Any] = Depends(get_current_user))
 
 
 # ---- Public events ----
-@app.get("/api/events", response_model=List[EventResponse])
+@app.get("/api/events", response_model=List[EventSummary])
 async def list_events(
+    response: Response,
     canton: Optional[str] = None,
     upcoming: bool = True,
-    limit: int = 200,
+    limit: int = Query(100, ge=1, le=200),
+    skip: int = Query(0, ge=0),
 ):
+    """Paginated event list in the trimmed EventSummary shape.
+
+    `limit` is capped: it used to be an unbounded caller-supplied number, so a
+    single `?limit=1000000` could force a full-collection scan and serialize the
+    lot. The total goes out in X-Total-Count so clients can page.
+    """
     query: Dict[str, Any] = {"published": True}
     if canton:
         query["canton"] = canton
     if upcoming:
         today = datetime.now(timezone.utc).date().isoformat()
         query["start_date"] = {"$gte": today}
-    # Featured events first, then by start date.
+
+    # Featured first, then by start date — matches pub_featured_start /
+    # pub_canton_featured_start so Mongo walks the index instead of sorting.
     cursor = (
-        db.events.find(query, {"_id": 0})
+        db.events.find(query, SUMMARY_PROJECTION)
         .sort([("featured", -1), ("start_date", 1)])
+        .skip(skip)
         .limit(limit)
     )
-    docs = await cursor.to_list(length=limit)
-    return [_event_to_response(d) for d in docs]
+    docs, total = await asyncio.gather(
+        cursor.to_list(length=limit),
+        db.events.count_documents(query),
+    )
+    response.headers["X-Total-Count"] = str(total)
+    return [EventSummary(**d) for d in docs]
 
 
 @app.get("/api/events/{event_id}", response_model=EventResponse)
@@ -683,39 +929,75 @@ async def get_event(event_id: str):
     return _event_to_response(doc)
 
 
+def _hash_ip(ip: str) -> str:
+    """Stable pseudonym for a viewer IP.
+
+    Python's builtin hash() is salted per process, so `str(hash(ip))` produced a
+    different value after every restart — useless as a pseudonym and not a hash
+    anyone should rely on.
+    """
+    return hashlib.sha256(f"{VIEW_IP_SALT}:{ip}".encode("utf-8")).hexdigest()[:16]
+
+
 @app.post("/api/events/{event_id}/view", status_code=204)
 async def event_view(event_id: str, request: Request):
     # Fire-and-forget ping. We count anonymous views but rate-limit per IP+event
-    # so a refresh loop can't inflate stats.
-    ip = get_remote_address(request)
-    minute_bucket = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
-    bucket_id = f"{event_id}:{ip}:{minute_bucket}"
-    seen = await db.event_views_dedup.find_one({"_id": bucket_id})
-    if seen:
-        return
-    try:
-        await db.event_views_dedup.insert_one(
-            {"_id": bucket_id, "expires_at": datetime.now(timezone.utc) + timedelta(hours=1)}
-        )
-    except Exception:
-        return  # race — already counted
+    # so a refresh loop can't inflate stats. The upsert *is* the dedup: one
+    # atomic operation instead of find-then-insert, which two concurrent
+    # requests could both pass.
+    now = datetime.now(timezone.utc)
+    ip_hash = _hash_ip(get_remote_address(request))
+    bucket_id = f"{event_id}:{ip_hash}:{now:%Y%m%d%H%M}"
+    result = await db.event_views_dedup.update_one(
+        {"_id": bucket_id},
+        {"$setOnInsert": {"expires_at": now + timedelta(hours=1)}},
+        upsert=True,
+    )
+    if result.upserted_id is None:
+        return  # already counted this IP for this event in this minute
 
-    await db.events.update_one({"id": event_id}, {"$inc": {"view_count": 1}})
+    counted = await db.events.update_one({"id": event_id}, {"$inc": {"view_count": 1}})
+    if counted.matched_count == 0:
+        return  # unknown event — don't log a view for it
     await db.event_views.insert_one(
         {
             "event_id": event_id,
-            "viewed_at": datetime.now(timezone.utc).isoformat(),
-            "ip_hash": str(hash(ip))[:12],
+            # A real BSON date, not an ISO string: TTL indexes only expire date
+            # fields, so the string form could never be reaped.
+            "viewed_at": now,
+            "ip_hash": ip_hash,
         }
     )
 
 
 # ---- Admin events ----
-@app.get("/api/admin/events", response_model=List[EventResponse])
-async def admin_list_events(_: Dict[str, Any] = Depends(require_admin)):
-    cursor = db.events.find({}, {"_id": 0}).sort("start_date", 1)
-    docs = await cursor.to_list(length=1000)
-    return [_event_to_response(d) for d in docs]
+@app.get("/api/admin/events", response_model=List[EventSummary])
+async def admin_list_events(
+    response: Response,
+    limit: int = Query(200, ge=1, le=500),
+    skip: int = Query(0, ge=0),
+    _: Dict[str, Any] = Depends(require_admin),
+):
+    cursor = db.events.find({}, SUMMARY_PROJECTION).sort("start_date", 1).skip(skip).limit(limit)
+    docs, total = await asyncio.gather(
+        cursor.to_list(length=limit),
+        db.events.count_documents({}),
+    )
+    response.headers["X-Total-Count"] = str(total)
+    return [EventSummary(**d) for d in docs]
+
+
+@app.get("/api/admin/events/{event_id}", response_model=EventResponse)
+async def admin_get_event(event_id: str, _: Dict[str, Any] = Depends(require_admin)):
+    """Full document for the admin editor.
+
+    The editor used to pull the whole list and find its event client-side, which
+    is what forced the admin list to carry full documents.
+    """
+    doc = await db.events.find_one({"id": event_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return _event_to_response(doc)
 
 
 @app.post("/api/admin/events", response_model=EventResponse, status_code=201)
@@ -741,7 +1023,14 @@ async def admin_update_event(
     body: EventUpdate,
     _: Dict[str, Any] = Depends(require_admin),
 ):
-    updates = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
+    # exclude_unset already drops fields the client didn't send, so an explicit
+    # null is a deliberate "clear this". Dropping every None meant end_date and
+    # featured_until could be set but never un-set.
+    updates = {
+        k: v
+        for k, v in body.model_dump(exclude_unset=True).items()
+        if v is not None or k in NULLABLE_EVENT_FIELDS
+    }
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -820,7 +1109,8 @@ class CheckoutRequest(BaseModel):
 
 
 @app.post("/api/sponsor/checkout")
-async def create_sponsor_checkout(body: CheckoutRequest = Body(...)):
+@limiter.limit("10/hour")
+async def create_sponsor_checkout(request: Request, body: CheckoutRequest = Body(...)):
     if body.plan not in SPONSOR_PLANS:
         raise HTTPException(400, "Invalid plan")
     event = await db.events.find_one({"id": body.event_id}, {"_id": 0, "title": 1})
@@ -847,18 +1137,19 @@ async def create_sponsor_checkout(body: CheckoutRequest = Body(...)):
             cancel_url=f"{FRONTEND_URL}/sponsor/cancel",
             metadata={"event_id": body.event_id, "plan": body.plan},
         )
-    except stripe.error.StripeError as exc:
+    except stripe.StripeError as exc:
         raise HTTPException(502, f"Stripe error: {exc.user_message or str(exc)}")
     return {"url": session.url, "session_id": session.id}
 
 
 @app.get("/api/sponsor/session/{session_id}")
-async def get_sponsor_session(session_id: str):
+@limiter.limit("60/hour")
+async def get_sponsor_session(session_id: str, request: Request):
     """Frontend polls this on the success page so the partner sees confirmation
     even if our webhook hasn't been wired in this environment."""
     try:
         session = stripe.checkout.Session.retrieve(session_id)
-    except stripe.error.StripeError as exc:
+    except stripe.StripeError as exc:
         raise HTTPException(404, str(exc))
     paid = session.payment_status == "paid"
     if paid:
@@ -933,13 +1224,16 @@ async def stripe_webhook(request: Request):
     sig = request.headers.get("stripe-signature", "")
     try:
         event = stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)
-    except (ValueError, stripe.error.SignatureVerificationError):
+    except (ValueError, stripe.SignatureVerificationError):
         raise HTTPException(400, "Invalid webhook signature")
 
     if event.get("type") == "checkout.session.completed":
+        # construct_event already returns StripeObjects all the way down.
+        # stripe.util.convert_to_stripe_object() was removed in stripe 12, so
+        # calling it here raised AttributeError on every verified webhook.
         session = event["data"]["object"]
         if session.get("payment_status") == "paid":
-            await _grant_featured(stripe.util.convert_to_stripe_object(session))
+            await _grant_featured(session)
     return {"received": True}
 
 
@@ -1018,9 +1312,30 @@ async def admin_run_source(
     return await run_source(source, db)
 
 
-@app.post("/api/admin/sources/run-all")
-async def admin_run_all(_: Dict[str, Any] = Depends(require_admin)):
-    return {"runs": await run_all_active(db)}
+@app.post("/api/admin/sources/run-all", status_code=202)
+async def admin_run_all(
+    background: BackgroundTasks, _: Dict[str, Any] = Depends(require_admin)
+):
+    """Kick off a full crawl and return immediately.
+
+    Running every source inline could take minutes and reliably tripped the
+    gateway timeout, leaving the admin looking at a failed request while the
+    import carried on regardless. Progress shows up on each source's
+    last_run_at / last_status, which the sources screen already polls.
+    """
+    if not await _acquire_importer_lease(db):
+        raise HTTPException(409, "An import is already running")
+
+    async def _run() -> None:
+        try:
+            await run_all_active(db)
+        except Exception:
+            logger.exception("Manual run-all failed")
+        finally:
+            await _release_importer_lease(db)
+
+    background.add_task(_run)
+    return {"status": "started"}
 
 
 class RobotsCheckRequest(BaseModel):
@@ -1047,20 +1362,46 @@ async def admin_robots_check(
 # ---------------------------------------------------------------------------
 @app.get("/api/admin/analytics/overview")
 async def admin_analytics(_: Dict[str, Any] = Depends(require_admin)):
-    total = await db.events.count_documents({})
-    published = await db.events.count_documents({"published": True})
-    featured = await db.events.count_documents({"featured": True, "published": True})
-    drafts = total - published
-    total_views_doc = await db.events.aggregate(
-        [{"$group": {"_id": None, "v": {"$sum": "$view_count"}}}]
+    # A single $facet instead of five sequential round-trips (three counts, a
+    # sum aggregation and a find), each of which scanned the collection again.
+    rows = await db.events.aggregate(
+        [
+            {
+                "$facet": {
+                    "counts": [
+                        {
+                            "$group": {
+                                "_id": None,
+                                "total": {"$sum": 1},
+                                "published": {"$sum": {"$cond": ["$published", 1, 0]}},
+                                "featured": {
+                                    "$sum": {
+                                        "$cond": [{"$and": ["$published", "$featured"]}, 1, 0]
+                                    }
+                                },
+                                "total_views": {"$sum": {"$ifNull": ["$view_count", 0]}},
+                            }
+                        }
+                    ],
+                    "top": [
+                        {"$match": {"published": True}},
+                        {"$sort": {"view_count": -1}},
+                        {"$limit": 5},
+                        {"$project": {"_id": 0, "id": 1, "title": 1, "view_count": 1}},
+                    ],
+                }
+            }
+        ]
     ).to_list(1)
-    total_views = total_views_doc[0]["v"] if total_views_doc else 0
-    top_cursor = (
-        db.events.find({"published": True}, {"_id": 0, "id": 1, "title": 1, "view_count": 1})
-        .sort("view_count", -1)
-        .limit(5)
-    )
-    top = await top_cursor.to_list(5)
+
+    facet = rows[0] if rows else {}
+    counts = (facet.get("counts") or [{}])[0]
+    total = counts.get("total", 0)
+    published = counts.get("published", 0)
+    featured = counts.get("featured", 0)
+    total_views = counts.get("total_views", 0)
+    drafts = total - published
+    top = facet.get("top") or []
     return {
         "total_events": total,
         "published": published,
@@ -1078,7 +1419,7 @@ async def admin_analytics(_: Dict[str, Any] = Depends(require_admin)):
 # OSM POI (Places) — populated by osm_ingest.py
 # ---------------------------------------------------------------------------
 from osm_taxonomy import CATEGORIES as OSM_CATEGORIES, GROUPS as OSM_GROUPS  # noqa: E402
-from osm_ingest import ingest_all as osm_ingest_all, ingest_category as osm_ingest_category, JOB_STATE as OSM_JOB_STATE  # noqa: E402
+from osm_ingest import ingest_all as osm_ingest_all, JOB_STATE as OSM_JOB_STATE  # noqa: E402
 
 
 def _place_to_dict(doc: Dict[str, Any]) -> Dict[str, Any]:
