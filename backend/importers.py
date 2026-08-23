@@ -16,6 +16,7 @@ The framework is intentionally tolerant: missing fields fall back to
 sensible defaults; rows are deduplicated via (source_id, external_id).
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -32,6 +33,11 @@ from icalendar import Calendar
 from crawler_utils import RobotsBlocked, polite_get
 
 logger = logging.getLogger("lux-backend.importers")
+
+# How many sources we crawl at once, and how long a single source may take
+# before we give up on it and move on to the next.
+MAX_CONCURRENT_SOURCES = 4
+SOURCE_TIMEOUT_SECONDS = 180
 
 
 def _now_iso() -> str:
@@ -147,11 +153,26 @@ async def _fetch_text(url: str, timeout: float = 30.0) -> str:
 # ---------------------------------------------------------------------------
 # iCal importer
 # ---------------------------------------------------------------------------
+async def _known_external_ids(source: Dict[str, Any], db) -> set:
+    """Every external_id we already hold for this source, fetched in one query.
+
+    Each importer used to run a find_one per candidate row, so a 500-entry feed
+    meant 500 sequential round-trips just to answer "do we have this already?".
+    Loading the set once replaces all of them. Callers add to it as they insert,
+    so duplicate ids inside a single feed still collapse.
+    """
+    rows = await db.events.find(
+        {"source_id": source["id"]}, {"_id": 0, "external_id": 1}
+    ).to_list(length=None)
+    return {r["external_id"] for r in rows if r.get("external_id")}
+
+
 async def _import_ical(source: Dict[str, Any], db) -> Tuple[int, int]:
     """Returns (inserted, skipped)."""
     raw = await _fetch(source["url"])
     cal = Calendar.from_ical(raw)
 
+    known_ids = await _known_external_ids(source, db)
     inserted = 0
     skipped = 0
     today = datetime.now(timezone.utc).date()
@@ -178,11 +199,8 @@ async def _import_ical(source: Dict[str, Any], db) -> Tuple[int, int]:
             skipped += 1
             continue
 
-        # Dedup on (source_id, external_id).
-        existing = await db.events.find_one(
-            {"source_id": source["id"], "external_id": uid}, {"_id": 0, "id": 1}
-        )
-        if existing:
+        # Dedup on (source_id, external_id), against the set loaded up front.
+        if uid in known_ids:
             skipped += 1
             continue
 
@@ -217,6 +235,7 @@ async def _import_ical(source: Dict[str, Any], db) -> Tuple[int, int]:
             image=source.get("image_default", ""),
         )
         await db.events.insert_one(doc)
+        known_ids.add(doc["external_id"])
         inserted += 1
 
     return inserted, skipped
@@ -243,6 +262,7 @@ async def _import_data_public_lu(source: Dict[str, Any], db) -> Tuple[int, int]:
     else:
         rows = []
 
+    known_ids = await _known_external_ids(source, db)
     inserted = 0
     skipped = 0
     today = datetime.now(timezone.utc).date()
@@ -265,10 +285,7 @@ async def _import_data_public_lu(source: Dict[str, Any], db) -> Tuple[int, int]:
             skipped += 1
             continue
 
-        existing = await db.events.find_one(
-            {"source_id": source["id"], "external_id": external_id}, {"_id": 0, "id": 1}
-        )
-        if existing:
+        if external_id in known_ids:
             skipped += 1
             continue
 
@@ -299,6 +316,7 @@ async def _import_data_public_lu(source: Dict[str, Any], db) -> Tuple[int, int]:
             image=str(image) if image else "",
         )
         await db.events.insert_one(doc)
+        known_ids.add(doc["external_id"])
         inserted += 1
 
     return inserted, skipped
@@ -371,6 +389,7 @@ async def _import_html_scraper(source: Dict[str, Any], db) -> Tuple[int, int]:
     soup = BeautifulSoup(raw, "lxml")
     items = soup.select(item_sel)
 
+    known_ids = await _known_external_ids(source, db)
     inserted = 0
     skipped = 0
     today = datetime.now(timezone.utc).date()
@@ -404,10 +423,7 @@ async def _import_html_scraper(source: Dict[str, Any], db) -> Tuple[int, int]:
         image = _abs_url(source["url"], image_src) if image_src else source.get("image_default", "")
         external_id = link or f"{source['id']}:{start_iso}:{title[:60]}"
 
-        existing = await db.events.find_one(
-            {"source_id": source["id"], "external_id": external_id}, {"_id": 0, "id": 1}
-        )
-        if existing:
+        if external_id in known_ids:
             skipped += 1
             continue
 
@@ -425,6 +441,7 @@ async def _import_html_scraper(source: Dict[str, Any], db) -> Tuple[int, int]:
             image=image,
         )
         await db.events.insert_one(doc)
+        known_ids.add(doc["external_id"])
         inserted += 1
 
     return inserted, skipped
@@ -464,6 +481,7 @@ async def _import_json_ld(source: Dict[str, Any], db) -> Tuple[int, int]:
             except Exception as exc:
                 logger.warning("Sub-page %s failed: %s", link, exc)
 
+    known_ids = await _known_external_ids(source, db)
     inserted = 0
     skipped = 0
     today = datetime.now(timezone.utc).date()
@@ -485,10 +503,7 @@ async def _import_json_ld(source: Dict[str, Any], db) -> Tuple[int, int]:
         if not external_id:
             external_id = f"{source['id']}:{start_iso}:{str(title)[:60]}"
 
-        existing = await db.events.find_one(
-            {"source_id": source["id"], "external_id": external_id}, {"_id": 0, "id": 1}
-        )
-        if existing:
+        if external_id in known_ids:
             skipped += 1
             continue
 
@@ -551,6 +566,7 @@ async def _import_json_ld(source: Dict[str, Any], db) -> Tuple[int, int]:
             image=image,
         )
         await db.events.insert_one(doc)
+        known_ids.add(doc["external_id"])
         inserted += 1
 
     return inserted, skipped
@@ -722,6 +738,7 @@ async def _import_sitemap(source: Dict[str, Any], db) -> Tuple[int, int]:
         # Log a few examples of what IS in the sitemap so admin can adjust patterns
         logger.info("[sitemap] sample non-matching URLs: %s", all_urls[:5])
 
+    known_ids = await _known_external_ids(source, db)
     inserted = 0
     skipped = 0
     today = datetime.now(timezone.utc).date()
@@ -756,10 +773,7 @@ async def _import_sitemap(source: Dict[str, Any], db) -> Tuple[int, int]:
                 continue
 
             external_id = ev.get("@id") or ev.get("url") or page_url
-            existing = await db.events.find_one(
-                {"source_id": source["id"], "external_id": external_id}, {"_id": 0, "id": 1}
-            )
-            if existing:
+            if external_id in known_ids:
                 skipped += 1
                 continue
 
@@ -818,6 +832,7 @@ async def _import_sitemap(source: Dict[str, Any], db) -> Tuple[int, int]:
                 image=image,
             )
             await db.events.insert_one(doc)
+            known_ids.add(doc["external_id"])
             inserted += 1
 
     return inserted, skipped
@@ -1090,9 +1105,32 @@ async def run_source(source: Dict[str, Any], db) -> Dict[str, Any]:
 
 
 async def run_all_active(db) -> List[Dict[str, Any]]:
+    """Crawl every active source, a few at a time.
+
+    These runs are almost entirely network wait, so running them one after
+    another made a full pass take as long as the sum of every feed. Concurrency
+    is capped so we stay polite to the sites we crawl, and each source gets its
+    own timeout so one unresponsive host can't stall the whole pass.
+    """
     cursor = db.sources.find({"active": True}, {"_id": 0})
     sources = await cursor.to_list(length=100)
-    out = []
-    for s in sources:
-        out.append({"source": s["id"], "name": s.get("name"), **(await run_source(s, db))})
-    return out
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_SOURCES)
+
+    async def _run_one(s: Dict[str, Any]) -> Dict[str, Any]:
+        async with semaphore:
+            try:
+                result = await asyncio.wait_for(
+                    run_source(s, db), timeout=SOURCE_TIMEOUT_SECONDS
+                )
+            except asyncio.TimeoutError:
+                logger.warning("Importer %s timed out", s.get("name"))
+                result = {
+                    "last_run_at": _now_iso(),
+                    "last_status": "error",
+                    "last_error": f"Timed out after {SOURCE_TIMEOUT_SECONDS}s",
+                    "last_imported_count": 0,
+                }
+                await db.sources.update_one({"id": s["id"]}, {"$set": result})
+            return {"source": s["id"], "name": s.get("name"), **result}
+
+    return list(await asyncio.gather(*(_run_one(s) for s in sources)))

@@ -25,6 +25,7 @@ import stripe
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
 from fastapi import (
+    BackgroundTasks,
     Body,
     Depends,
     FastAPI,
@@ -37,7 +38,7 @@ from fastapi import (
 from fastapi.security import OAuth2PasswordBearer
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field
-from pymongo.errors import OperationFailure
+from pymongo.errors import DuplicateKeyError, OperationFailure
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -442,6 +443,58 @@ async def require_admin(current: Dict[str, Any] = Depends(get_current_user)) -> 
 # ---------------------------------------------------------------------------
 # Lifespan: indexes + seed admin
 # ---------------------------------------------------------------------------
+IMPORTER_LOCK_ID = "importers"
+IMPORTER_LEASE_MINUTES = 60
+WORKER_ID = str(uuid.uuid4())
+
+
+async def _acquire_importer_lease(db_) -> bool:
+    """Claim the right to run the importers for the next lease window.
+
+    Uvicorn runs several workers and the deployment may run several replicas —
+    each starts its own APScheduler, so every scheduled tick crawled every feed
+    N times over. This takes a short lease in Mongo so exactly one of them does
+    the work; the lease expires on its own if a worker dies mid-run.
+    """
+    now = datetime.now(timezone.utc)
+    try:
+        await db_.locks.insert_one({"_id": IMPORTER_LOCK_ID, "lease_until": now})
+    except DuplicateKeyError:
+        pass  # lock document already exists, which is the normal case
+    result = await db_.locks.update_one(
+        {"_id": IMPORTER_LOCK_ID, "lease_until": {"$lte": now}},
+        {
+            "$set": {
+                "lease_until": now + timedelta(minutes=IMPORTER_LEASE_MINUTES),
+                "holder": WORKER_ID,
+                "acquired_at": now,
+            }
+        },
+    )
+    return result.modified_count == 1
+
+
+async def _release_importer_lease(db_) -> None:
+    await db_.locks.update_one(
+        {"_id": IMPORTER_LOCK_ID, "holder": WORKER_ID},
+        {"$set": {"lease_until": datetime.now(timezone.utc)}},
+    )
+
+
+async def _run_importers_once() -> None:
+    """Scheduled entry point: run every active source, but only once globally."""
+    if not await _acquire_importer_lease(db):
+        logger.info("Importer run skipped — another worker holds the lease")
+        return
+    try:
+        results = await run_all_active(db)
+        logger.info("Importer run finished for %d sources", len(results))
+    except Exception:
+        logger.exception("Scheduled importer run failed")
+    finally:
+        await _release_importer_lease(db)
+
+
 async def _ensure_index(collection, keys, **opts) -> None:
     """create_index that survives an options conflict with an older index.
 
@@ -533,11 +586,12 @@ async def lifespan(_: FastAPI):
 
         scheduler = AsyncIOScheduler(timezone="Europe/Luxembourg")
         scheduler.add_job(
-            run_all_active,
+            _run_importers_once,
             CronTrigger(hour="5,12,18", minute=0, timezone="Europe/Luxembourg"),
-            args=[db],
             id="importers",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
         scheduler.start()
         logger.info("Importer scheduler started (3x daily: 05:00, 12:00, 18:00 Europe/Luxembourg)")
@@ -1208,9 +1262,30 @@ async def admin_run_source(
     return await run_source(source, db)
 
 
-@app.post("/api/admin/sources/run-all")
-async def admin_run_all(_: Dict[str, Any] = Depends(require_admin)):
-    return {"runs": await run_all_active(db)}
+@app.post("/api/admin/sources/run-all", status_code=202)
+async def admin_run_all(
+    background: BackgroundTasks, _: Dict[str, Any] = Depends(require_admin)
+):
+    """Kick off a full crawl and return immediately.
+
+    Running every source inline could take minutes and reliably tripped the
+    gateway timeout, leaving the admin looking at a failed request while the
+    import carried on regardless. Progress shows up on each source's
+    last_run_at / last_status, which the sources screen already polls.
+    """
+    if not await _acquire_importer_lease(db):
+        raise HTTPException(409, "An import is already running")
+
+    async def _run() -> None:
+        try:
+            await run_all_active(db)
+        except Exception:
+            logger.exception("Manual run-all failed")
+        finally:
+            await _release_importer_lease(db)
+
+    background.add_task(_run)
+    return {"status": "started"}
 
 
 class RobotsCheckRequest(BaseModel):
