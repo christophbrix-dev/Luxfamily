@@ -1369,7 +1369,7 @@ async def admin_analytics(_: Dict[str, Any] = Depends(require_admin)):
 # OSM POI (Places) — populated by osm_ingest.py
 # ---------------------------------------------------------------------------
 from osm_taxonomy import CATEGORIES as OSM_CATEGORIES, GROUPS as OSM_GROUPS  # noqa: E402
-from osm_ingest import ingest_all as osm_ingest_all, ingest_category as osm_ingest_category, JOB_STATE as OSM_JOB_STATE  # noqa: E402
+from osm_ingest import ingest_all as osm_ingest_all, JOB_STATE as OSM_JOB_STATE  # noqa: E402
 
 
 def _place_to_dict(doc: Dict[str, Any]) -> Dict[str, Any]:

@@ -37,7 +37,6 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from osm_taxonomy import (
     CATEGORIES,
     CATEGORY_ORDER,
-    GROUPS,
     NAME_KEYS,
     SCORE_RULES,
 )
@@ -433,7 +432,8 @@ async def ingest_category(kind_key: str, db=None, dry_run: bool = False) -> Dict
 
 
 async def ingest_all(categories: Optional[List[str]] = None, db=None) -> Dict[str, Any]:
-    global JOB_STATE
+    # No `global JOB_STATE` needed: it is only ever mutated in place, never
+    # rebound, so the declaration was a no-op.
     cats = categories or CATEGORY_ORDER
     JOB_STATE.update(
         status="running",
