@@ -8,6 +8,7 @@ Provides:
  - Brute-force protection on /api/auth/login via slowapi
 """
 
+import asyncio
 import hashlib
 import logging
 import os
@@ -23,7 +24,16 @@ import jwt
 import stripe
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
-from fastapi import Body, Depends, FastAPI, HTTPException, Request, status
+from fastapi import (
+    Body,
+    Depends,
+    FastAPI,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from fastapi.security import OAuth2PasswordBearer
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field
@@ -223,6 +233,51 @@ class EventResponse(EventBase):
     created_at: str
     updated_at: str
     created_by: Optional[str] = None
+
+
+class EventSummary(BaseModel):
+    """Trimmed shape for list endpoints.
+
+    List screens render a thumbnail, title, town, date and a few badges — they
+    never show the long localized prose. Sending whole documents instead cost
+    roughly 500 KB for 200 events; this is about a third of that. Detail screens
+    fetch /api/events/{id} for the rest.
+
+    Every field the current list screens read is here — events.tsx, explore.tsx
+    and the admin list — so adding one here is required before a list screen can
+    use it.
+    """
+
+    id: str
+    title: LocalizedString
+    short: LocalizedString
+    type: str = "Event"
+    canton: str
+    town: str
+    category: List[str] = Field(default_factory=list)
+    age_min: int = 0
+    age_max: int = 99
+    start_date: str
+    end_date: Optional[str] = None
+    time: str = ""
+    price_adult: float = 0.0
+    price_child: float = 0.0
+    image: str = ""
+    lat: float
+    lng: float
+    featured: bool = False
+    published: bool = True
+    rating: float = 4.5
+    view_count: int = 0
+    source_name: Optional[str] = None
+    accessibility_wheelchair: bool = False
+    sensory_friendly: bool = False
+    free_parking: bool = False
+
+
+# Mongo projection matching EventSummary, so the trimming happens in the
+# database rather than after we've already paid to transfer the documents.
+SUMMARY_PROJECTION: Dict[str, Any] = {"_id": 0, **{f: 1 for f in EventSummary.model_fields}}
 
 
 TokenResponse.model_rebuild()
@@ -695,26 +750,41 @@ async def delete_my_account(current: Dict[str, Any] = Depends(get_current_user))
 
 
 # ---- Public events ----
-@app.get("/api/events", response_model=List[EventResponse])
+@app.get("/api/events", response_model=List[EventSummary])
 async def list_events(
+    response: Response,
     canton: Optional[str] = None,
     upcoming: bool = True,
-    limit: int = 200,
+    limit: int = Query(100, ge=1, le=200),
+    skip: int = Query(0, ge=0),
 ):
+    """Paginated event list in the trimmed EventSummary shape.
+
+    `limit` is capped: it used to be an unbounded caller-supplied number, so a
+    single `?limit=1000000` could force a full-collection scan and serialize the
+    lot. The total goes out in X-Total-Count so clients can page.
+    """
     query: Dict[str, Any] = {"published": True}
     if canton:
         query["canton"] = canton
     if upcoming:
         today = datetime.now(timezone.utc).date().isoformat()
         query["start_date"] = {"$gte": today}
-    # Featured events first, then by start date.
+
+    # Featured first, then by start date — matches pub_featured_start /
+    # pub_canton_featured_start so Mongo walks the index instead of sorting.
     cursor = (
-        db.events.find(query, {"_id": 0})
+        db.events.find(query, SUMMARY_PROJECTION)
         .sort([("featured", -1), ("start_date", 1)])
+        .skip(skip)
         .limit(limit)
     )
-    docs = await cursor.to_list(length=limit)
-    return [_event_to_response(d) for d in docs]
+    docs, total = await asyncio.gather(
+        cursor.to_list(length=limit),
+        db.events.count_documents(query),
+    )
+    response.headers["X-Total-Count"] = str(total)
+    return [EventSummary(**d) for d in docs]
 
 
 @app.get("/api/events/{event_id}", response_model=EventResponse)
@@ -767,11 +837,33 @@ async def event_view(event_id: str, request: Request):
 
 
 # ---- Admin events ----
-@app.get("/api/admin/events", response_model=List[EventResponse])
-async def admin_list_events(_: Dict[str, Any] = Depends(require_admin)):
-    cursor = db.events.find({}, {"_id": 0}).sort("start_date", 1)
-    docs = await cursor.to_list(length=1000)
-    return [_event_to_response(d) for d in docs]
+@app.get("/api/admin/events", response_model=List[EventSummary])
+async def admin_list_events(
+    response: Response,
+    limit: int = Query(200, ge=1, le=500),
+    skip: int = Query(0, ge=0),
+    _: Dict[str, Any] = Depends(require_admin),
+):
+    cursor = db.events.find({}, SUMMARY_PROJECTION).sort("start_date", 1).skip(skip).limit(limit)
+    docs, total = await asyncio.gather(
+        cursor.to_list(length=limit),
+        db.events.count_documents({}),
+    )
+    response.headers["X-Total-Count"] = str(total)
+    return [EventSummary(**d) for d in docs]
+
+
+@app.get("/api/admin/events/{event_id}", response_model=EventResponse)
+async def admin_get_event(event_id: str, _: Dict[str, Any] = Depends(require_admin)):
+    """Full document for the admin editor.
+
+    The editor used to pull the whole list and find its event client-side, which
+    is what forced the admin list to carry full documents.
+    """
+    doc = await db.events.find_one({"id": event_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return _event_to_response(doc)
 
 
 @app.post("/api/admin/events", response_model=EventResponse, status_code=201)

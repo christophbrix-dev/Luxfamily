@@ -98,6 +98,19 @@ export type ApiEvent = {
   created_by?: string | null;
 };
 
+// What the list endpoints return. The long localized prose (description,
+// accessibility, parking, preparation_tips, opening_hours, …) lives only on the
+// detail endpoint — sending it for every row made the list payload roughly
+// three times bigger than it needed to be.
+export type ApiEventSummary = Pick<
+  ApiEvent,
+  | "id" | "title" | "short" | "type" | "canton" | "town" | "category"
+  | "age_min" | "age_max" | "start_date" | "end_date" | "time"
+  | "price_adult" | "price_child" | "image" | "lat" | "lng"
+  | "featured" | "published" | "rating" | "view_count"
+  | "accessibility_wheelchair" | "sensory_friendly" | "free_parking"
+> & { source_name?: string | null };
+
 export type ApiSource = {
   id: string;
   name: string;
@@ -139,10 +152,16 @@ export const api = {
       body: { email, password },
     }),
   me: () => apiFetch<AdminUser>("/api/auth/me", { admin: true }),
-  publicEvents: () => apiFetch<ApiEvent[]>("/api/events?upcoming=false"),
+  // List endpoints return ApiEventSummary, not the full document. Every field
+  // the list screens currently read is included; anything else needs the detail
+  // endpoint (or a new field on the backend's EventSummary).
+  publicEvents: () => apiFetch<ApiEventSummary[]>("/api/events?upcoming=false&limit=200"),
+  event: (id: string) => apiFetch<ApiEvent>(`/api/events/${id}`),
   pingView: (id: string) =>
     apiFetch<void>(`/api/events/${id}/view`, { method: "POST" }),
-  adminEvents: () => apiFetch<ApiEvent[]>("/api/admin/events", { admin: true }),
+  adminEvents: () => apiFetch<ApiEventSummary[]>("/api/admin/events?limit=500", { admin: true }),
+  adminEvent: (id: string) =>
+    apiFetch<ApiEvent>(`/api/admin/events/${id}`, { admin: true }),
   createEvent: (payload: Omit<ApiEvent, "id" | "created_at" | "updated_at" | "created_by">) =>
     apiFetch<ApiEvent>("/api/admin/events", { method: "POST", body: payload, admin: true }),
   updateEvent: (id: string, patch: Partial<ApiEvent>) =>

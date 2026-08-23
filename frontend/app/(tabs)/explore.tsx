@@ -23,7 +23,7 @@ import { t } from "@/src/i18n/strings";
 import { pickLang } from "@/src/i18n/pickLang";
 import { radii, type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
-import { api, type ApiEvent } from "@/src/utils/api";
+import { api, type ApiEventSummary } from "@/src/utils/api";
 
 export default function Explore() {
   const { palette, shadow, effective } = useAppPalette();
@@ -36,7 +36,7 @@ export default function Explore() {
   const [canton, setCanton] = useState<Canton | null>(null);
 
   // Live data from the API — the same 159 events as the Events tab.
-  const [events, setEvents] = useState<ApiEvent[] | null>(null);
+  const [events, setEvents] = useState<ApiEventSummary[] | null>(null);
   const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
@@ -63,7 +63,7 @@ export default function Explore() {
   }, [events]);
 
   // Filter by canton / query / filter-sheet selections.
-  const filtered = useMemo<ApiEvent[]>(() => {
+  const filtered = useMemo<ApiEventSummary[]>(() => {
     if (!events) return [];
     const q = query.trim().toLowerCase();
     return events.filter((e) => {
