@@ -128,6 +128,19 @@ export default function Home() {
           ))}
         </View>
 
+        <TouchableOpacity
+          style={styles.placesEntry}
+          onPress={() => router.push("/places" as never)}
+          testID="home-browse-places"
+        >
+          <Ionicons name="map-outline" size={18} color={palette.primaryDark} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.placesEntryTitle}>{t("places", lang)}</Text>
+            <Text style={styles.placesEntrySub}>{t("placesSub", lang)}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
+        </TouchableOpacity>
+
         {!hasLocation && locationStatus !== "denied" ? (
           <TouchableOpacity
             style={styles.locationPrompt}
@@ -204,6 +217,20 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
   chipRowOuter: { marginTop: 18, marginBottom: 8, maxHeight: 56 },
   chipRow: { gap: 8, paddingHorizontal: 20, alignItems: "center", height: 56 },
   feed: { paddingHorizontal: 20, paddingTop: 8, gap: 16 },
+  placesEntry: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginHorizontal: 16,
+    marginTop: 20,
+    padding: 14,
+    borderRadius: radii.md,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.borderSoft,
+  },
+  placesEntryTitle: { fontSize: 14, fontWeight: "700", color: palette.textPrimary },
+  placesEntrySub: { fontSize: 12, color: palette.textSecondary, marginTop: 1 },
   locationPrompt: {
     flexDirection: "row",
     alignItems: "center",
