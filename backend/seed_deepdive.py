@@ -27,6 +27,8 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 
+from crawler_utils import RobotsBlocked, polite_get
+
 ROOT = Path(__file__).parent
 load_dotenv(ROOT / ".env")
 
@@ -49,9 +51,12 @@ TODAY = datetime.now(timezone.utc).date().isoformat()
 async def fetch_og_image(client: httpx.AsyncClient, url: str) -> Optional[str]:
     """Return an absolute image URL extracted from the page's OpenGraph tags."""
     try:
-        r = await client.get(url, follow_redirects=True, timeout=12.0,
-                             headers={"User-Agent": "Mozilla/5.0 (LuxFamilyBot/1.0)"})
-        r.raise_for_status()
+        # Through the politeness layer: this reads third-party sites, so the
+        # same robots.txt rules apply as for the crawlers.
+        r = await polite_get(url, timeout=12.0)
+    except RobotsBlocked as e:
+        log.info("skipping %s: %s", url, e)
+        return None
     except Exception as e:
         log.warning("fetch %s failed: %s", url, e)
         return None

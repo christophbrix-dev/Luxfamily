@@ -20,12 +20,13 @@ from typing import Optional
 from html.parser import HTMLParser
 
 import httpx
+
+from crawler_utils import RobotsBlocked, polite_get_sync
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
 load_dotenv()
 
-USER_AGENT = "WatEloLuxembourg/1.0 (contact@wat-elo.lu)"
 
 
 class MetaImageParser(HTMLParser):
@@ -70,11 +71,18 @@ def extract_image(html: str, base_url: str) -> Optional[str]:
 
 
 def fetch_one(url: str, client: httpx.Client) -> Optional[str]:
+    """Fetch one venue page through the politeness layer.
+
+    This reads third-party sites to harvest their og:image, so it belongs behind
+    the same robots.txt check as the crawlers. It previously used a fixed
+    one-second pause and never looked at the file.
+    """
     try:
-        r = client.get(url, timeout=6.0, follow_redirects=True,
-                       headers={"User-Agent": USER_AGENT, "Accept": "text/html"})
-        r.raise_for_status()
+        r = polite_get_sync(url, client=client, timeout=6.0)
         return extract_image(r.text, str(r.url))
+    except RobotsBlocked as e:
+        print(f"  [robots] skipping {url}: {e}")
+        return None
     except Exception as e:
         print(f"  [fetch] {url}: {type(e).__name__}: {e}")
         return None
