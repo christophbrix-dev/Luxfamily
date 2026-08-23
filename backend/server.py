@@ -72,6 +72,14 @@ def _require_env(name: str) -> str:
 MONGO_URL = _require_env("MONGO_URL")
 DB_NAME = _require_env("DB_NAME")
 JWT_SECRET = _require_env("JWT_SECRET")
+if len(JWT_SECRET.encode("utf-8")) < 32:
+    # RFC 7518 3.2: an HS256 key shorter than the hash output weakens the
+    # signature. Warn loudly rather than fail, so an existing deployment with a
+    # short secret still boots.
+    logger.warning(
+        "JWT_SECRET is only %d bytes; use at least 32 for HS256",
+        len(JWT_SECRET.encode("utf-8")),
+    )
 JWT_ALGORITHM = os.environ.get("JWT_ALGORITHM", "HS256")
 JWT_EXPIRE_MINUTES = int(os.environ.get("JWT_EXPIRE_MINUTES", "10080"))
 ADMIN_EMAIL = _require_env("ADMIN_EMAIL").lower()
@@ -81,6 +89,12 @@ STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "").rstrip("/")
 stripe.api_key = STRIPE_SECRET_KEY
+
+# Comma-separated browser origins allowed to call the API. The native app sends
+# no Origin header, so this only gates the Expo web build and the /admin panel.
+CORS_ORIGINS = [
+    o.strip().rstrip("/") for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()
+] or ([FRONTEND_URL] if FRONTEND_URL else ["*"])
 
 # Salt for pseudonymising viewer IPs in the analytics log.
 VIEW_IP_SALT = os.environ.get("VIEW_IP_SALT") or JWT_SECRET
@@ -188,6 +202,10 @@ class EventBase(BaseModel):
 
 class EventCreate(EventBase):
     pass
+
+
+# Event fields that may legitimately be cleared back to null via PATCH.
+NULLABLE_EVENT_FIELDS = {"end_date", "featured_until"}
 
 
 class EventUpdate(BaseModel):
@@ -648,12 +666,18 @@ class ETagMiddleware(BaseHTTPMiddleware):
 app.add_middleware(ETagMiddleware)
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 
+if CORS_ORIGINS == ["*"]:
+    logger.warning("CORS_ORIGINS not set — allowing every origin. Set it in production.")
+
+# allow_credentials stays False: auth is a Bearer token, never a cookie, and
+# browsers reject `allow_origins=["*"]` combined with credentials anyway, so the
+# previous pairing was both permissive and non-functional.
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_credentials=False,
+    allow_origins=CORS_ORIGINS,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 
@@ -982,7 +1006,14 @@ async def admin_update_event(
     body: EventUpdate,
     _: Dict[str, Any] = Depends(require_admin),
 ):
-    updates = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
+    # exclude_unset already drops fields the client didn't send, so an explicit
+    # null is a deliberate "clear this". Dropping every None meant end_date and
+    # featured_until could be set but never un-set.
+    updates = {
+        k: v
+        for k, v in body.model_dump(exclude_unset=True).items()
+        if v is not None or k in NULLABLE_EVENT_FIELDS
+    }
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -1061,7 +1092,8 @@ class CheckoutRequest(BaseModel):
 
 
 @app.post("/api/sponsor/checkout")
-async def create_sponsor_checkout(body: CheckoutRequest = Body(...)):
+@limiter.limit("10/hour")
+async def create_sponsor_checkout(request: Request, body: CheckoutRequest = Body(...)):
     if body.plan not in SPONSOR_PLANS:
         raise HTTPException(400, "Invalid plan")
     event = await db.events.find_one({"id": body.event_id}, {"_id": 0, "title": 1})
@@ -1094,7 +1126,8 @@ async def create_sponsor_checkout(body: CheckoutRequest = Body(...)):
 
 
 @app.get("/api/sponsor/session/{session_id}")
-async def get_sponsor_session(session_id: str):
+@limiter.limit("60/hour")
+async def get_sponsor_session(session_id: str, request: Request):
     """Frontend polls this on the success page so the partner sees confirmation
     even if our webhook hasn't been wired in this environment."""
     try:
