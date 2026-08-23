@@ -229,7 +229,7 @@ export default function OnboardingScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.cardTitle}>{pickLang(p.labels, lang)}</Text>
-                      <Text style={styles.cardDesc}>{p.descriptions[lang]}</Text>
+                      <Text style={styles.cardDesc}>{pickLang(p.descriptions, lang)}</Text>
                     </View>
                     {active ? (
                       <Ionicons

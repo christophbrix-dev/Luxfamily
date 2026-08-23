@@ -126,7 +126,7 @@ export default function Book() {
             <Text style={styles.placeMeta}>
               {place.town} · {place.time}
             </Text>
-            <Text style={styles.placeMeta}>{place.priceLabel[lang]}</Text>
+            <Text style={styles.placeMeta}>{pickLang(place.priceLabel, lang)}</Text>
           </View>
         </View>
 

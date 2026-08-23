@@ -88,14 +88,14 @@ export default function Detail() {
           <View style={styles.weatherPill}>
             <Ionicons name="partly-sunny-outline" size={14} color="#92400E" />
             <Text style={styles.weatherTxt}>
-              {t("greatForToday", lang)}: {place.weatherFit[lang]}
+              {t("greatForToday", lang)}: {pickLang(place.weatherFit, lang)}
             </Text>
           </View>
 
           <View style={styles.statsGrid}>
             <StatCard icon="people-outline" label={t("age", lang)} value={place.age} />
             <StatCard icon="time-outline" label={t("date", lang)} value={place.time} />
-            <StatCard icon="pricetag-outline" label="Price" value={place.priceLabel[lang]} />
+            <StatCard icon="pricetag-outline" label="Price" value={pickLang(place.priceLabel, lang)} />
             <StatCard
               icon="accessibility-outline"
               label="Access"
