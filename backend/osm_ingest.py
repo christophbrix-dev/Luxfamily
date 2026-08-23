@@ -48,7 +48,7 @@ GEOFABRIK_URL = "https://download.geofabrik.de/europe/luxembourg-latest.osm.pbf"
 PBF_CACHE = Path(os.environ.get("OSM_PBF_CACHE", "/tmp/luxembourg-latest.osm.pbf"))
 PBF_MAX_AGE_SECONDS = 24 * 3600  # refresh after 24 h
 
-USER_AGENT = "Wat-Elo-Ingest/1.0 (+https://waterelotool.lu)"
+from crawler_utils import USER_AGENT  # one identity for the whole project
 
 LU_BBOX = (49.44, 5.72, 50.19, 6.55)
 

@@ -12,8 +12,11 @@ Each detail page exposes clean OpenGraph metadata (og:title, og:description,
 og:image) that we harvest and upsert into `events` (as always-open venues).
 
 Politeness:
-  - respects robots.txt (we allowlist only this domain)
-  - 1s between requests
+  - every request goes through crawler_utils.polite_get_sync, which reads
+    robots.txt and refuses disallowed paths
+  - waits the longer of our 2s baseline and the site's Crawl-delay. This site
+    asks for 5s; the old hard-coded 1s pause ignored that, because nothing ever
+    read the file
   - short 6s timeout
 
 Run:
@@ -22,7 +25,6 @@ Run:
 import os
 import re
 import sys
-import time
 import urllib.parse as up
 import uuid
 from datetime import datetime, timezone
@@ -33,14 +35,14 @@ import httpx
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
+from crawler_utils import RobotsBlocked, polite_get_sync
+
 # Allow running as `python crawlers/kids_in_lux.py` from /app/backend.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 load_dotenv()
 
-USER_AGENT = "WatEloLuxembourg/1.0 (contact@wat-elo.lu)"
 BASE       = "https://www.kids-in-lux.com"
-PAUSE_S    = 1.0
 
 # Kids-in-lux commune hints — the og:title usually follows the form
 # "Spielplatz X (Commune - Locality)". Try to extract a canton match.
@@ -97,11 +99,19 @@ INDEX_URLS = [
 
 
 def fetch(url: str, client: httpx.Client) -> str | None:
+    """Fetch one page through the politeness layer.
+
+    This used to call client.get() directly, so the "respects robots.txt" claim
+    in the module docstring was never true: no rules were read, and the fixed
+    pause ignored any Crawl-delay the site asked for. polite_get_sync() reads
+    robots.txt, raises RobotsBlocked for disallowed paths, and waits the longer
+    of our baseline and the site's requested delay.
+    """
     try:
-        r = client.get(url, timeout=6.0, follow_redirects=True,
-                       headers={"User-Agent": USER_AGENT, "Accept": "text/html"})
-        r.raise_for_status()
-        return r.text
+        return polite_get_sync(url, client=client, timeout=6.0).text
+    except RobotsBlocked as e:
+        print(f"  [robots] skipping {url}: {e}")
+        return None
     except Exception as e:
         print(f"  [fetch] {url}: {type(e).__name__}: {e}")
         return None
@@ -258,7 +268,6 @@ def main() -> None:
             print(f"[kids-in-lux] scanning {index_url}")
             details = list_detail_urls(index_url, hx)
             print(f"  → {len(details)} detail pages")
-            time.sleep(PAUSE_S)
             for i, url in enumerate(details, 1):
                 html = fetch(url, hx)
                 if not html:
@@ -275,7 +284,6 @@ def main() -> None:
                     updated += 1
                 if i % 10 == 0:
                     print(f"  [{i}/{len(details)}] ins={inserted} upd={updated} fail={failed}")
-                time.sleep(PAUSE_S)
 
     # Mark every kids-in-lux source row as run + active.
     if src:

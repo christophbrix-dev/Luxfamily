@@ -7,7 +7,10 @@ We harvest each detail page's OpenGraph metadata (title, description, image)
 which is uniformly present on visitluxembourg.com's TYPO3-generated pages.
 
 Politeness:
-  - robots.txt-friendly path (already allow-listed in their robots.txt)
+  - every request goes through crawler_utils.polite_get_sync, which reads
+    robots.txt and refuses disallowed paths. The site disallows a number of
+    parameter URLs (?cHash=, ?L=0, /typo3/ ...) that were previously fetched
+    regardless, because nothing read the file
   - 1.2s between requests
   - respects User-Agent header
 
@@ -16,7 +19,6 @@ Run:
 """
 import os
 import sys
-import time
 import urllib.parse as up
 import uuid
 from datetime import datetime, timezone
@@ -27,13 +29,13 @@ import httpx
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
+from crawler_utils import RobotsBlocked, polite_get_sync
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 load_dotenv()
 
-USER_AGENT = "WatEloLuxembourg/1.0 (contact@wat-elo.lu)"
 BASE       = "https://www.visitluxembourg.com"
-PAUSE_S    = 1.2
 
 # Sitemap of pages — visitluxembourg exposes their full page tree as an XML
 # sitemap. We only care about the /discovery-tours-for-families/ tree.
@@ -116,11 +118,19 @@ class SitemapLinks(HTMLParser):
 
 
 def fetch(url: str, client: httpx.Client) -> str | None:
+    """Fetch one page through the politeness layer.
+
+    This used to call client.get() directly, so the "respects robots.txt" claim
+    in the module docstring was never true: no rules were read, and the fixed
+    pause ignored any Crawl-delay the site asked for. polite_get_sync() reads
+    robots.txt, raises RobotsBlocked for disallowed paths, and waits the longer
+    of our baseline and the site's requested delay.
+    """
     try:
-        r = client.get(url, timeout=8.0, follow_redirects=True,
-                       headers={"User-Agent": USER_AGENT, "Accept": "text/html, application/xml"})
-        r.raise_for_status()
-        return r.text
+        return polite_get_sync(url, client=client, timeout=8.0).text
+    except RobotsBlocked as e:
+        print(f"  [robots] skipping {url}: {e}")
+        return None
     except Exception as e:
         print(f"  [fetch] {url}: {type(e).__name__}: {e}")
         return None
@@ -270,7 +280,6 @@ def main() -> None:
                 updated += 1
             if i % 10 == 0:
                 print(f"  [{i}/{len(urls)}] ins={inserted} upd={updated} fail={failed}")
-            time.sleep(PAUSE_S)
 
     now_iso = datetime.now(timezone.utc).isoformat()
     if src:

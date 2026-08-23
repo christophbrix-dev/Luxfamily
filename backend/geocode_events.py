@@ -22,7 +22,7 @@ from pymongo import MongoClient
 load_dotenv()
 
 NOMINATIM_URL   = "https://nominatim.openstreetmap.org/search"
-USER_AGENT      = "WatEloLuxembourg/1.0 (contact@wat-elo.lu)"
+from crawler_utils import USER_AGENT  # one identity for the whole project
 REQUEST_PAUSE_S = 1.1   # be nice to Nominatim (>= 1s policy)
 
 # Rough fallback centroids per Luxembourg canton — used when Nominatim can't
