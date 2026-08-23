@@ -49,6 +49,14 @@ export type Place = {
   id: number;
   /** The real event id when this came from the API. The demo entries have none. */
   sourceId?: string;
+  /**
+   * Start date as YYYY-MM-DD, for grouping and sorting.
+   *
+   * `date` below is a display string in three languages and cannot be compared
+   * or ordered. The demo entries have no real date at all, which is why the
+   * calendar used to carry three hard-coded ones.
+   */
+  startDate?: string;
   title: LocalizedString;
   short: LocalizedString;
   type: "Outdoor" | "Indoor" | "Event" | "Educational";
