@@ -26,6 +26,11 @@ export const STRINGS: Dict = {
     de: "Suche Orte, Events...",
     fr: "Chercher lieux, événements...",
   },
+  enableLocation: {
+    en: "Show what's near me",
+    de: "Zeig mir, was in der Nähe ist",
+    fr: "Montrer ce qui est près de moi",
+  },
   nearYou: { en: "Near you", de: "In deiner Nähe", fr: "Près de vous" },
   seeAll: { en: "See all", de: "Alle anzeigen", fr: "Voir tout" },
   filter: { en: "Filter", de: "Filter", fr: "Filtres" },

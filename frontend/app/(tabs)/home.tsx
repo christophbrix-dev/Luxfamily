@@ -10,10 +10,11 @@ import { WeatherWidget } from "@/src/components/WeatherWidget";
 import { useApp } from "@/src/contexts/AppContext";
 import type { Lang } from "@/src/data/places";
 import { usePlaces } from "@/src/hooks/useLivePlaces";
+import { useUserLocation } from "@/src/hooks/useUserLocation";
 import { detailHref } from "@/src/utils/toPlace";
 import { baseLang } from "@/src/i18n/pickLang";
 import { t } from "@/src/i18n/strings";
-import { type Palette, shadowFor } from "@/src/theme";
+import { type Palette, radii, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 
 const HOME_CHIPS = ["All", "Outdoor", "Indoor", "0-3", "4-6", "7-12"] as const;
@@ -39,7 +40,8 @@ export default function Home() {
   const router = useRouter();
   const { lang, user } = useApp();
   const [chip, setChip] = useState<string>("All");
-  const { places, loading, error } = usePlaces();
+  const { places, loading, error, hasLocation } = usePlaces();
+  const { status: locationStatus, request: requestLocation } = useUserLocation();
 
   const featured = useMemo(() => {
     const all = places ?? [];
@@ -52,7 +54,20 @@ export default function Home() {
     return all.filter((p) => p.ageMin <= max && p.ageMax >= min).slice(0, 3);
   }, [chip, places]);
 
-  const nearYou = useMemo(() => (places ?? []).slice(3, 6), [places]);
+  /**
+   * The three closest entries, once we know where the user is.
+   *
+   * This used to be `places.slice(3, 6)` — entries four to six of the list,
+   * under a heading promising proximity. Without a position there is nothing
+   * to sort by, so the section is hidden rather than filled with an untruth.
+   */
+  const nearYou = useMemo(() => {
+    if (!hasLocation) return [];
+    return (places ?? [])
+      .filter((p) => p.distanceKm !== undefined)
+      .sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0))
+      .slice(0, 3);
+  }, [places, hasLocation]);
   const initial = (user?.name?.[0] ?? "U").toUpperCase();
 
   return (
@@ -112,6 +127,17 @@ export default function Home() {
             />
           ))}
         </View>
+
+        {!hasLocation && locationStatus !== "denied" ? (
+          <TouchableOpacity
+            style={styles.locationPrompt}
+            onPress={requestLocation}
+            testID="home-enable-location"
+          >
+            <Ionicons name="location-outline" size={16} color={palette.primaryDark} />
+            <Text style={styles.locationPromptTxt}>{t("enableLocation", lang)}</Text>
+          </TouchableOpacity>
+        ) : null}
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{t("nearYou", lang)}</Text>
@@ -178,6 +204,22 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
   chipRowOuter: { marginTop: 18, marginBottom: 8, maxHeight: 56 },
   chipRow: { gap: 8, paddingHorizontal: 20, alignItems: "center", height: 56 },
   feed: { paddingHorizontal: 20, paddingTop: 8, gap: 16 },
+  locationPrompt: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginHorizontal: 16,
+    marginTop: 20,
+    paddingVertical: 12,
+    borderRadius: radii.md,
+    backgroundColor: palette.primaryLight,
+  },
+  locationPromptTxt: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: palette.primaryDark,
+  },
   sectionHeader: {
     marginTop: 24,
     paddingHorizontal: 20,
