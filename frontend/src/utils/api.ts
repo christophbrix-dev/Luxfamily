@@ -113,6 +113,41 @@ export type ApiEventSummary = Pick<
   | "accessibility_wheelchair" | "sensory_friendly" | "free_parking"
 > & { source_name?: string | null };
 
+// One OpenStreetMap point of interest. The ingest holds thousands of these —
+// playgrounds, parks, pools, museums — and nothing displayed them until now.
+export type ApiPlace = {
+  id: string;
+  slug: string;
+  kind: string;
+  group: string;
+  name: string;
+  lat: number | null;
+  lng: number | null;
+  age_min: number;
+  age_max: number;
+  family_score: number;
+  website_url: string;
+  phone: string;
+  opening_hours: string;
+  wheelchair: boolean;
+  toilets: boolean;
+  source_ref: string;
+  source_license: string;
+};
+
+/** Group and category labels, translated by the backend taxonomy. */
+export type PlaceLabels = {
+  label_de: string;
+  label_fr: string;
+  label_lb: string;
+  label_en: string;
+};
+
+export type PlacesMeta = {
+  groups: Record<string, PlaceLabels & { color: string }>;
+  categories: Record<string, PlaceLabels & { group: string; base_score: number }>;
+};
+
 export type ApiSource = {
   id: string;
   name: string;
@@ -159,6 +194,32 @@ export const api = {
   // endpoint (or a new field on the backend's EventSummary).
   publicEvents: () => apiFetch<ApiEventSummary[]>("/api/events?upcoming=false&limit=200"),
   event: (id: string) => apiFetch<ApiEvent>(`/api/events/${id}`),
+
+  /** The OSM taxonomy: group and category names in every language. */
+  placesMeta: () => apiFetch<PlacesMeta>("/api/places/meta"),
+
+  /**
+   * OSM points of interest.
+   *
+   * Without a position the backend returns the highest-scoring entries; with
+   * one it filters by radius, which is what makes thousands of places usable.
+   */
+  osmPlaces: (opts: {
+    group?: string;
+    near?: { lat: number; lng: number };
+    radiusKm?: number;
+    limit?: number;
+  } = {}) => {
+    const q = new URLSearchParams();
+    if (opts.group) q.set("group", opts.group);
+    if (opts.near) {
+      q.set("near_lat", String(opts.near.lat));
+      q.set("near_lng", String(opts.near.lng));
+      q.set("radius_km", String(opts.radiusKm ?? 10));
+    }
+    q.set("limit", String(opts.limit ?? 60));
+    return apiFetch<ApiPlace[]>(`/api/places?${q.toString()}`);
+  },
   pingView: (id: string) =>
     apiFetch<void>(`/api/events/${id}/view`, { method: "POST" }),
   adminEvents: () => apiFetch<ApiEventSummary[]>("/api/admin/events?limit=500", { admin: true }),

@@ -26,6 +26,12 @@ export const STRINGS: Dict = {
     de: "Suche Orte, Events...",
     fr: "Chercher lieux, événements...",
   },
+  all: { en: "All", de: "Alle", fr: "Tout" },
+  placesSub: {
+    en: "Playgrounds, parks, pools and more",
+    de: "Spielplätze, Parks, Schwimmbäder und mehr",
+    fr: "Aires de jeux, parcs, piscines et plus",
+  },
   enableLocation: {
     en: "Show what's near me",
     de: "Zeig mir, was in der Nähe ist",
