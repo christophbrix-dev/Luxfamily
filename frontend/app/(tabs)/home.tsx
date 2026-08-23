@@ -10,6 +10,7 @@ import { WeatherWidget } from "@/src/components/WeatherWidget";
 import { useApp } from "@/src/contexts/AppContext";
 import type { Lang } from "@/src/data/places";
 import { usePlaces } from "@/src/hooks/useLivePlaces";
+import { detailHref } from "@/src/utils/toPlace";
 import { baseLang } from "@/src/i18n/pickLang";
 import { t } from "@/src/i18n/strings";
 import { type Palette, shadowFor } from "@/src/theme";
@@ -30,17 +31,6 @@ function greetingKey(): "goodMorning" | "goodAfternoon" | "goodEvening" {
   if (h < 12) return "goodMorning";
   if (h < 18) return "goodAfternoon";
   return "goodEvening";
-}
-
-/**
- * Where a card leads.
- *
- * Live records go to /event/[id], which fetches the full document by its real
- * id. /detail/[id] looks the entry up in the hard-coded list and would come up
- * empty for anything that came from the API.
- */
-function detailHref(item: { id: number; sourceId?: string }): string {
-  return item.sourceId ? `/event/${item.sourceId}` : `/detail/${item.id}`;
 }
 
 export default function Home() {

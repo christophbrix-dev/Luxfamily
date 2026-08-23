@@ -67,8 +67,11 @@ export default function EventDetail() {
     );
   }
 
-  const isSaved = saved.includes(parseInt(ev.id.slice(0, 8), 16) % 1000);
-  const localId = parseInt(ev.id.slice(0, 8), 16) % 1000;
+  // The event's own id. This used to squeeze the uuid into a number via
+  // parseInt(id.slice(0, 8), 16) % 1000, which collides constantly: 279 events
+  // across 1000 buckets produces around 39 colliding pairs, so saving one event
+  // marked others as saved too.
+  const isSaved = saved.includes(ev.id);
   const openMaps = () => {
     Linking.openURL(
       `https://www.openstreetmap.org/?mlat=${ev.lat}&mlon=${ev.lng}#map=16/${ev.lat}/${ev.lng}`,
@@ -93,7 +96,7 @@ export default function EventDetail() {
               <Ionicons name="chevron-back" size={20} color={palette.textPrimary} />
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => toggleSave(localId)}
+              onPress={() => toggleSave(ev.id)}
               style={styles.roundBtn}
               testID="event-save"
             >
@@ -222,7 +225,7 @@ export default function EventDetail() {
           <Ionicons name="star" size={14} color="#fff" />
           <Text style={styles.footerPrimaryTxt}>Sponsor</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => toggleSave(localId)} style={styles.footerPrimary}>
+        <TouchableOpacity onPress={() => toggleSave(ev.id)} style={styles.footerPrimary}>
           <Text style={styles.footerPrimaryTxt}>{isSaved ? t("unsave", lang) : t("save", lang)}</Text>
         </TouchableOpacity>
       </View>

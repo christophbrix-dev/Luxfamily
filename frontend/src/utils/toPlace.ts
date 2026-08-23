@@ -80,3 +80,14 @@ function hashId(id: string): number {
   }
   return Math.abs(hash);
 }
+
+/**
+ * Where a card should lead.
+ *
+ * Records that came from the API go to /event/[id], which fetches the full
+ * document by its real id. /detail/[id] looks the entry up in the hard-coded
+ * list and finds nothing for a real id, so the two are not interchangeable.
+ */
+export function detailHref(item: Pick<Place, "id" | "sourceId">): string {
+  return item.sourceId ? `/event/${item.sourceId}` : `/detail/${item.id}`;
+}

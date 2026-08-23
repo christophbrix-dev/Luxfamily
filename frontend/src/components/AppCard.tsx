@@ -17,7 +17,10 @@ type Props = {
 
 export function AppCard({ item, large = false, onPress, testID }: Props) {
   const { lang, saved, toggleSave } = useApp();
-  const isSaved = saved.includes(item.id);
+  // A live record is addressed by its real id; the demo entries only have
+  // their numeric one.
+  const savedId = item.sourceId ?? String(item.id);
+  const isSaved = saved.includes(savedId);
 
   return (
     <TouchableOpacity
@@ -39,7 +42,7 @@ export function AppCard({ item, large = false, onPress, testID }: Props) {
           accessibilityLabel="Toggle save"
           onPress={(e) => {
             e.stopPropagation();
-            toggleSave(item.id);
+            toggleSave(savedId);
           }}
           style={styles.saveBtn}
           hitSlop={8}
