@@ -41,7 +41,10 @@ from pymongo.errors import OperationFailure
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from starlette.datastructures import MutableHeaders
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 
 from importers import run_all_active, run_source
 
@@ -554,6 +557,42 @@ limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(lifespan=lifespan, title="Wat Elo? API")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+class ETagMiddleware(BaseHTTPMiddleware):
+    """Strong ETag on GET responses, answering If-None-Match with a 304.
+
+    The event list barely changes between app launches, but every pull-to-refresh
+    re-downloaded the whole payload because nothing on the response said
+    otherwise. Hashing the rendered body is enough here — the payloads are small
+    and already buffered.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        if request.method != "GET" or response.status_code != 200:
+            return response
+        if not hasattr(response, "body_iterator"):
+            return response
+
+        body = b"".join([chunk async for chunk in response.body_iterator])
+        etag = '"%s"' % hashlib.sha256(body).hexdigest()[:32]
+
+        headers = MutableHeaders(raw=list(response.raw_headers))
+        headers["ETag"] = etag
+        headers.setdefault("Cache-Control", "private, max-age=60, must-revalidate")
+        del headers["content-length"]  # recomputed by Response below
+
+        if request.headers.get("if-none-match") == etag:
+            return Response(status_code=304, headers=dict(headers))
+        return Response(content=body, status_code=200, headers=dict(headers))
+
+
+# Middleware order matters: add_middleware puts the newest one outermost, so
+# this registers as CORS(GZip(ETag(app))). ETag therefore hashes the raw JSON
+# rather than the compressed bytes — keeping the tag stable across encodings —
+# and CORS still decorates 304 responses.
+app.add_middleware(ETagMiddleware)
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 app.add_middleware(
     CORSMiddleware,
@@ -1198,20 +1237,46 @@ async def admin_robots_check(
 # ---------------------------------------------------------------------------
 @app.get("/api/admin/analytics/overview")
 async def admin_analytics(_: Dict[str, Any] = Depends(require_admin)):
-    total = await db.events.count_documents({})
-    published = await db.events.count_documents({"published": True})
-    featured = await db.events.count_documents({"featured": True, "published": True})
-    drafts = total - published
-    total_views_doc = await db.events.aggregate(
-        [{"$group": {"_id": None, "v": {"$sum": "$view_count"}}}]
+    # A single $facet instead of five sequential round-trips (three counts, a
+    # sum aggregation and a find), each of which scanned the collection again.
+    rows = await db.events.aggregate(
+        [
+            {
+                "$facet": {
+                    "counts": [
+                        {
+                            "$group": {
+                                "_id": None,
+                                "total": {"$sum": 1},
+                                "published": {"$sum": {"$cond": ["$published", 1, 0]}},
+                                "featured": {
+                                    "$sum": {
+                                        "$cond": [{"$and": ["$published", "$featured"]}, 1, 0]
+                                    }
+                                },
+                                "total_views": {"$sum": {"$ifNull": ["$view_count", 0]}},
+                            }
+                        }
+                    ],
+                    "top": [
+                        {"$match": {"published": True}},
+                        {"$sort": {"view_count": -1}},
+                        {"$limit": 5},
+                        {"$project": {"_id": 0, "id": 1, "title": 1, "view_count": 1}},
+                    ],
+                }
+            }
+        ]
     ).to_list(1)
-    total_views = total_views_doc[0]["v"] if total_views_doc else 0
-    top_cursor = (
-        db.events.find({"published": True}, {"_id": 0, "id": 1, "title": 1, "view_count": 1})
-        .sort("view_count", -1)
-        .limit(5)
-    )
-    top = await top_cursor.to_list(5)
+
+    facet = rows[0] if rows else {}
+    counts = (facet.get("counts") or [{}])[0]
+    total = counts.get("total", 0)
+    published = counts.get("published", 0)
+    featured = counts.get("featured", 0)
+    total_views = counts.get("total_views", 0)
+    drafts = total - published
+    top = facet.get("top") or []
     return {
         "total_events": total,
         "published": published,
