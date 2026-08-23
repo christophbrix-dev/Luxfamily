@@ -46,7 +46,9 @@ export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T
 }
 
 // ----- Types matching FastAPI EventResponse -----
-export type LocalizedString = { en: string; de: string; fr: string };
+// Same shape as the one in src/data/places, deliberately: values move between
+// the two and a mismatch shows up as an unfixable assignment error.
+export type LocalizedString = { en: string; de: string; fr: string; lb?: string };
 
 export type ApiEvent = {
   id: string;

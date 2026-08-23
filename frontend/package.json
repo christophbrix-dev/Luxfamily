@@ -11,7 +11,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "check": "yarn typecheck && yarn lint"
+    "check": "yarn typecheck && yarn lint",
+    "lb-coverage": "node scripts/lb-coverage.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "6.1.2",

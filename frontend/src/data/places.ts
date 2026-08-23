@@ -3,7 +3,18 @@
 
 export type Lang = "en" | "de" | "fr" | "lb";
 
-export type LocalizedString = Record<Lang, string>;
+/**
+ * A translated text.
+ *
+ * `lb` is optional while the Luxembourgish translations are still being
+ * written. It was declared required before a single lb string existed, which
+ * meant the type demanded something no record could satisfy — pickLang() has
+ * always treated it as optional and fallen back to German.
+ *
+ * Once translations/lb.csv is complete this becomes Record<Lang, string> and
+ * the requirement is real: no text can then be added without one.
+ */
+export type LocalizedString = Record<"en" | "de" | "fr", string> & { lb?: string };
 
 export type Canton =
   | "Capellen"
