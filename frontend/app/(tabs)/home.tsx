@@ -8,14 +8,17 @@ import { AppCard } from "@/src/components/AppCard";
 import { Chip } from "@/src/components/Chip";
 import { WeatherWidget } from "@/src/components/WeatherWidget";
 import { useApp } from "@/src/contexts/AppContext";
+import type { Lang } from "@/src/data/places";
 import { usePlaces } from "@/src/hooks/useLivePlaces";
+import { baseLang } from "@/src/i18n/pickLang";
 import { t } from "@/src/i18n/strings";
 import { type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 
 const HOME_CHIPS = ["All", "Outdoor", "Indoor", "0-3", "4-6", "7-12"] as const;
 
-function chipLabel(c: string, lang: "en" | "de" | "fr"): string {
+function chipLabel(c: string, langIn: Lang): string {
+  const lang = baseLang(langIn);
   if (c === "All")     return lang === "de" ? "Alle" : lang === "fr" ? "Tout" : "All";
   if (c === "Indoor")  return lang === "de" ? "Drinnen" : lang === "fr" ? "Intérieur" : "Indoor";
   if (c === "Outdoor") return lang === "de" ? "Draußen" : lang === "fr" ? "Extérieur" : "Outdoor";

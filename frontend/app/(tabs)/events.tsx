@@ -13,9 +13,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import type { Lang } from "@/src/data/places";
 import { useApp } from "@/src/contexts/AppContext";
 import { t } from "@/src/i18n/strings";
-import { pickLang } from "@/src/i18n/pickLang";
+import { baseLang, pickLang } from "@/src/i18n/pickLang";
 import { radii, type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { api, ApiEventSummary } from "@/src/utils/api";
@@ -39,8 +40,8 @@ const MONTH_NAMES: Record<string, string[]> = {
   en: ["January","February","March","April","May","June","July","August","September","October","November","December"],
 };
 
-function monthLabel(d: Date, lang: "en" | "de" | "fr"): string {
-  const names = MONTH_NAMES[lang] ?? MONTH_NAMES.en;
+function monthLabel(d: Date, lang: Lang): string {
+  const names = MONTH_NAMES[baseLang(lang)] ?? MONTH_NAMES.en;
   return `${names[d.getMonth()]} ${d.getFullYear()}`;
 }
 
@@ -50,7 +51,7 @@ function monthLabel(d: Date, lang: "en" | "de" | "fr"): string {
  */
 function groupEvents(
   events: ApiEventSummary[],
-  lang: "en" | "de" | "fr",
+  lang: Lang,
   alwaysOpenLabel: string,
 ): EventGroup[] {
   const venues: ApiEventSummary[] = [];
@@ -327,7 +328,7 @@ function EventRow({
   onPress,
 }: {
   event: ApiEventSummary;
-  lang: "en" | "de" | "fr";
+  lang: Lang;
   onPress: () => void;
 }) {
   const { palette, shadow } = useAppPalette();

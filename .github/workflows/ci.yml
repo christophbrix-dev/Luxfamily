@@ -35,6 +35,12 @@ jobs:
       - name: Lint
         run: yarn lint
 
+      # Reports how much of the app speaks Luxembourgish. Never fails the
+      # build — a missing translation is work in progress, not a broken commit.
+      - name: Luxembourgish coverage
+        if: always()
+        run: yarn lb-coverage
+
   backend:
     name: Backend (lint + tests)
     runs-on: ubuntu-latest
