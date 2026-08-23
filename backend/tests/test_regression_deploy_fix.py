@@ -12,20 +12,34 @@ import os
 import requests
 import pytest
 
-BASE_URL = os.environ["EXPO_PUBLIC_BACKEND_URL"].rstrip("/")
-ADMIN_EMAIL = "admin@familyluxembourg.lu"
-ADMIN_PW = "LuxFam2026!"
+# Never hardcode credentials here — this file is committed to a public repo.
+# Everything comes from the environment, and the suite skips when it is absent
+# rather than raising at import time (which aborts collection for the whole
+# backend/tests tree, offline suite included).
+BASE_URL = (
+    os.environ.get("EXPO_PUBLIC_BACKEND_URL")
+    or os.environ.get("EXPO_BACKEND_URL")
+    or "http://localhost:8001"
+).rstrip("/")
+ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL") or os.environ.get("ADMIN_EMAIL") or ""
+ADMIN_PW = os.environ.get("TEST_ADMIN_PASSWORD") or os.environ.get("ADMIN_PASSWORD") or ""
 
 
 @pytest.fixture(scope="module")
 def api():
     s = requests.Session()
     s.headers.update({"Content-Type": "application/json"})
+    try:
+        s.get(f"{BASE_URL}/api/health", timeout=5)
+    except requests.RequestException as exc:
+        pytest.skip(f"No backend reachable at {BASE_URL}: {exc}")
     return s
 
 
 @pytest.fixture(scope="module")
 def admin_token(api):
+    if not (ADMIN_EMAIL and ADMIN_PW):
+        pytest.skip("ADMIN_EMAIL / ADMIN_PASSWORD not set in the environment")
     r = api.post(f"{BASE_URL}/api/auth/login", json={"email": ADMIN_EMAIL, "password": ADMIN_PW})
     assert r.status_code == 200, f"admin login failed: {r.status_code} {r.text}"
     tok = r.json().get("access_token")

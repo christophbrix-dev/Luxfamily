@@ -1,4 +1,6 @@
 import os
+import pathlib
+
 import pytest
 import requests
 
@@ -18,6 +20,31 @@ requires_admin_creds = pytest.mark.skipif(
 )
 
 
+_BACKEND_REACHABLE = None
+
+
+@pytest.fixture(autouse=True)
+def _requires_live_backend(request):
+    """Skip the HTTP tests in this directory when nothing is listening.
+
+    These talk to a deployed backend, so without one they fail with connection
+    errors instead of reporting the honest "nothing to test against". Probed
+    once per session. Deliberately does not apply to tests/offline, which runs
+    the app in-process and needs no server at all.
+    """
+    if "offline" in pathlib.Path(str(request.node.fspath)).parts:
+        return
+    global _BACKEND_REACHABLE
+    if _BACKEND_REACHABLE is None:
+        try:
+            requests.get(f"{BASE_URL}/api/health", timeout=5)
+            _BACKEND_REACHABLE = True
+        except requests.RequestException:
+            _BACKEND_REACHABLE = False
+    if not _BACKEND_REACHABLE:
+        pytest.skip(f"No backend reachable at {BASE_URL} (set EXPO_BACKEND_URL)")
+
+
 @pytest.fixture(scope="session")
 def base_url() -> str:
     return BASE_URL
@@ -27,17 +54,10 @@ def base_url() -> str:
 def api_client():
     """HTTP session for the integration tests.
 
-    Every test in this suite takes it, so this is also where we check a backend
-    is actually listening — otherwise these fail with connection errors instead
-    of reporting the honest "nothing to test against". The offline suite does
-    not use this fixture and is unaffected.
+    Reachability is handled by the autouse fixture above.
     """
     s = requests.Session()
     s.headers.update({"Content-Type": "application/json"})
-    try:
-        s.get(f"{BASE_URL}/api/health", timeout=5)
-    except requests.RequestException as exc:
-        pytest.skip(f"No backend reachable at {BASE_URL} (set EXPO_BACKEND_URL): {exc}")
     return s
 
 
