@@ -29,7 +29,8 @@ export default function Detail() {
       </SafeAreaView>
     );
   }
-  const isSaved = saved.includes(place.id);
+  const savedId = place.sourceId ?? String(place.id);
+  const isSaved = saved.includes(savedId);
 
   const openMaps = () => {
     const url = `https://www.openstreetmap.org/?mlat=${place.lat}&mlon=${place.lng}#map=16/${place.lat}/${place.lng}`;
@@ -57,7 +58,7 @@ export default function Detail() {
               <Ionicons name="chevron-back" size={20} color={palette.textPrimary} />
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => toggleSave(place.id)}
+              onPress={() => toggleSave(savedId)}
               style={styles.roundBtn}
               testID="detail-save-btn"
             >
@@ -159,7 +160,7 @@ export default function Detail() {
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            onPress={() => toggleSave(place.id)}
+            onPress={() => toggleSave(savedId)}
             style={styles.footerPrimary}
             testID="footer-save-btn"
           >

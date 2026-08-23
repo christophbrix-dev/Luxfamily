@@ -90,8 +90,9 @@ type Ctx = {
   signIn: (email: string, name?: string) => void;
   signOutUser: () => void;
   signInGuest: () => void;
-  saved: number[];
-  toggleSave: (id: number) => void;
+  /** Ids of saved entries. Real event ids for API records. */
+  saved: string[];
+  toggleSave: (id: string) => void;
   bookings: Booking[];
   addBooking: (b: Omit<Booking, "id" | "createdAt">) => Booking;
   preferences: Preferences;
@@ -114,7 +115,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [lang, setLangState] = useState<Lang>("en");
   const [user, setUser] = useState<User>(null);
-  const [saved, setSaved] = useState<number[]>([]);
+  const [saved, setSaved] = useState<string[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [preferences, setPreferencesState] = useState<Preferences>(DEFAULT_PREFS);
   const [theme, setThemeState] = useState<ThemeMode>("light");
@@ -135,7 +136,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const storedSaved = await storage.getItem<string>(SAVED_KEY, "[]");
       try {
         const parsed = JSON.parse(storedSaved || "[]");
-        if (Array.isArray(parsed)) setSaved(parsed.filter((n) => typeof n === "number"));
+        if (Array.isArray(parsed)) {
+          // Entries used to be stored as the demo records' numeric ids. Those
+          // cannot address a real event, so anything non-string is dropped on
+          // first launch after the change. Losing a handful of demo favourites
+          // is better than keeping ids that point at nothing.
+          setSaved(parsed.filter((x): x is string => typeof x === "string"));
+        }
       } catch {}
       const storedUser = await storage.getItem<string>(USER_KEY, "");
       if (storedUser) {
@@ -287,7 +294,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return { isNewUser: storedOnboarded !== "1" };
   }, []);
 
-  const toggleSave = useCallback((id: number) => {
+  const toggleSave = useCallback((id: string) => {
     setSaved((prev) => {
       const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
       storage.setItem(SAVED_KEY, JSON.stringify(next));
