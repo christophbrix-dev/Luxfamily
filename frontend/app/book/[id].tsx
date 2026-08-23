@@ -1,11 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState, useMemo } from "react";
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp } from "@/src/contexts/AppContext";
 import { PLACES } from "@/src/data/places";
+import { usePlaces } from "@/src/hooks/useLivePlaces";
 import { t } from "@/src/i18n/strings";
 import { pickLang } from "@/src/i18n/pickLang";
 import { radii, type Palette, shadowFor } from "@/src/theme";
@@ -33,12 +34,25 @@ export default function Book() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { lang, addBooking } = useApp();
-  const place = PLACES.find((p) => p.id === Number(id));
+  const { places, loading } = usePlaces();
+  // Live records carry the same numeric id the route was built from, so one
+  // lookup covers both. PLACES is the fallback for the remaining demo entries.
+  const place =
+    (places ?? []).find((p) => p.id === Number(id)) ??
+    PLACES.find((p) => p.id === Number(id));
 
   const [dateIdx, setDateIdx] = useState(1);
   const [adults, setAdults] = useState(2);
   const [children, setChildren] = useState(1);
   const [confirmed, setConfirmed] = useState(false);
+
+  if (!place && loading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <ActivityIndicator color={palette.primary} style={{ marginTop: 48 }} />
+      </SafeAreaView>
+    );
+  }
 
   if (!place) {
     return (
