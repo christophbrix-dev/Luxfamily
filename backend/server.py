@@ -8,6 +8,7 @@ Provides:
  - Brute-force protection on /api/auth/login via slowapi
 """
 
+import hashlib
 import logging
 import os
 import uuid
@@ -26,6 +27,7 @@ from fastapi import Body, Depends, FastAPI, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field
+from pymongo.errors import OperationFailure
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -65,6 +67,9 @@ STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "").rstrip("/")
 stripe.api_key = STRIPE_SECRET_KEY
+
+# Salt for pseudonymising viewer IPs in the analytics log.
+VIEW_IP_SALT = os.environ.get("VIEW_IP_SALT") or JWT_SECRET
 
 # Plan -> (cents, days)
 SPONSOR_PLANS: Dict[str, Dict[str, int]] = {
@@ -379,16 +384,53 @@ async def require_admin(current: Dict[str, Any] = Depends(get_current_user)) -> 
 # ---------------------------------------------------------------------------
 # Lifespan: indexes + seed admin
 # ---------------------------------------------------------------------------
+async def _ensure_index(collection, keys, **opts) -> None:
+    """create_index that survives an options conflict with an older index.
+
+    Adding `unique` or a TTL to an index that already exists raises
+    IndexOptionsConflict rather than migrating it. Log and carry on instead of
+    failing startup — the index simply stays as it was until someone drops it.
+    """
+    try:
+        await collection.create_index(keys, **opts)
+    except OperationFailure as exc:
+        logger.warning(
+            "Could not create index %s on %s: %s", opts.get("name", keys), collection.name, exc
+        )
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await db.users.create_index("email", unique=True)
     await db.users.create_index("id", unique=True)
     await db.events.create_index("id", unique=True)
     await db.events.create_index("start_date")
+
+    # Compound indexes matching the actual list queries. Without them Mongo
+    # scans on `published` and sorts the whole result set in memory.
+    await _ensure_index(
+        db.events,
+        [("published", 1), ("featured", -1), ("start_date", 1)],
+        name="pub_featured_start",
+    )
+    await _ensure_index(
+        db.events,
+        [("published", 1), ("canton", 1), ("featured", -1), ("start_date", 1)],
+        name="pub_canton_featured_start",
+    )
+    # Backs the analytics top-events sort.
+    await _ensure_index(db.events, [("published", 1), ("view_count", -1)], name="pub_viewcount")
     await db.events.create_index([("source_id", 1), ("external_id", 1)], sparse=True)
+
     await db.sources.create_index("id", unique=True)
     await db.event_views.create_index("event_id")
     await db.event_views.create_index("viewed_at")
+    # The per-IP/minute dedup buckets carry `expires_at` but nothing ever
+    # deleted them, so the collection grew without bound. This is the TTL that
+    # actually reaps it.
+    await _ensure_index(
+        db.event_views_dedup, "expires_at", expireAfterSeconds=0, name="dedup_ttl"
+    )
     await db.partners.create_index("id", unique=True)
     await db.partners.create_index("created_at")
     await db.sponsorships.create_index("session_id", unique=True)
@@ -683,29 +725,43 @@ async def get_event(event_id: str):
     return _event_to_response(doc)
 
 
+def _hash_ip(ip: str) -> str:
+    """Stable pseudonym for a viewer IP.
+
+    Python's builtin hash() is salted per process, so `str(hash(ip))` produced a
+    different value after every restart — useless as a pseudonym and not a hash
+    anyone should rely on.
+    """
+    return hashlib.sha256(f"{VIEW_IP_SALT}:{ip}".encode("utf-8")).hexdigest()[:16]
+
+
 @app.post("/api/events/{event_id}/view", status_code=204)
 async def event_view(event_id: str, request: Request):
     # Fire-and-forget ping. We count anonymous views but rate-limit per IP+event
-    # so a refresh loop can't inflate stats.
-    ip = get_remote_address(request)
-    minute_bucket = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
-    bucket_id = f"{event_id}:{ip}:{minute_bucket}"
-    seen = await db.event_views_dedup.find_one({"_id": bucket_id})
-    if seen:
-        return
-    try:
-        await db.event_views_dedup.insert_one(
-            {"_id": bucket_id, "expires_at": datetime.now(timezone.utc) + timedelta(hours=1)}
-        )
-    except Exception:
-        return  # race — already counted
+    # so a refresh loop can't inflate stats. The upsert *is* the dedup: one
+    # atomic operation instead of find-then-insert, which two concurrent
+    # requests could both pass.
+    now = datetime.now(timezone.utc)
+    ip_hash = _hash_ip(get_remote_address(request))
+    bucket_id = f"{event_id}:{ip_hash}:{now:%Y%m%d%H%M}"
+    result = await db.event_views_dedup.update_one(
+        {"_id": bucket_id},
+        {"$setOnInsert": {"expires_at": now + timedelta(hours=1)}},
+        upsert=True,
+    )
+    if result.upserted_id is None:
+        return  # already counted this IP for this event in this minute
 
-    await db.events.update_one({"id": event_id}, {"$inc": {"view_count": 1}})
+    counted = await db.events.update_one({"id": event_id}, {"$inc": {"view_count": 1}})
+    if counted.matched_count == 0:
+        return  # unknown event — don't log a view for it
     await db.event_views.insert_one(
         {
             "event_id": event_id,
-            "viewed_at": datetime.now(timezone.utc).isoformat(),
-            "ip_hash": str(hash(ip))[:12],
+            # A real BSON date, not an ISO string: TTL indexes only expire date
+            # fields, so the string form could never be reaped.
+            "viewed_at": now,
+            "ip_hash": ip_hash,
         }
     )
 
