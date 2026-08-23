@@ -36,13 +36,23 @@ export const CANTONS: Canton[] = [
 
 export type Place = {
   id: number;
+  /** The real event id when this came from the API. The demo entries have none. */
+  sourceId?: string;
   title: LocalizedString;
   short: LocalizedString;
   type: "Outdoor" | "Indoor" | "Event" | "Educational";
   age: string;
   ageMin: number;
   ageMax: number;
-  distanceKm: number;
+  /**
+   * Kilometres from the user — absent unless we actually know.
+   *
+   * The demo entries each carry a fixed number written into this file, not a
+   * measurement. The app has no location permission, so live records have no
+   * distance to report and components hide the pill rather than print "0.0 km"
+   * as though it meant something.
+   */
+  distanceKm?: number;
   town: string;
   canton: Canton;
   category: string[];
