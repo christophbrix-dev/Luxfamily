@@ -4,7 +4,10 @@
  *
  * Keep this file pure and side-effect free so it's easy to unit-test.
  */
-import type { ApiEvent } from "@/src/utils/api";
+// Ranking works on list data, so it types on the summary shape the list
+// endpoints return. A full ApiEvent still satisfies it structurally, so any
+// caller holding a complete document keeps working.
+import type { ApiEventSummary } from "@/src/utils/api";
 import type { UserProfile } from "@/src/contexts/AppContext";
 
 // -----------------------------------------------------------------------------
@@ -63,7 +66,7 @@ export function needsToFilters(profile: UserProfile): FilterState {
  * the profile is empty/skipped — that way the Events tab falls back to
  * chronological order.
  */
-export function eventMatchScore(event: ApiEvent, profile: UserProfile): number {
+export function eventMatchScore(event: ApiEventSummary, profile: UserProfile): number {
   if (!profile.persona || profile.persona === "skipped") return 0;
 
   let score = 0;
@@ -174,13 +177,13 @@ const HOME_CANTON_RESERVED = 2;
 const MAX_PER_CANTON = 4;
 
 export function rankForProfile(
-  events: ApiEvent[],
+  events: ApiEventSummary[],
   profile: UserProfile,
-): { forYou: ApiEvent[]; others: ApiEvent[]; isPersonalized: boolean } {
+): { forYou: ApiEventSummary[]; others: ApiEventSummary[]; isPersonalized: boolean } {
   const hasProfile = !!profile.persona && profile.persona !== "skipped";
   if (!hasProfile) return { forYou: [], others: events, isPersonalized: false };
 
-  const scored: { ev: ApiEvent; score: number }[] = events.map((ev) => ({
+  const scored: { ev: ApiEventSummary; score: number }[] = events.map((ev) => ({
     ev,
     score: eventMatchScore(ev, profile),
   }));
@@ -218,7 +221,7 @@ export function rankForProfile(
   // top 6), so we can apply cantonal quotas below without running out of
   // candidates.
   const seenFps: Set<string>[] = [];
-  const uniqueByVenue: { ev: ApiEvent; score: number }[] = [];
+  const uniqueByVenue: { ev: ApiEventSummary; score: number }[] = [];
   for (const s of withHits) {
     const fp = fingerprint(
       s.ev.title?.en ?? s.ev.title?.de ?? s.ev.title?.fr ?? "",
@@ -233,11 +236,11 @@ export function rankForProfile(
   }
 
   // Second pass: greedy pick with per-canton cap + home-canton reservation.
-  const forYou: ApiEvent[] = [];
+  const forYou: ApiEventSummary[] = [];
   const perCantonCount: Record<string, number> = {};
   let homeCount = 0;
 
-  const pushIfRoom = (ev: ApiEvent, isHome: boolean): boolean => {
+  const pushIfRoom = (ev: ApiEventSummary, isHome: boolean): boolean => {
     if (forYou.length >= FOR_YOU_SLOTS) return false;
     const canton = ev.canton ?? "?";
     const cnt = perCantonCount[canton] ?? 0;
