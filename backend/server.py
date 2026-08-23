@@ -847,7 +847,7 @@ async def create_sponsor_checkout(body: CheckoutRequest = Body(...)):
             cancel_url=f"{FRONTEND_URL}/sponsor/cancel",
             metadata={"event_id": body.event_id, "plan": body.plan},
         )
-    except stripe.error.StripeError as exc:
+    except stripe.StripeError as exc:
         raise HTTPException(502, f"Stripe error: {exc.user_message or str(exc)}")
     return {"url": session.url, "session_id": session.id}
 
@@ -858,7 +858,7 @@ async def get_sponsor_session(session_id: str):
     even if our webhook hasn't been wired in this environment."""
     try:
         session = stripe.checkout.Session.retrieve(session_id)
-    except stripe.error.StripeError as exc:
+    except stripe.StripeError as exc:
         raise HTTPException(404, str(exc))
     paid = session.payment_status == "paid"
     if paid:
@@ -933,13 +933,16 @@ async def stripe_webhook(request: Request):
     sig = request.headers.get("stripe-signature", "")
     try:
         event = stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)
-    except (ValueError, stripe.error.SignatureVerificationError):
+    except (ValueError, stripe.SignatureVerificationError):
         raise HTTPException(400, "Invalid webhook signature")
 
     if event.get("type") == "checkout.session.completed":
+        # construct_event already returns StripeObjects all the way down.
+        # stripe.util.convert_to_stripe_object() was removed in stripe 12, so
+        # calling it here raised AttributeError on every verified webhook.
         session = event["data"]["object"]
         if session.get("payment_status") == "paid":
-            await _grant_featured(stripe.util.convert_to_stripe_object(session))
+            await _grant_featured(session)
     return {"received": True}
 
 
