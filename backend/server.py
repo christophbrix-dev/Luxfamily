@@ -579,7 +579,13 @@ async def lifespan(_: FastAPI):
     except Exception:
         pass  # already exists with different options — non-fatal
 
-    # Idempotent admin seeding.
+    # Admin seeding. ADMIN_PASSWORD is authoritative: if it no longer matches
+    # the stored hash, the stored hash is replaced on boot.
+    #
+    # It used to seed only when the account was absent, which meant there was no
+    # way to rotate the password at all — changing the variable did nothing, and
+    # no endpoint existed to change it either. Rotating now means updating
+    # ADMIN_PASSWORD in the environment and restarting.
     existing = await db.users.find_one({"email": ADMIN_EMAIL})
     if not existing:
         admin_doc = {
@@ -592,6 +598,17 @@ async def lifespan(_: FastAPI):
         }
         await db.users.insert_one(admin_doc)
         logger.info("Seeded admin user %s", ADMIN_EMAIL)
+    elif not verify_password(ADMIN_PASSWORD, existing.get("hashed_password", "")):
+        await db.users.update_one(
+            {"email": ADMIN_EMAIL},
+            {
+                "$set": {
+                    "hashed_password": hash_password(ADMIN_PASSWORD),
+                    "password_rotated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            },
+        )
+        logger.warning("Admin password rotated from ADMIN_PASSWORD for %s", ADMIN_EMAIL)
     else:
         logger.info("Admin user already exists: %s", ADMIN_EMAIL)
 

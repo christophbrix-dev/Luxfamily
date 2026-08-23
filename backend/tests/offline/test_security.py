@@ -119,3 +119,42 @@ def test_patch_can_clear_nullable_fields(app_module, client, run, admin_headers)
 def test_patch_still_rejects_an_empty_body(app_module, client, run, admin_headers):
     r = run(client.patch("/api/admin/events/whatever", json={}, headers=admin_headers))
     assert r.status_code == 400
+
+
+def _lifespan_seed(app_module, run, password):
+    """Run just the admin-seeding half of lifespan with a given ADMIN_PASSWORD."""
+
+    async def _go():
+        import contextlib
+
+        app_module.ADMIN_PASSWORD = password
+        async with contextlib.AsyncExitStack() as stack:
+            await stack.enter_async_context(app_module.lifespan(app_module.app))
+        return await app_module.db.users.find_one({"email": app_module.ADMIN_EMAIL})
+
+    return run(_go())
+
+
+def test_admin_password_can_be_rotated_through_the_environment(app_module, run):
+    """Seeding used to run only when the account was absent.
+
+    That left no way to rotate the password at all: changing ADMIN_PASSWORD did
+    nothing to an existing account, and no endpoint existed to change it. The
+    environment variable is now authoritative.
+    """
+    first = _lifespan_seed(app_module, run, "first-password-value")
+    assert app_module.verify_password("first-password-value", first["hashed_password"])
+
+    second = _lifespan_seed(app_module, run, "second-password-value")
+    assert app_module.verify_password("second-password-value", second["hashed_password"])
+    assert not app_module.verify_password("first-password-value", second["hashed_password"])
+    assert second["id"] == first["id"], "rotation must not replace the account"
+    assert "password_rotated_at" in second
+
+
+def test_unchanged_password_is_left_alone(app_module, run):
+    """A restart with the same value must not churn the stored hash."""
+    first = _lifespan_seed(app_module, run, "steady-password-value")
+    again = _lifespan_seed(app_module, run, "steady-password-value")
+    assert again["hashed_password"] == first["hashed_password"]
+    assert "password_rotated_at" not in again
