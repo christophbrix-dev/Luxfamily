@@ -647,6 +647,30 @@ app = FastAPI(lifespan=lifespan, title="Wat Elo? API")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+def _if_none_match_matches(header: Optional[str], etag: str) -> bool:
+    """RFC 7232 comparison for If-None-Match.
+
+    A literal string compare is not enough. Proxies rewrite a strong ETag into
+    its weak form when they re-encode the body — Cloudflare does exactly this in
+    front of this API — and clients echo back whatever they received. So the
+    server would emit `"abc"`, the client would return `W/"abc"`, the compare
+    would fail, and the 304 path never fired in production even though it worked
+    against the container directly.
+
+    Also handles the comma-separated list and `*` that the header allows.
+    """
+    if not header:
+        return False
+    candidates = [c.strip() for c in header.split(",") if c.strip()]
+    if "*" in candidates:
+        return True
+
+    def unweak(tag: str) -> str:
+        return tag[2:] if tag.startswith("W/") else tag
+
+    return any(unweak(c) == unweak(etag) for c in candidates)
+
+
 class ETagMiddleware(BaseHTTPMiddleware):
     """Strong ETag on GET responses, answering If-None-Match with a 304.
 
@@ -671,7 +695,7 @@ class ETagMiddleware(BaseHTTPMiddleware):
         headers.setdefault("Cache-Control", "private, max-age=60, must-revalidate")
         del headers["content-length"]  # recomputed by Response below
 
-        if request.headers.get("if-none-match") == etag:
+        if _if_none_match_matches(request.headers.get("if-none-match"), etag):
             return Response(status_code=304, headers=dict(headers))
         return Response(content=body, status_code=200, headers=dict(headers))
 
