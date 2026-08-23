@@ -57,6 +57,7 @@ const EMPTY_DRAFT: Draft = {
   website_url: "",
   accessibility_wheelchair: false,
   sensory_friendly: false,
+  free_parking: false,
   sensory_notes: { en: "", de: "", fr: "" },
   parking: { en: "", de: "", fr: "" },
   food_allowed: true,
