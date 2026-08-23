@@ -37,6 +37,7 @@ export function toPlace(ev: ApiEventSummary): Place {
     // keeps the value routing actually needs.
     id: hashId(ev.id),
     sourceId: ev.id,
+    startDate: ev.start_date,
     title: ev.title,
     short: ev.short,
     type: ev.type,
