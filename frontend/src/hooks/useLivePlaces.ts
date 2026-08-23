@@ -8,9 +8,10 @@
 // Screens that used `PLACES` from src/data/places can swap in `usePlaces()` and
 // otherwise stay as they are.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { Place } from "@/src/data/places";
+import { distanceKm, useUserLocation } from "@/src/hooks/useUserLocation";
 import { api } from "@/src/utils/api";
 import { toPlaces } from "@/src/utils/toPlace";
 
@@ -58,6 +59,7 @@ async function load(force = false): Promise<void> {
  */
 export function usePlaces() {
   const [state, setState] = useState<State>(cache);
+  const { coords } = useUserLocation();
 
   useEffect(() => {
     listeners.add(setState);
@@ -69,10 +71,23 @@ export function usePlaces() {
 
   const refresh = useCallback(() => load(true), []);
 
+  // Distance is filled in only once the user has shared a position. Without one
+  // the field stays undefined and the screens hide it, rather than showing a
+  // number that means nothing.
+  const places = useMemo(() => {
+    if (!state.places || !coords) return state.places;
+    return state.places.map((p) =>
+      p.lat && p.lng
+        ? { ...p, distanceKm: distanceKm(coords, { lat: p.lat, lng: p.lng }) }
+        : p,
+    );
+  }, [state.places, coords]);
+
   return {
-    places: state.places,
+    places,
     error: state.error,
     loading: state.places === null && state.error === null,
+    hasLocation: coords !== null,
     refresh,
   };
 }
