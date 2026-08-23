@@ -109,7 +109,9 @@ export default function Detail() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.locationTxt}>{place.town}, Luxembourg</Text>
                 <Text style={styles.locationSub}>
-                  {place.distanceKm.toFixed(1)} km {t("fromYou", lang)}
+                  {place.distanceKm !== undefined
+                    ? `${place.distanceKm.toFixed(1)} km ${t("fromYou", lang)}`
+                    : place.town}
                 </Text>
               </View>
               <TouchableOpacity

@@ -1,14 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AppCard } from "@/src/components/AppCard";
 import { Chip } from "@/src/components/Chip";
 import { WeatherWidget } from "@/src/components/WeatherWidget";
 import { useApp } from "@/src/contexts/AppContext";
-import { PLACES } from "@/src/data/places";
+import { usePlaces } from "@/src/hooks/useLivePlaces";
 import { t } from "@/src/i18n/strings";
 import { type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
@@ -29,24 +29,37 @@ function greetingKey(): "goodMorning" | "goodAfternoon" | "goodEvening" {
   return "goodEvening";
 }
 
+/**
+ * Where a card leads.
+ *
+ * Live records go to /event/[id], which fetches the full document by its real
+ * id. /detail/[id] looks the entry up in the hard-coded list and would come up
+ * empty for anything that came from the API.
+ */
+function detailHref(item: { id: number; sourceId?: string }): string {
+  return item.sourceId ? `/event/${item.sourceId}` : `/detail/${item.id}`;
+}
+
 export default function Home() {
   const { palette, shadow } = useAppPalette();
   const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const router = useRouter();
   const { lang, user } = useApp();
   const [chip, setChip] = useState<string>("All");
+  const { places, loading, error } = usePlaces();
 
   const featured = useMemo(() => {
-    if (chip === "All") return PLACES.slice(0, 3);
+    const all = places ?? [];
+    if (chip === "All") return all.slice(0, 3);
     if (chip === "Indoor" || chip === "Outdoor") {
-      return PLACES.filter((p) => p.type === chip).slice(0, 3);
+      return all.filter((p) => p.type === chip).slice(0, 3);
     }
     // age chip
     const [min, max] = chip.split("-").map(Number);
-    return PLACES.filter((p) => p.ageMin <= max && p.ageMax >= min).slice(0, 3);
-  }, [chip]);
+    return all.filter((p) => p.ageMin <= max && p.ageMax >= min).slice(0, 3);
+  }, [chip, places]);
 
-  const nearYou = useMemo(() => PLACES.slice(3, 6), []);
+  const nearYou = useMemo(() => (places ?? []).slice(3, 6), [places]);
   const initial = (user?.name?.[0] ?? "U").toUpperCase();
 
   return (
@@ -88,13 +101,21 @@ export default function Home() {
           ))}
         </ScrollView>
 
+        {loading ? (
+          <ActivityIndicator color={palette.primary} style={{ marginTop: 32 }} />
+        ) : error && !places?.length ? (
+          <View style={styles.feed}>
+            <Text style={styles.sub}>{t("failedToLoad", lang)}</Text>
+          </View>
+        ) : null}
+
         <View style={styles.feed}>
           {featured.map((item) => (
             <AppCard
               key={item.id}
               item={item}
               large
-              onPress={() => router.push(`/detail/${item.id}`)}
+              onPress={() => router.push(detailHref(item))}
             />
           ))}
         </View>
@@ -111,7 +132,7 @@ export default function Home() {
             <AppCard
               key={item.id}
               item={item}
-              onPress={() => router.push(`/detail/${item.id}`)}
+              onPress={() => router.push(detailHref(item))}
             />
           ))}
         </View>

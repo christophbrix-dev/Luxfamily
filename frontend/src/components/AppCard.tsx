@@ -61,12 +61,14 @@ export function AppCard({ item, large = false, onPress, testID }: Props) {
               {pickLang(item.short, lang)}
             </Text>
             <View style={styles.largeMetaRow}>
-              <View style={styles.metaPill}>
-                <Ionicons name="location-outline" size={12} color="#fff" />
-                <Text style={styles.metaPillText}>
-                  {item.distanceKm.toFixed(1)} km
-                </Text>
-              </View>
+              {item.distanceKm !== undefined ? (
+                <View style={styles.metaPill}>
+                  <Ionicons name="location-outline" size={12} color="#fff" />
+                  <Text style={styles.metaPillText}>
+                    {item.distanceKm.toFixed(1)} km
+                  </Text>
+                </View>
+              ) : null}
               <View style={styles.metaPill}>
                 <Ionicons name="people-outline" size={12} color="#fff" />
                 <Text style={styles.metaPillText}>{item.age}</Text>
@@ -92,7 +94,9 @@ export function AppCard({ item, large = false, onPress, testID }: Props) {
             <View style={styles.metaItem}>
               <Ionicons name="location-outline" size={12} color={palette.textSecondary} />
               <Text style={styles.metaText}>
-                {item.distanceKm.toFixed(1)} km · {item.town}
+                {item.distanceKm !== undefined
+                  ? `${item.distanceKm.toFixed(1)} km · ${item.town}`
+                  : item.town}
               </Text>
             </View>
             <View style={styles.metaItem}>
