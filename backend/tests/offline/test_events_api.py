@@ -226,3 +226,29 @@ def test_analytics_counts_match(app_module, client, run, admin_headers):
     assert a["drafts"] == 3
     assert a["featured"] == 3
     assert len(a["top_events"]) == 5
+
+
+def test_etag_matches_even_when_a_proxy_weakens_it(app_module, client, run):
+    """Cloudflare rewrites strong ETags to W/"..." when it re-compresses.
+
+    Clients echo back what they received, so a literal compare meant the 304
+    path never fired through the proxy — only against the container directly.
+    """
+    seed(app_module, run, count=10)
+
+    async def _go():
+        first = await client.get("/api/events")
+        tag = first.headers["ETag"]
+        weak = await client.get("/api/events", headers={"If-None-Match": f"W/{tag}"})
+        listed = await client.get(
+            "/api/events", headers={"If-None-Match": f'"other", {tag}'}
+        )
+        star = await client.get("/api/events", headers={"If-None-Match": "*"})
+        miss = await client.get("/api/events", headers={"If-None-Match": 'W/"nope"'})
+        return weak, listed, star, miss
+
+    weak, listed, star, miss = run(_go())
+    assert weak.status_code == 304, "weak form of our own ETag must still match"
+    assert listed.status_code == 304, "must match against a comma-separated list"
+    assert star.status_code == 304, "* matches anything"
+    assert miss.status_code == 200, "an unrelated tag must not match"
