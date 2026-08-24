@@ -627,9 +627,36 @@ def _collect_events(node: Any, out: List[Dict[str, Any]]) -> None:
             _collect_events(item, out)
 
 
+# Files that are not pages. Fetching one and parsing it as HTML costs a request
+# and yields nothing — an 800 KB scaled photo, in the case that prompted this.
+_NOT_A_PAGE = re.compile(
+    r"\.(jpe?g|png|gif|webp|svg|pdf|zip|mp4|mp3|ics|xml|json)(\?|$)", re.I
+)
+
+_EVENTISH_PATH = re.compile(
+    r"/(events?|agenda|manifestations?|veranstaltung(en)?|termine?)/", re.I
+)
+
+
 def _extract_event_links(html: str, *, base_url: str) -> List[str]:
-    """Fallback: pull URLs from ItemList JSON-LD or from anchor tags that
-    plausibly link to an event detail page."""
+    """URLs of individual event pages linked from a listing.
+
+    Two things used to go wrong here, and they compounded.
+
+    _collect_urls walked the JSON-LD and took `url` off *any* node. A commune
+    site describes itself with a WebSite or Organization block, so what came
+    back was the site's own address and a photo — never an event.
+
+    Worse, the anchor scan below ran only `if not urls`. That garbage counted
+    as a result, so the scan was skipped. differdange.lu lists 229 event links
+    in its markup; this function returned three, none of them an event, one a
+    JPEG. Every commune whose listing carries a self-describing JSON-LD block
+    but no Event objects — 41 of the 100 checked — looked like a site with no
+    events at all.
+
+    Now only Event nodes contribute URLs, the anchor scan runs whenever that
+    found nothing, and anything that is not a page is dropped.
+    """
     soup = BeautifulSoup(html, "lxml")
     urls: List[str] = []
     for tag in soup.find_all("script", attrs={"type": "application/ld+json"}):
@@ -637,24 +664,66 @@ def _extract_event_links(html: str, *, base_url: str) -> List[str]:
             data = json.loads(tag.string or tag.get_text() or "")
         except Exception:
             continue
-        _collect_urls(data, urls)
-    # Also try anchor tags with event-ish paths.
+        _collect_event_urls(data, urls)
+
     if not urls:
         for a in soup.find_all("a", href=True):
             href = a["href"]
-            if any(seg in href.lower() for seg in ("/event", "/agenda", "/manifestation", "/veranstaltung")):
+            if _EVENTISH_PATH.search(href):
                 urls.append(_abs_url(base_url, href))
-    # Dedup, keep order
-    seen = set()
-    unique = []
+
+    # The listing links to itself, to its own translations, and to the site
+    # root. Fetching those re-parses the page we already have.
+    base = base_url.rstrip("/")
+    seen, unique = set(), []
     for u in urls:
-        if u and u not in seen:
-            seen.add(u)
-            unique.append(u)
+        if not u or u in seen or _NOT_A_PAGE.search(u):
+            continue
+        if u.rstrip("/") == base:
+            continue
+        seen.add(u)
+        unique.append(u)
+
+    # A single event first, listing pages last. The caller follows at most
+    # twenty of these, and /de/agenda/ is the page we are standing on in
+    # another language — spending the budget on those means never reaching an
+    # actual event. Ordering rather than dropping: on a site whose listing is
+    # paginated the second page is worth having once the events are exhausted.
+    unique.sort(key=lambda u: 0 if _has_slug_after_section(u) else 1)
     return unique
 
 
+def _has_slug_after_section(url: str) -> bool:
+    """True for /events/spillfest-2026/, false for /events/ and /de/agenda/."""
+    m = _EVENTISH_PATH.search(url)
+    return bool(m) and len(url[m.end():].strip("/")) > 0
+
+
+def _collect_event_urls(node: Any, out: List[str]) -> None:
+    """URLs of Event nodes only — not of whatever else the page describes."""
+    if isinstance(node, dict):
+        node_type = node.get("@type") or node.get("type")
+        types = [node_type] if isinstance(node_type, str) else (node_type or [])
+        if any(t and "Event" in t for t in types):
+            url = node.get("url") or node.get("@id")
+            if isinstance(url, str) and url.startswith("http"):
+                out.append(url)
+        for key in ("@graph", "itemListElement", "item", "subEvent"):
+            if key in node:
+                _collect_event_urls(node[key], out)
+    elif isinstance(node, list):
+        for item in node:
+            _collect_event_urls(item, out)
+
+
 def _collect_urls(node: Any, out: List[str]) -> None:
+    """Every `url` in a JSON-LD tree, whatever describes it.
+
+    Kept for probe_sources.py, which reports what a site publishes and wants
+    the lot. Do not use this to decide what to crawl — that is
+    _collect_event_urls, which takes URLs off Event nodes only. Using this one
+    is what made a commune's own homepage and a photo look like events.
+    """
     if isinstance(node, dict):
         url = node.get("url")
         if isinstance(url, str) and url.startswith("http"):
