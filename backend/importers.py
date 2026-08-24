@@ -17,6 +17,7 @@ sensible defaults; rows are deduplicated via (source_id, external_id).
 """
 
 import asyncio
+import html as html_lib
 import json
 import logging
 import os
@@ -572,6 +573,27 @@ async def _import_json_ld(source: Dict[str, Any], db) -> Tuple[int, int]:
     return inserted, skipped
 
 
+def _unescape_deep(node: Any) -> Any:
+    """Decode HTML entities in every string of a parsed JSON-LD node.
+
+    WordPress — which is what the Luxembourg commune sites run — leaves the
+    entities in place inside its JSON-LD, so a title arrives as
+    "Fit &#038; Fun &#8211; Zumba". JSON parsing does not touch those: they are
+    HTML escapes, not JSON ones. Left alone they reach the database and the
+    card in that state.
+
+    The scraped importers never needed this because BeautifulSoup decodes text
+    on the way out. Only the JSON-LD path hands us raw markup entities.
+    """
+    if isinstance(node, str):
+        return html_lib.unescape(node)
+    if isinstance(node, list):
+        return [_unescape_deep(v) for v in node]
+    if isinstance(node, dict):
+        return {k: _unescape_deep(v) for k, v in node.items()}
+    return node
+
+
 def _extract_jsonld_events(html: str, *, base_url: str) -> List[Dict[str, Any]]:
     """Parse all <script type=application/ld+json> blocks and yield Event objects."""
     soup = BeautifulSoup(html, "lxml")
@@ -585,7 +607,7 @@ def _extract_jsonld_events(html: str, *, base_url: str) -> List[Dict[str, Any]]:
         except (json.JSONDecodeError, ValueError):
             continue
         _collect_events(data, out)
-    return out
+    return [_unescape_deep(ev) for ev in out]
 
 
 def _collect_events(node: Any, out: List[Dict[str, Any]]) -> None:
