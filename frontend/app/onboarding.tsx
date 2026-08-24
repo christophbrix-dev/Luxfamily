@@ -273,7 +273,8 @@ export default function OnboardingScreen() {
           <View>
             <Text style={styles.h1}>{pickLang(ONBOARDING_COPY.interestsTitle, lang)}</Text>
             <Text style={styles.subtitle}>
-              {pickLang(ONBOARDING_COPY.interestsSub, lang)} · {interests.length} selected
+              {pickLang(ONBOARDING_COPY.interestsSub, lang)} · {interests.length}{" "}
+                {pickLang(ONBOARDING_COPY.selected, lang)}
             </Text>
             <View style={styles.chipsWrap}>
               {INTEREST_TAGS.map((t) => {
@@ -335,7 +336,8 @@ export default function OnboardingScreen() {
           <View>
             <Text style={styles.h1}>{pickLang(ONBOARDING_COPY.cantonsTitle, lang)}</Text>
             <Text style={styles.subtitle}>
-              {pickLang(ONBOARDING_COPY.cantonsSub, lang)} · {preferredCantons.length} selected
+              {pickLang(ONBOARDING_COPY.cantonsSub, lang)} · {preferredCantons.length}{" "}
+                {pickLang(ONBOARDING_COPY.selected, lang)}
             </Text>
             <View style={styles.chipsWrap}>
               {CANTON_OPTIONS.map((c) => {
@@ -419,7 +421,10 @@ export default function OnboardingScreen() {
               )}
               <SummaryRow
                 icon="pricetag-outline"
-                label={`${interests.length} interest${interests.length === 1 ? "" : "s"}`}
+                label={`${interests.length} ${pickLang(
+                    interests.length === 1 ? ONBOARDING_COPY.interestOne : ONBOARDING_COPY.interestMany,
+                    lang,
+                  )}`}
               />
               {needs.length > 0 && (
                 <SummaryRow
