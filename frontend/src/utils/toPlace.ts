@@ -11,9 +11,22 @@
 // a card never showed them anyway.
 
 import type { Canton, LocalizedString, Place } from "@/src/data/places";
-import type { ApiEventSummary } from "@/src/utils/api";
+import type { ApiEventSummary, LocalizedString as ApiLocalizedString } from "@/src/utils/api";
 
-const EMPTY: LocalizedString = { en: "", de: "", fr: "" };
+const EMPTY: LocalizedString = { en: "", de: "", fr: "", lb: "" };
+
+/**
+ * Guarantee a Luxembourgish field on text that came from the API.
+ *
+ * Our own texts all carry `lb` — the type enforces it. API events cannot: they
+ * are crawled from sources that publish in French or German, and inventing a
+ * Luxembourgish title for them would be worse than showing the German one.
+ * So the gap is closed here, with the same fallback pickLang() has always
+ * used: lb, then de, then en.
+ */
+function withLb(s: ApiLocalizedString): LocalizedString {
+  return { ...s, lb: s.lb || s.de || s.en || "" };
+}
 
 /** "2-10", or "Alle Altersgruppen" when the range covers everything. */
 function ageLabel(min: number, max: number): string {
@@ -38,8 +51,8 @@ export function toPlace(ev: ApiEventSummary): Place {
     id: hashId(ev.id),
     sourceId: ev.id,
     startDate: ev.start_date,
-    title: ev.title,
-    short: ev.short,
+    title: withLb(ev.title),
+    short: withLb(ev.short),
     type: ev.type,
     age: ageLabel(ev.age_min, ev.age_max),
     ageMin: ev.age_min,
