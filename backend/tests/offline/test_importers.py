@@ -170,3 +170,42 @@ def test_run_all_returns_immediately(app_module, client, run, admin_headers):
     r = run(client.post("/api/admin/sources/run-all", headers=admin_headers))
     assert r.status_code == 202
     assert r.json()["status"] == "started"
+
+
+# --- JSON-LD text decoding -------------------------------------------------
+# WordPress leaves HTML entities inside its JSON-LD, and JSON parsing does not
+# touch them because they are HTML escapes, not JSON ones. Every Luxembourg
+# commune site runs WordPress, so this decides whether 40 sources deliver
+# "Fit & Fun – Zumba" or "Fit &#038; Fun &#8211; Zumba".
+
+WP_PAGE = """
+<html><head>
+<script type="application/ld+json">
+{"@type": "Event",
+ "name": "Fit &#038; Fun &#8211; Zumba",
+ "startDate": "2026-08-29",
+ "description": "M&#8217;ir spillen &amp; sangen",
+ "location": {"@type": "Place", "name": "Caf&eacute; N&#176;5"}}
+</script>
+</head><body></body></html>
+"""
+
+
+def test_jsonld_entities_are_decoded(importers):
+    ev = importers._extract_jsonld_events(WP_PAGE, base_url="https://example.invalid/")[0]
+    assert ev["name"] == "Fit & Fun – Zumba"
+    assert ev["description"] == "M’ir spillen & sangen"
+    # Nested objects too — the venue name is what the card shows as location.
+    assert ev["location"]["name"] == "Café N°5"
+
+
+def test_jsonld_decoding_leaves_ordinary_text_alone(importers):
+    page = WP_PAGE.replace("Fit &#038; Fun &#8211; Zumba", "Journée des cultures")
+    ev = importers._extract_jsonld_events(page, base_url="https://example.invalid/")[0]
+    assert ev["name"] == "Journée des cultures"
+
+
+def test_unescape_deep_keeps_non_strings_intact(importers):
+    node = {"n": 3, "ok": True, "none": None, "list": [1, "a &amp; b"]}
+    out = importers._unescape_deep(node)
+    assert out == {"n": 3, "ok": True, "none": None, "list": [1, "a & b"]}

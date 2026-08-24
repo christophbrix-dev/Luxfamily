@@ -1,0 +1,1026 @@
+[
+ {
+  "names": [
+   "An der Fiels",
+   "Fels",
+   "Larochette"
+  ],
+  "website": "",
+  "lng": 6.205364,
+  "lat": 49.777993,
+  "canton": "Mersch"
+ },
+ {
+  "names": [
+   "Bad Mondorf",
+   "Mondorf-les-Bains",
+   "Munneref"
+  ],
+  "website": "",
+  "lng": 6.282001,
+  "lat": 49.515627,
+  "canton": "Remich"
+ },
+ {
+  "names": [
+   "Bartreng",
+   "Bartringen",
+   "Bertrange"
+  ],
+  "website": "",
+  "lng": 6.043283,
+  "lat": 49.60165,
+  "canton": "Luxembourg"
+ },
+ {
+  "names": [
+   "Bauschelt",
+   "Bauschleiden",
+   "Boulaide"
+  ],
+  "website": "",
+  "lng": 5.803239,
+  "lat": 49.8979,
+  "canton": "Wiltz"
+ },
+ {
+  "names": [
+   "Beaufort",
+   "Befort"
+  ],
+  "website": "",
+  "lng": 6.298435,
+  "lat": 49.83318,
+  "canton": "Echternach"
+ },
+ {
+  "names": [
+   "Bech"
+  ],
+  "website": "",
+  "lng": 6.332896,
+  "lat": 49.749566,
+  "canton": "Echternach"
+ },
+ {
+  "names": [
+   "Beckerich",
+   "Biekerech"
+  ],
+  "website": "",
+  "lng": 5.902104,
+  "lat": 49.732279,
+  "canton": "Redange"
+ },
+ {
+  "names": [
+   "Beetebuerg",
+   "Bettembourg",
+   "Bettemburg"
+  ],
+  "website": "",
+  "lng": 6.081789,
+  "lat": 49.526155,
+  "canton": "Esch-sur-Alzette"
+ },
+ {
+  "names": [
+   "Berdorf",
+   "Bäerdref"
+  ],
+  "website": "",
+  "lng": 6.346878,
+  "lat": 49.814021,
+  "canton": "Echternach"
+ },
+ {
+  "names": [
+   "Bettendorf",
+   "Bettenduerf"
+  ],
+  "website": "",
+  "lng": 6.205902,
+  "lat": 49.858615,
+  "canton": "Diekirch"
+ },
+ {
+  "names": [
+   "Betzder",
+   "Betzdorf"
+  ],
+  "website": "",
+  "lng": 6.323477,
+  "lat": 49.679206,
+  "canton": "Grevenmacher"
+ },
+ {
+  "names": [
+   "Biissen",
+   "Bissen"
+  ],
+  "website": "",
+  "lng": 6.053714,
+  "lat": 49.782977,
+  "canton": "Mersch"
+ },
+ {
+  "names": [
+   "Biwer"
+  ],
+  "website": "",
+  "lng": 6.350768,
+  "lat": 49.703898,
+  "canton": "Grevenmacher"
+ },
+ {
+  "names": [
+   "Bourscheid",
+   "Buerschent",
+   "Burscheid"
+  ],
+  "website": "",
+  "lng": 6.065265,
+  "lat": 49.908847,
+  "canton": "Diekirch"
+ },
+ {
+  "names": [
+   "Bous-Waldbredimus",
+   "Bous-Waldbriedemes"
+  ],
+  "website": "",
+  "lng": 6.308934,
+  "lat": 49.557475,
+  "canton": "Remich"
+ },
+ {
+  "names": [
+   "Briedemes",
+   "Stadtbredimus"
+  ],
+  "website": "",
+  "lng": 6.353785,
+  "lat": 49.573776,
+  "canton": "Remich"
+ },
+ {
+  "names": [
+   "Clerf",
+   "Clervaux",
+   "Klierf"
+  ],
+  "website": "",
+  "lng": 6.06154,
+  "lat": 50.070046,
+  "canton": "Clervaux"
+ },
+ {
+  "names": [
+   "Colmar-Berg",
+   "Colmer-Bierg"
+  ],
+  "website": "https://www.colmar-berg.lu/",
+  "lng": 6.085019,
+  "lat": 49.80674,
+  "canton": "Mersch"
+ },
+ {
+  "names": [
+   "Consdorf",
+   "Konsdref"
+  ],
+  "website": "",
+  "lng": 6.323203,
+  "lat": 49.775978,
+  "canton": "Echternach"
+ },
+ {
+  "names": [
+   "Conter",
+   "Contern"
+  ],
+  "website": "",
+  "lng": 6.243545,
+  "lat": 49.589718,
+  "canton": "Luxembourg"
+ },
+ {
+  "names": [
+   "Dalheim",
+   "Duelem"
+  ],
+  "website": "",
+  "lng": 6.266961,
+  "lat": 49.541714,
+  "canton": "Remich"
+ },
+ {
+  "names": [
+   "Diddeleng",
+   "Dudelange",
+   "Düdelingen"
+  ],
+  "website": "",
+  "lng": 6.085867,
+  "lat": 49.480905,
+  "canton": "Esch-sur-Alzette"
+ },
+ {
+  "names": [
+   "Diekirch",
+   "Dikrech"
+  ],
+  "website": "",
+  "lng": 6.149263,
+  "lat": 49.867292,
+  "canton": "Diekirch"
+ },
+ {
+  "names": [
+   "Differdange",
+   "Differdingen",
+   "Déifferdeng"
+  ],
+  "website": "",
+  "lng": 5.872209,
+  "lat": 49.521554,
+  "canton": "Esch-sur-Alzette"
+ },
+ {
+  "names": [
+   "Dippach",
+   "Dippech"
+  ],
+  "website": "",
+  "lng": 5.974923,
+  "lat": 49.585194,
+  "canton": "Capellen"
+ },
+ {
+  "names": [
+   "Echternach",
+   "Iechternach"
+  ],
+  "website": "",
+  "lng": 6.413424,
+  "lat": 49.802881,
+  "canton": "Echternach"
+ },
+ {
+  "names": [
+   "Ell"
+  ],
+  "website": "",
+  "lng": 5.829711,
+  "lat": 49.782347,
+  "canton": "Redange"
+ },
+ {
+  "names": [
+   "Ernztalgemeinde",
+   "Vallée de l'Ernz",
+   "Ärenzdallgemeng"
+  ],
+  "website": "",
+  "lng": 6.213082,
+  "lat": 49.834273,
+  "canton": "Diekirch"
+ },
+ {
+  "names": [
+   "Erpeldange-sur-Sûre",
+   "Erpeldingen an der Sauer",
+   "Ierpeldeng op der Sauer"
+  ],
+  "website": "",
+  "lng": 6.111708,
+  "lat": 49.86992,
+  "canton": "Diekirch"
+ },
+ {
+  "names": [
+   "Esch an der Alzette",
+   "Esch-Uelzecht",
+   "Esch-sur-Alzette"
+  ],
+  "website": "",
+  "lng": 5.979536,
+  "lat": 49.495892,
+  "canton": "Esch-sur-Alzette"
+ },
+ {
+  "names": [
+   "Esch an der Sauer",
+   "Esch-Sauer",
+   "Esch-sur-Sûre"
+  ],
+  "website": "",
+  "lng": 5.940941,
+  "lat": 49.885792,
+  "canton": "Wiltz"
+ },
+ {
+  "names": [
+   "Ettelbruck",
+   "Ettelbréck",
+   "Ettelbrück"
+  ],
+  "website": "",
+  "lng": 6.077971,
+  "lat": 49.851149,
+  "canton": "Diekirch"
+ },
+ {
+  "names": [
+   "Feelen",
+   "Feulen"
+  ],
+  "website": "",
+  "lng": 6.028478,
+  "lat": 49.862982,
+  "canton": "Diekirch"
+ },
+ {
+  "names": [
+   "Fischbach",
+   "Fëschbech"
+  ],
+  "website": "",
+  "lng": 6.180824,
+  "lat": 49.748903,
+  "canton": "Mersch"
+ },
+ {
+  "names": [
+   "Flaxweiler",
+   "Fluessweiler"
+  ],
+  "website": "",
+  "lng": 6.364221,
+  "lat": 49.644992,
+  "canton": "Grevenmacher"
+ },
+ {
+  "names": [
+   "Frisange",
+   "Frisingen",
+   "Fréiseng"
+  ],
+  "website": "",
+  "lng": 6.188289,
+  "lat": 49.519664,
+  "canton": "Esch-sur-Alzette"
+ },
+ {
+  "names": [
+   "Garnech",
+   "Garnich"
+  ],
+  "website": "",
+  "lng": 5.940109,
+  "lat": 49.614851,
+  "canton": "Capellen"
+ },
+ {
+  "names": [
+   "Goesdorf",
+   "Géisdref"
+  ],
+  "website": "",
+  "lng": 5.970435,
+  "lat": 49.939504,
+  "canton": "Wiltz"
+ },
+ {
+  "names": [
+   "Grevenmacher",
+   "Gréiwemaacher"
+  ],
+  "website": "",
+  "lng": 6.418355,
+  "lat": 49.673899,
+  "canton": "Grevenmacher"
+ },
+ {
+  "names": [
+   "Grosbous-Wahl",
+   "Grosbus-Wahl",
+   "Groussbus-Wal"
+  ],
+  "website": "",
+  "lng": 5.925648,
+  "lat": 49.846703,
+  "canton": "Redange"
+ },
+ {
+  "names": [
+   "Habscht"
+  ],
+  "website": "",
+  "lng": 5.949258,
+  "lat": 49.692546,
+  "canton": "Capellen"
+ },
+ {
+  "names": [
+   "Heffingen",
+   "Hiefenech"
+  ],
+  "website": "",
+  "lng": 6.248606,
+  "lat": 49.766534,
+  "canton": "Mersch"
+ },
+ {
+  "names": [
+   "Helperknapp"
+  ],
+  "website": "",
+  "lng": 6.03358,
+  "lat": 49.739075,
+  "canton": "Mersch"
+ },
+ {
+  "names": [
+   "Hesper",
+   "Hesperange",
+   "Hesperingen"
+  ],
+  "website": "",
+  "lng": 6.166335,
+  "lat": 49.577906,
+  "canton": "Luxembourg"
+ },
+ {
+  "names": [
+   "Jonglënster",
+   "Junglinster"
+  ],
+  "website": "",
+  "lng": 6.264602,
+  "lat": 49.707309,
+  "canton": "Grevenmacher"
+ },
+ {
+  "names": [
+   "Kayl",
+   "Keel"
+  ],
+  "website": "",
+  "lng": 6.03253,
+  "lat": 49.480836,
+  "canton": "Esch-sur-Alzette"
+ },
+ {
+  "names": [
+   "Kehlen",
+   "Kielen"
+  ],
+  "website": "",
+  "lng": 6.035547,
+  "lat": 49.6759,
+  "canton": "Capellen"
+ },
+ {
+  "names": [
+   "Kiischpelt"
+  ],
+  "website": "",
+  "lng": 6.009439,
+  "lat": 49.980019,
+  "canton": "Wiltz"
+ },
+ {
+  "names": [
+   "Koerich",
+   "Käerch"
+  ],
+  "website": "",
+  "lng": 5.96109,
+  "lat": 49.674042,
+  "canton": "Capellen"
+ },
+ {
+  "names": [
+   "Koplescht",
+   "Kopstal"
+  ],
+  "website": "",
+  "lng": 6.077445,
+  "lat": 49.665885,
+  "canton": "Capellen"
+ },
+ {
+  "names": [
+   "Käerjeng"
+  ],
+  "website": "",
+  "lng": 5.899963,
+  "lat": 49.585977,
+  "canton": "Capellen"
+ },
+ {
+  "names": [
+   "Lac de la Haute-Sûre",
+   "Stauseegemeinde",
+   "Stauséigemeng"
+  ],
+  "website": "",
+  "lng": 5.859029,
+  "lat": 49.931728,
+  "canton": "Wiltz"
+ },
+ {
+  "names": [
+   "Leideleng",
+   "Leudelange",
+   "Leudelingen"
+  ],
+  "website": "",
+  "lng": 6.068556,
+  "lat": 49.562548,
+  "canton": "Esch-sur-Alzette"
+ },
+ {
+  "names": [
+   "Lenneng",
+   "Lenningen"
+  ],
+  "website": "",
+  "lng": 6.342887,
+  "lat": 49.603033,
+  "canton": "Remich"
+ },
+ {
+  "names": [
+   "Lintgen",
+   "Lëntgen"
+  ],
+  "website": "",
+  "lng": 6.133974,
+  "lat": 49.72411,
+  "canton": "Mersch"
+ },
+ {
+  "names": [
+   "Lorentzweiler",
+   "Luerenzweiler"
+  ],
+  "website": "",
+  "lng": 6.141475,
+  "lat": 49.699307,
+  "canton": "Mersch"
+ },
+ {
+  "names": [
+   "Luxembourg",
+   "Luxemburg",
+   "Lëtzebuerg"
+  ],
+  "website": "",
+  "lng": 6.128356,
+  "lat": 49.609887,
+  "canton": "Luxembourg"
+ },
+ {
+  "names": [
+   "Mamer"
+  ],
+  "website": "",
+  "lng": 6.011945,
+  "lat": 49.635151,
+  "canton": "Capellen"
+ },
+ {
+  "names": [
+   "Manternach"
+  ],
+  "website": "",
+  "lng": 6.417596,
+  "lat": 49.724264,
+  "canton": "Grevenmacher"
+ },
+ {
+  "names": [
+   "Mersch",
+   "Miersch"
+  ],
+  "website": "",
+  "lng": 6.081702,
+  "lat": 49.744109,
+  "canton": "Mersch"
+ },
+ {
+  "names": [
+   "Mertert",
+   "Mäertert"
+  ],
+  "website": "",
+  "lng": 6.474647,
+  "lat": 49.720852,
+  "canton": "Grevenmacher"
+ },
+ {
+  "names": [
+   "Mertzig",
+   "Mäerzeg"
+  ],
+  "website": "",
+  "lng": 6.001463,
+  "lat": 49.835693,
+  "canton": "Diekirch"
+ },
+ {
+  "names": [
+   "Mondercange",
+   "Monnerech",
+   "Monnerich"
+  ],
+  "website": "",
+  "lng": 6.000366,
+  "lat": 49.529844,
+  "canton": "Esch-sur-Alzette"
+ },
+ {
+  "names": [
+   "Nidderanven",
+   "Niederanven",
+   "Niederanwen"
+  ],
+  "website": "",
+  "lng": 6.238602,
+  "lat": 49.650921,
+  "canton": "Luxembourg"
+ },
+ {
+  "names": [
+   "Nommern",
+   "Noumer"
+  ],
+  "website": "",
+  "lng": 6.143286,
+  "lat": 49.800063,
+  "canton": "Mersch"
+ },
+ {
+  "names": [
+   "Parc Hosingen",
+   "Parc Housen",
+   "Park Hosingen"
+  ],
+  "website": "",
+  "lng": 6.085798,
+  "lat": 49.989509,
+  "canton": "Clervaux"
+ },
+ {
+  "names": [
+   "Petingen",
+   "Péiteng",
+   "Pétange"
+  ],
+  "website": "",
+  "lng": 5.856816,
+  "lat": 49.549461,
+  "canton": "Esch-sur-Alzette"
+ },
+ {
+  "names": [
+   "Préizerdaul"
+  ],
+  "website": "",
+  "lng": 5.929167,
+  "lat": 49.805805,
+  "canton": "Redange"
+ },
+ {
+  "names": [
+   "Putscheid",
+   "Pëtscht",
+   "Pütscheid"
+  ],
+  "website": "",
+  "lng": 6.125759,
+  "lat": 49.956107,
+  "canton": "Vianden"
+ },
+ {
+  "names": [
+   "Rambrouch",
+   "Rambruch",
+   "Rammerech"
+  ],
+  "website": "",
+  "lng": 5.829259,
+  "lat": 49.833372,
+  "canton": "Redange"
+ },
+ {
+  "names": [
+   "Reckange-sur-Mess",
+   "Recken op der Mess",
+   "Reckingen/Mess"
+  ],
+  "website": "",
+  "lng": 6.008696,
+  "lat": 49.560749,
+  "canton": "Esch-sur-Alzette"
+ },
+ {
+  "names": [
+   "Redange-sur-Attert",
+   "Redingen-am-Attert",
+   "Réiden op der Atert"
+  ],
+  "website": "",
+  "lng": 5.881683,
+  "lat": 49.78028,
+  "canton": "Redange"
+ },
+ {
+  "names": [
+   "Reisdorf",
+   "Reisduerf"
+  ],
+  "website": "",
+  "lng": 6.268527,
+  "lat": 49.866784,
+  "canton": "Diekirch"
+ },
+ {
+  "names": [
+   "Remich",
+   "Réimech"
+  ],
+  "website": "",
+  "lng": 6.359163,
+  "lat": 49.550212,
+  "canton": "Remich"
+ },
+ {
+  "names": [
+   "Roeser",
+   "Réiser"
+  ],
+  "website": "",
+  "lng": 6.131474,
+  "lat": 49.533506,
+  "canton": "Esch-sur-Alzette"
+ },
+ {
+  "names": [
+   "Rosport-Mompach",
+   "Rouspert-Mompech"
+  ],
+  "website": "",
+  "lng": 6.46442,
+  "lat": 49.771873,
+  "canton": "Echternach"
+ },
+ {
+  "names": [
+   "Rumelange",
+   "Rëmeleng",
+   "Rümelingen"
+  ],
+  "website": "",
+  "lng": 6.017107,
+  "lat": 49.4638,
+  "canton": "Esch-sur-Alzette"
+ },
+ {
+  "names": [
+   "Saeul",
+   "Sëll"
+  ],
+  "website": "",
+  "lng": 5.963381,
+  "lat": 49.729232,
+  "canton": "Redange"
+ },
+ {
+  "names": [
+   "Sandweiler"
+  ],
+  "website": "",
+  "lng": 6.218223,
+  "lat": 49.616746,
+  "canton": "Luxembourg"
+ },
+ {
+  "names": [
+   "Sanem",
+   "Sassenheim",
+   "Suessem"
+  ],
+  "website": "",
+  "lng": 5.942719,
+  "lat": 49.528899,
+  "canton": "Esch-sur-Alzette"
+ },
+ {
+  "names": [
+   "Schengen"
+  ],
+  "website": "",
+  "lng": 6.32701,
+  "lat": 49.501804,
+  "canton": "Remich"
+ },
+ {
+  "names": [
+   "Schieren"
+  ],
+  "website": "",
+  "lng": 6.112581,
+  "lat": 49.82775,
+  "canton": "Diekirch"
+ },
+ {
+  "names": [
+   "Schifflange",
+   "Schifflingen",
+   "Schëffleng"
+  ],
+  "website": "",
+  "lng": 6.012806,
+  "lat": 49.507048,
+  "canton": "Esch-sur-Alzette"
+ },
+ {
+  "names": [
+   "Schuttrange",
+   "Schëtter",
+   "Schüttringen"
+  ],
+  "website": "",
+  "lng": 6.265857,
+  "lat": 49.626866,
+  "canton": "Luxembourg"
+ },
+ {
+  "names": [
+   "Steesel",
+   "Steinsel"
+  ],
+  "website": "",
+  "lng": 6.14161,
+  "lat": 49.674559,
+  "canton": "Luxembourg"
+ },
+ {
+  "names": [
+   "Steinfort",
+   "Stengefort"
+  ],
+  "website": "",
+  "lng": 5.913075,
+  "lat": 49.651202,
+  "canton": "Capellen"
+ },
+ {
+  "names": [
+   "Strassen",
+   "Stroossen"
+  ],
+  "website": "",
+  "lng": 6.070468,
+  "lat": 49.629894,
+  "canton": "Luxembourg"
+ },
+ {
+  "names": [
+   "Tandel"
+  ],
+  "website": "",
+  "lng": 6.164315,
+  "lat": 49.911224,
+  "canton": "Vianden"
+ },
+ {
+  "names": [
+   "Troisvierges",
+   "Ulflingen",
+   "Ëlwen"
+  ],
+  "website": "",
+  "lng": 6.006499,
+  "lat": 50.13778,
+  "canton": "Clervaux"
+ },
+ {
+  "names": [
+   "Useldange",
+   "Useldeng",
+   "Useldingen"
+  ],
+  "website": "",
+  "lng": 5.95996,
+  "lat": 49.765049,
+  "canton": "Redange"
+ },
+ {
+  "names": [
+   "Veianen",
+   "Vianden"
+  ],
+  "website": "",
+  "lng": 6.190185,
+  "lat": 49.936589,
+  "canton": "Vianden"
+ },
+ {
+  "names": [
+   "Vichten",
+   "Viichten"
+  ],
+  "website": "",
+  "lng": 6.002704,
+  "lat": 49.809897,
+  "canton": "Redange"
+ },
+ {
+  "names": [
+   "Waldbillig",
+   "Waldbëlleg"
+  ],
+  "website": "",
+  "lng": 6.28763,
+  "lat": 49.799283,
+  "canton": "Echternach"
+ },
+ {
+  "names": [
+   "Walfer",
+   "Walferdange",
+   "Walferdingen"
+  ],
+  "website": "",
+  "lng": 6.133597,
+  "lat": 49.658067,
+  "canton": "Luxembourg"
+ },
+ {
+  "names": [
+   "Wanseler",
+   "Winseler"
+  ],
+  "website": "",
+  "lng": 5.865075,
+  "lat": 49.97148,
+  "canton": "Wiltz"
+ },
+ {
+  "names": [
+   "Weiler zum Tuer",
+   "Weiler zum Turm",
+   "Weiler-la-Tour"
+  ],
+  "website": "",
+  "lng": 6.202197,
+  "lat": 49.546796,
+  "canton": "Luxembourg"
+ },
+ {
+  "names": [
+   "Weiswampach",
+   "Wäiswampech"
+  ],
+  "website": "",
+  "lng": 6.068177,
+  "lat": 50.137216,
+  "canton": "Clervaux"
+ },
+ {
+  "names": [
+   "Wiltz",
+   "Wolz"
+  ],
+  "website": "",
+  "lng": 5.937848,
+  "lat": 49.981097,
+  "canton": "Wiltz"
+ },
+ {
+  "names": [
+   "Wincrange",
+   "Wintger",
+   "Wëntger"
+  ],
+  "website": "",
+  "lng": 5.930525,
+  "lat": 50.047965,
+  "canton": "Clervaux"
+ },
+ {
+  "names": [
+   "Wormeldange",
+   "Wormeldingen",
+   "Wuermeldeng"
+  ],
+  "website": "",
+  "lng": 6.392456,
+  "lat": 49.62597,
+  "canton": "Grevenmacher"
+ }
+]
