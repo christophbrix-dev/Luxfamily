@@ -94,3 +94,6 @@ credentials.json
 # The examples are the exception: variable names only, never values.
 !.env.example
 !**/.env.example
+
+# Arbeitsmaterial, kein Teil der App
+EMERGENT_PROMPT.md

@@ -31,6 +31,7 @@ from bs4 import BeautifulSoup
 from dateutil import parser as dateutil_parser
 from icalendar import Calendar
 
+from town_names import canonical_town
 from crawler_utils import RobotsBlocked, polite_get
 
 logger = logging.getLogger("lux-backend.importers")
@@ -111,7 +112,7 @@ def _build_event_doc(
         "description": _default_localized(description),
         "type": "Event",
         "canton": source.get("canton_default") or "Luxembourg",
-        "town": town or source.get("town_default") or "Luxembourg",
+        "town": canonical_town(town or source.get("town_default") or "Luxembourg"),
         "category": source.get("category_default") or ["Culture"],
         "age_min": source.get("age_min_default", 0),
         "age_max": source.get("age_max_default", 99),
@@ -230,7 +231,7 @@ async def _import_ical(source: Dict[str, Any], db) -> Tuple[int, int]:
             start_date=start_iso,
             end_date=end_iso,
             time_str=time_str,
-            town=location or source.get("town_default") or "Luxembourg",
+            town=canonical_town(location or source.get("town_default") or "Luxembourg"),
             lat=lat,
             lng=lng,
             image=source.get("image_default", ""),
@@ -311,7 +312,7 @@ async def _import_data_public_lu(source: Dict[str, Any], db) -> Tuple[int, int]:
             start_date=start_iso,
             end_date=end_iso,
             time_str=str(time_str),
-            town=str(town),
+            town=canonical_town(str(town)),
             lat=lat,
             lng=lng,
             image=str(image) if image else "",
@@ -436,7 +437,7 @@ async def _import_html_scraper(source: Dict[str, Any], db) -> Tuple[int, int]:
             start_date=start_iso,
             end_date=None,
             time_str="",
-            town=town,
+            town=canonical_town(town),
             lat=float(source.get("lat_default", 49.6116)),
             lng=float(source.get("lng_default", 6.1319)),
             image=image,
@@ -561,7 +562,7 @@ async def _import_json_ld(source: Dict[str, Any], db) -> Tuple[int, int]:
             start_date=start_iso,
             end_date=end_iso,
             time_str=time_str,
-            town=str(town),
+            town=canonical_town(str(town)),
             lat=lat,
             lng=lng,
             image=image,
@@ -848,7 +849,7 @@ async def _import_sitemap(source: Dict[str, Any], db) -> Tuple[int, int]:
                 start_date=start_iso,
                 end_date=end_iso,
                 time_str=time_str,
-                town=str(town),
+                town=canonical_town(str(town)),
                 lat=lat,
                 lng=lng,
                 image=image,

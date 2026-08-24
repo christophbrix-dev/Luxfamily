@@ -106,11 +106,11 @@ def events_url(website: str, example: str) -> str:
 def build_source(row: Dict[str, str], commune: Dict) -> Dict:
     host = urlparse(row["Website"] or row["Beispiel-URL"]).netloc
     return {
-        "name": f"{commune['names'][0]} (Gemeng) — Events",
+        "name": f"{commune['name']} (Gemeng) — Events",
         "kind": "json_ld",
         "url": events_url(row["Website"], row["Beispiel-URL"]),
         "canton_default": commune["canton"],
-        "town_default": commune["names"][0],
+        "town_default": commune["name"],
         "category_default": DEFAULT_CATEGORIES,
         "age_min_default": 0,
         "age_max_default": 99,

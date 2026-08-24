@@ -151,6 +151,18 @@ class _BoundaryHandler(osmium.SimpleHandler):
             return
         pts = [p for ring in rings for p in ring]
         self.communes.append({
+            # The name to *show*. OSM's plain `name` is the official French
+            # form for Luxembourg communes — Pétange, Rumelange — which is what
+            # stands on the road signs. Picking names[0] instead, as this used
+            # to, returns whatever sorts first alphabetically: "Petingen", a
+            # German exonym nobody in Pétange uses.
+            "name": tags.get("name", "").strip() or sorted(names)[0],
+            # Per language, so the town can be shown in the user's own one
+            # later without rebuilding this file.
+            "name_lb": tags.get("name:lb", "").strip(),
+            "name_fr": tags.get("name:fr", "").strip(),
+            "name_de": tags.get("name:de", "").strip(),
+            # Every spelling, for matching a commune named in some other source.
             "names": sorted(names),
             "website": (tags.get("website") or tags.get("contact:website") or "").strip(),
             # Centroid of the boundary vertices — good enough to sit inside the
@@ -180,11 +192,11 @@ def main() -> int:
     for c in handler.communes:
         canton = canton_for(c["lng"], c["lat"], handler.cantons)
         if not canton:
-            unplaced.append(c["names"][0])
+            unplaced.append(c["name"])
             continue
         out.append({**c, "canton": canton})
 
-    out.sort(key=lambda c: c["names"][0])
+    out.sort(key=lambda c: c["name"])
     OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
     logger.info("Wrote %d communes to %s", len(out), OUT.name)
     if unplaced:
