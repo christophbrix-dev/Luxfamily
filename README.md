@@ -38,14 +38,21 @@ memory/PRD.md     Produktbeschreibung und offene Punkte
 
 ### Backend
 
+Braucht **Python 3.10 oder neuer**: `fastapi`, `python-dotenv` und `icalendar`
+liefern für ältere Versionen keine Pakete mehr. Unter 3.9 bricht `pip install`
+mit „No matching distribution found" ab und nennt den Grund nicht. Die CI läuft
+auf 3.11.
+
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt        # requirements-dev.txt für Tests dazu
+cp .env.example .env                   # ausfüllen, siehe Tabelle
 uvicorn server:app --reload --port 8001
 ```
 
-Erwartet eine erreichbare MongoDB und eine `backend/.env`:
+Erwartet eine erreichbare MongoDB und eine `backend/.env`
+(`backend/.env.example` listet alles auf):
 
 | Variable | Pflicht | Bedeutung |
 |---|---|---|
@@ -60,6 +67,9 @@ Erwartet eine erreichbare MongoDB und eine `backend/.env`:
 | `STRIPE_WEBHOOK_SECRET` | für Sponsoring | **ohne diesen Wert lehnt der Webhook ab** |
 | `FRONTEND_URL` | für Sponsoring | Basis für Stripe-Rücksprungadressen |
 | `DISABLE_SCHEDULER` | nein | `1` schaltet den Importer-Cron ab |
+| `CORS_ORIGINS` | nein | Kommagetrennt. Ohne Wert ist **jede** Herkunft erlaubt |
+| `EMERGENT_SESSION_URL` | für Google-Login | ohne Wert antwortet `POST /api/auth/session` mit 503 |
+| `VIEW_IP_SALT` | nein | salzt den Hash der Besucher-IPs; einmal setzen, dann nie ändern |
 
 #### Admin-Passwort ändern
 
@@ -79,18 +89,24 @@ Manuell auslösbar über `POST /api/admin/sources/run-all`.
 ```bash
 cd frontend
 yarn install
-yarn start          # Expo Dev Server
-yarn web            # nur Web
+cp .env.example .env    # EXPO_PUBLIC_BACKEND_URL eintragen
+yarn start              # Expo Dev Server
+yarn web                # nur Web
 ```
 
 `frontend/.env` braucht `EXPO_PUBLIC_BACKEND_URL` — die Basis-URL des Backends
-ohne abschließenden Schrägstrich.
+ohne abschließenden Schrägstrich, also z. B. `http://localhost:8001`. Fehlt der
+Wert, zeigt jeder Bildschirm „Failed to load"; das sieht nach einem Fehler in
+der App aus, ist aber nur die fehlende Einstellung.
+
+Alles mit `EXPO_PUBLIC_` wird in das App-Bundle kompiliert und ist für jeden
+lesbar, der die App installiert — dort gehört niemals ein Schlüssel hin.
 
 ## Prüfen
 
 ```bash
-cd frontend && yarn check       # tsc --noEmit + eslint
-cd backend  && flake8 --select=E9,F .
+cd frontend && yarn run check   # tsc --noEmit + eslint
+cd backend  && flake8 --select=E9,F . && pytest tests/offline -q
 ```
 
 Beides läuft bei jedem Push über `.github/workflows/ci.yml`.

@@ -776,7 +776,13 @@ class GoogleSessionResponse(BaseModel):
     user: GoogleAuthUser
 
 
-EMERGENT_SESSION_URL = os.environ["EMERGENT_SESSION_URL"]
+# Google sign-in goes through Emergent's session service. This used to be read
+# as os.environ[...] at import time, so a deployment that had not set it — or
+# does not offer Google sign-in at all — died on start-up with a bare
+# KeyError naming a variable documented nowhere. Everything else in the app
+# works without it, so it is optional now and only the one endpoint below
+# refuses, with a message that says what is missing.
+EMERGENT_SESSION_URL = os.environ.get("EMERGENT_SESSION_URL", "")
 
 
 @app.post("/api/auth/session", response_model=GoogleSessionResponse)
@@ -788,6 +794,14 @@ async def exchange_google_session(payload: GoogleSessionRequest):
     - Upserts the user by email (reuse existing user_id if present).
     - Stores the session in `user_sessions` with a TTL index.
     """
+    if not EMERGENT_SESSION_URL:
+        # 503, not 500: the service is configured out, not broken.
+        raise HTTPException(
+            status_code=503,
+            detail="Google sign-in is not configured on this server "
+                   "(EMERGENT_SESSION_URL is unset).",
+        )
+
     if not payload.session_id.strip():
         raise HTTPException(status_code=400, detail="session_id is required")
 
