@@ -1,0 +1,7 @@
+﻿Art,Name,Status,Website,robots,Crawl-Delay,Sitemap,Veranstaltungsseiten,Beispiel-URL,JSON-LD,Hinweis
+Musée,Ausgriewermusee,NICHTS GEFUNDEN,https://gka.lu/,erlaubt,,,0,,,
+Musée,Casemates du Bock,NICHTS GEFUNDEN,https://www.luxembourg-city.com/en/tours-activities/underground/bock-casemates,erlaubt,,https://www.luxembourg-city.com/sitemap.xml,0,,,
+Musée,Casino Luxembourg - Forum d'art contemporain,KANDIDAT,http://www.casino-luxembourg.lu/,erlaubt,,http://www.casino-luxembourg.lu/sitemap.xml,4845,https://casino-luxembourg.lu/fr/agenda,nein,
+Musée,Centre de découverte de la Forêt Burfelt,NICHTS GEFUNDEN,https://environnement.public.lu/fr/natur-erliewen/centres-d_accueil/burfelt.html,erlaubt,,,0,,,
+Musée,Château de Vianden,KANDIDAT,https://castle-vianden.lu/,erlaubt,,,1,https://castle-vianden.lu/events/,ja,"keine Sitemap, Pfad geraten"
+Musée,Conservatoire National de Véhicules Historiques Diekirch,KANDIDAT,https://www.cnvh.lu/,erlaubt,,https://cnvh.lu/sitemap.xml,113,https://cnvh.lu/das-studentenprogramm/,nein,
