@@ -1,0 +1,231 @@
+﻿Art,Name,Status,Website,robots,Crawl-Delay,Sitemap,Veranstaltungsseiten,Beispiel-URL,JSON-LD,Hinweis
+Musée,Ausgriewermusee,NICHTS GEFUNDEN,https://gka.lu/,erlaubt,,,0,,,
+Musée,Casemates du Bock,NICHTS GEFUNDEN,https://www.luxembourg-city.com/en/tours-activities/underground/bock-casemates,erlaubt,,https://www.luxembourg-city.com/sitemap.xml,0,,,
+Musée,Casino Luxembourg - Forum d'art contemporain,KANDIDAT,http://www.casino-luxembourg.lu/,erlaubt,,http://www.casino-luxembourg.lu/sitemap.xml,4845,https://casino-luxembourg.lu/fr/agenda,nein,
+Musée,Centre de découverte de la Forêt Burfelt,NICHTS GEFUNDEN,https://environnement.public.lu/fr/natur-erliewen/centres-d_accueil/burfelt.html,erlaubt,,,0,,,
+Musée,Château de Vianden,KANDIDAT,https://castle-vianden.lu/,erlaubt,,,1,https://castle-vianden.lu/events/,ja,"keine Sitemap, Pfad geraten"
+Musée,Conservatoire National de Véhicules Historiques Diekirch,KANDIDAT,https://www.cnvh.lu/,erlaubt,,https://cnvh.lu/sitemap.xml,113,https://cnvh.lu/das-studentenprogramm/,nein,
+Musée,Déi al Millen,KANDIDAT,https://dmillen.lu/,erlaubt,,https://dmillen.lu/sitemap.xml,105,https://dmillen.lu/visites-guides,nein,
+Musée,Epicerie Binck,KANDIDAT,https://minettpark.lu/activites/epicerie-victor-binck/,erlaubt,10.0,https://minettpark.lu/sitemap.xml,8,https://minettpark.lu/activities/,nein,
+Musée,Europa Experience Luxembourg,NICHTS GEFUNDEN,https://visiting.europarl.europa.eu/en/visitor-offer/other-locations/europa-experience/luxembourg,erlaubt,,,0,,,
+Musée,Galleria 610,KANDIDAT,https://galleria610.lu/en,erlaubt,,https://galleria610.lu/sitemap.xml,2,https://galleria610.lu/en/agenda,nein,
+Musée,General Patton Memorial,KANDIDAT,https://www.patton.lu/,erlaubt,,https://www.patton.lu/sitemap.xml,23,https://patton.lu/en/agenda/,nein,
+Musée,Geo-Expo,KANDIDAT,https://www.naturpark-mellerdall.lu,erlaubt,60.0,https://www.naturpark-mellerdall.lu/sitemap.xml,64,https://www.naturpark-mellerdall.lu/veranstaltungen/,ja,
+Musée,Grouwen a Feldbunn,KANDIDAT,https://rail.lu/feldbunnbanz.html,erlaubt,,,1,https://rail.lu/events/,nein,"keine Sitemap, Pfad geraten"
+Musée,Hall Paul Wurth,KANDIDAT,http://www.fond-de-gras.lu/,erlaubt,,,1,http://www.fond-de-gras.lu/,nein,"keine Sitemap, Pfad geraten"
+Musée,Kulturhuef,NICHTS GEFUNDEN,https://www.kulturhuef.lu/de/,erlaubt,,,0,,,
+Musée,Luxembourg Science Center,NICHTS GEFUNDEN,https://www.science-center.lu/,erlaubt,,https://www.science-center.lu/sitemap.xml,0,,,
+Musée,Lëtzebuerg City Museum,KANDIDAT,https://citymuseum.lu,erlaubt,,,1,https://citymuseum.lu/visiter-le-musee/agenda/,nein,"keine Sitemap, Pfad geraten"
+Musée,MUDAM,KANDIDAT,https://www.mudam.lu/,erlaubt,,https://www.mudam.com/sitemaps-2-sitemap.xml,1485,https://www.mudam.com/whats-on/events/28-jul-2026,nein,
+Musée,Maison Victor Hugo,GESPERRT,https://victor-hugo.lu/,verbietet,,,,,,robots.txt untersagt das Crawlen
+Musée,Massenoire,NICHTS GEFUNDEN,https://www.fonds-belval.lu/,erlaubt,,,0,,,
+Musée,Matchbox Autos Museum,NICHTS GEFUNDEN,https://www.mullerthal.lu/de/fiche/museum/matchbox-autos-museum,erlaubt,,,0,,,
+Musée,Mine Grouwen,KANDIDAT,https://www.differdange.lu/,erlaubt,,https://www.differdange.lu/sitemap.xml,2017,https://differdange.lu/agenda/,nein,
+Musée,Musee de Police,KANDIDAT,https://www.gendarmerie.lu/,erlaubt,,,1,https://www.gendarmerie.lu,nein,"keine Sitemap, Pfad geraten"
+Musée,Musee de la Banque,KANDIDAT,https://www.bcee.lu/,erlaubt,,https://www.spuerkeess.lu/fr/particuliers?sitemap=pages&type=1533906435,12,https://www.spuerkeess.lu/fr/tweenz/activites/,nein,
+Musée,Museum Moulin d'Asselborn,NICHTS GEFUNDEN,https://hotelvieuxmoulin.lu/,erlaubt,,,0,,,
+Musée,Museum of the Battle of the Bulge,KANDIDAT,https://www.wiltz.lu/de/tourismus/kultur-kunst/museen-2,erlaubt,,,1,https://www.wiltz.lu/fr/agenda,nein,"keine Sitemap, Pfad geraten"
+Musée,Musée 385th bomb group,NICHTS GEFUNDEN,https://www.385bg.lu/,erlaubt,,https://www.385bg.lu/de_de-sitemap.xml,0,,,
+Musée,Musée Dräi Eechelen,NICHTS GEFUNDEN,https://m3e.public.lu/fr.html,erlaubt,,,0,,,
+Musée,Musée Koffergrouf Stolzembourg,KANDIDAT,https://www.stolzembourg.lu/kupfermine/,erlaubt,,https://www.stolzembourg.lu/sitemap.xml,23,https://www.stolzembourg.lu/aktuelles/,nein,
+Musée,Musée Michel Lucius,KANDIDAT,https://www.museemichellucius.lu/,erlaubt,,,1,https://www.museemichellucius.lu/agenda/,nein,"keine Sitemap, Pfad geraten"
+Musée,Musée National de la Résistance,KANDIDAT,https://mnr.lu/,erlaubt,,,1,https://mnr.lu/manifestations,nein,"keine Sitemap, Pfad geraten"
+Musée,Musée Rural A Schiewesch,KANDIDAT,https://www.museebinsfeld.lu,erlaubt,,https://www.museebinsfeld.lu/sitemap.xml,3,https://www.museebinsfeld.lu/actualites/,nein,
+Musée,Musée Rural et Artisanal,NICHTS GEFUNDEN,https://www.musee-rural.lu/,erlaubt,10.0,https://www.musee-rural.lu/sitemap.xml,0,,,
+Musée,Musée Tudor sur l'électricité et les accumulateurs,NICHTS GEFUNDEN,https://www.musee-tudor.lu/,erlaubt,,https://musee-tudor.lu/wp-sitemap.xml,0,,,
+Musée,Musée d'Histoire de la Brasserie Diekirch,KANDIDAT,http://www.luxem.beer/,erlaubt,,,1,https://www.luxem.beer/login,nein,"keine Sitemap, Pfad geraten"
+Musée,Musée d'Histoire(s) de la ville de Diekirch,KANDIDAT,http://www.mhsd.lu/,erlaubt,,https://www.mhsd.lu/sitemap_index.xml,223,https://www.mhsd.lu/exposition/arcbrell-3/,nein,
+Musée,Musée de l'Abbaye,NICHTS GEFUNDEN,http://museedelabbaye.lu/,erlaubt,,https://abteimuseum.org/sitemap.xml,0,,,
+Musée,Musée de l'Ardoise,KANDIDAT,https://www.ardoise.lu,erlaubt,,https://www.ardoise.lu/sitemap.xml,135,https://www.ardoise.lu/veranstaltungen,nein,
+Musée,Musée de la Bataille des Ardennes,NICHTS GEFUNDEN,https://clervaux.lu,erlaubt,,,0,,,
+Musée,Musée de la Ville de Vianden et du Jouet,KANDIDAT,https://www.visit-vianden.lu/de/kultur-freizeit/museen-kultur,erlaubt,,https://www.visit-vianden.lu/sitemap_index.xml,187,https://www.visit-vianden.lu/agenda/,nein,
+Musée,Musée européen Schengen,NICHTS GEFUNDEN,https://www.visitschengen.lu/the-museum/,erlaubt,,https://www.visitschengen.lu/wp-sitemap.xml,0,,,
+Musée,Musée militaire de Diekirch,NICHTS GEFUNDEN,http://www.mnhm.lu,erlaubt,,,0,,,
+Musée,Musée national d'histoire naturelle,NICHTS GEFUNDEN,https://www.mnhn.lu/,erlaubt,,,0,,,
+Musée,Musée national d'histore et d'art Luxembourg,NICHTS GEFUNDEN,https://www.nationalmusee.lu/,erlaubt,,,0,,,
+Musée,Musée national des Mines,KANDIDAT,http://www.mnm.lu/,erlaubt,,,1,https://mnm.lu/events/,ja,"keine Sitemap, Pfad geraten"
+Musée,National Brewery Museum,KANDIDAT,http://www.beiermusee.lu,erlaubt,,,1,http://www.biermuseum.lu/home/,nein,"keine Sitemap, Pfad geraten"
+Musée,PLOMM Kannermusée,KANDIDAT,https://www.plomm.lu/,erlaubt,,https://www.plomm.lu/wp-sitemap.xml,34,https://www.plomm.lu/agenda/,nein,
+Musée,Park Sënnesräich,KANDIDAT,https://www.sennesraich.lu/,erlaubt,,https://www.sennesraich.lu/sitemap.xml,3,https://www.sennesraich.lu/actualites/,nein,
+Musée,Pompjeesmusee,KANDIDAT,https://www.pompjeesmusee.lu/,erlaubt,,https://www.pompjeesmusee.lu/de_de-sitemap.xml,2,https://www.pompjeesmusee.lu/de/aktuelles,nein,
+Musée,Pompjeesmusee Gemeng Miersch,KANDIDAT,https://www.pjm.lu/,erlaubt,,https://www.pjm.lu/wp-sitemap.xml,2,https://www.pjm.lu/aktuelles/,nein,
+Musée,Ratskeller,KANDIDAT,https://cerclecite.lu/,erlaubt,,,1,https://cerclecite.lu/agenda,nein,"keine Sitemap, Pfad geraten"
+Musée,Robbesscheier,NICHTS GEFUNDEN,https://www.robbesscheier.lu/de,erlaubt,,,0,,,
+Musée,Réimer Villa Echternach,NICHTS GEFUNDEN,https://www.mnaha.lu/de/romische-villa-echternach,erlaubt,,,0,,,
+Musée,Schreibmuseum und ehemaliges Klassenzimmer,GESPERRT,http://relaispostal.lu/,verbietet,,,,,,robots.txt untersagt das Crawlen
+Musée,Textil Musée Larochette,NICHTS GEFUNDEN,https://textilmuseelarochette.lu/en/,erlaubt,,,0,,,
+Musée,The Family of Man,NICHTS GEFUNDEN,https://www.steichencollections-cna.lu/,erlaubt,,https://www.steichencollections-cna.lu/sitemap.xml,0,,,
+Musée,Thillenvogtei,KANDIDAT,http://www.thillenvogtei.lu,erlaubt,,https://www.thillenvogtei.lu/sitemap.xml,2,https://www.thillenvogtei.lu/atelieren,nein,
+Musée,Tuchfabrik,KANDIDAT,https://www.naturpark-sure.lu/,erlaubt,,https://www.naturpark-sure.lu/wp-sitemap.xml,171,https://www.naturpark-sure.lu/event/textil-cafe/,ja,
+Musée,Villa Romana,GESPERRT,https://www.mnha.lu/,verbietet,,,,,,robots.txt untersagt das Crawlen
+Musée,Villa Vauban,KANDIDAT,https://villavauban.lu/,erlaubt,,,1,https://villavauban.lu/visiter-le-musee/agenda/,nein,"keine Sitemap, Pfad geraten"
+Musée,Vitarium by Luxlait,KANDIDAT,https://www.vitarium.lu/,erlaubt,,,1,https://www.luxlait.lu/a-propos-de-nous/vitarium/,nein,"keine Sitemap, Pfad geraten"
+Kulturzentrum,www.rauschpuppe.com,GESPERRT,http://www.rauschpuppe.com,verbietet,,,,,,robots.txt untersagt das Crawlen
+Kulturzentrum,Art et Création a.s.b.l.,GESPERRT,https://art-et-creation.lu/,verbietet,,,,,,robots.txt untersagt das Crawlen
+Kulturzentrum,Artikuss,KANDIDAT,https://artikuss.lu/,erlaubt,,https://artikuss.lu/sitemap.xml,154,https://www.artikuss.lu/fr/agenda,nein,
+Kulturzentrum,Atelier Cour d'Anges,GESPERRT,https://www.courdanges.be,verbietet,,,,,,robots.txt untersagt das Crawlen
+Kulturzentrum,Bâtiment IV - Tiers lieu culturel,KANDIDAT,https://www.batiment-4.lu/,erlaubt,10.0,https://www.batiment-4.lu/sitemap.xml,39,https://batiment-4.lu/event-slider/,nein,
+Kulturzentrum,Center culturel Machera,KANDIDAT,https://machera.lu/,erlaubt,,,1,https://machera.lu/agenda/,nein,"keine Sitemap, Pfad geraten"
+Kulturzentrum,"Centre Culturel ""A Maesch""",KANDIDAT,https://www.erpeldange.lu/,erlaubt,,,1,https://www.erpeldange.lu/actualites,nein,"keine Sitemap, Pfad geraten"
+Kulturzentrum,Centre WAX,KANDIDAT,http://www.konschtmillen.lu,erlaubt,,http://www.konschtmillen.lu/wp-sitemap.xml,3,http://www.konschtmillen.lu/atelier-2020/,nein,
+Kulturzentrum,Centre de Création Chorégraphique Luxembourgeois Trois C-L Asbl,KANDIDAT,https://www.danse.lu/,erlaubt,,https://danse.lu/sitemap_index.xml,283,https://danse.lu/programme/,nein,
+Kulturzentrum,Culture@Walfer,KANDIDAT,https://caw-walfer.lu/,erlaubt,,https://caw-walfer.lu/sitemap.xml,416,https://caw-walfer.lu/programme/,nein,
+Kulturzentrum,Konschthal Esch,KANDIDAT,https://www.konschthal.lu/,erlaubt,,,1,https://www.konschthal.lu/agenda,nein,"keine Sitemap, Pfad geraten"
+Kulturzentrum,Kulturfabrik,KANDIDAT,https://kulturfabrik.lu/,erlaubt,,https://kulturfabrik.lu/sitemap.xml,855,https://kulturfabrik.lu/events,nein,
+Kulturzentrum,Mierscher Kulturhaus,KANDIDAT,https://kulturhaus.lu,erlaubt,,,1,https://mierschertheater.lu/,nein,"keine Sitemap, Pfad geraten"
+Kulturzentrum,Rainbow Center,NICHTS GEFUNDEN,https://rainbowcenter.lu/,erlaubt,,,0,,,
+Kulturzentrum,Reemerhof,NICHTS GEFUNDEN,https://rosportmompach.lu/rosport-centre-culturel-reemerhoof/,erlaubt,,,0,,,
+Kulturzentrum,Rotondes,KANDIDAT,https://www.rotondes.lu/,erlaubt,,https://www.rotondes.lu/sitemap.xml,181,https://www.rotondes.lu/fr/agenda/be-kind,nein,
+Kulturzentrum,Trifolion,KANDIDAT,https://trifolion.lu/,erlaubt,,,1,https://trifolion.lu/agenda/,nein,"keine Sitemap, Pfad geraten"
+Kulturzentrum,Valentiny Foundation,KANDIDAT,http://www.valentiny-foundation.com/,erlaubt,,https://www.valentiny-foundation.com/sitemap.xml,141,https://www.valentiny-foundation.com/events/septet-1,ja,
+Theater,Banannefabrik,NICHTS GEFUNDEN,https://www.banannefabrik.lu/,erlaubt,,,0,,,
+Theater,Centre des Arts Pluriels Ed Juncker,KANDIDAT,https://cape.lu/,erlaubt,,,1,https://cape.lu/events,nein,"keine Sitemap, Pfad geraten"
+Theater,Den Atelier,KANDIDAT,https://atelier.lu,erlaubt,,,1,https://www.atelier.lu/agenda/,nein,"keine Sitemap, Pfad geraten"
+Theater,Grand Théâtre de Luxembourg,GESPERRT,http://www.lestheatres.lu,verbietet,,,,,,robots.txt untersagt das Crawlen
+Theater,Labo theatre,KANDIDAT,https://theatre-luxembourg.com,erlaubt,,https://theatre-luxembourg.com/sitemap_index.xml,37,https://theatre-luxembourg.com/ateliers/,nein,
+Theater,Rockhal,KANDIDAT,https://www.rockhal.lu/,erlaubt,,https://rockhal.lu/sitemap_index.xml,28,https://rockhal.lu/shows/sacem-workshop/,ja,
+Theater,Sang & Klang,NICHTS GEFUNDEN,https://sangaklang.lu/,erlaubt,,https://sangaklang.lu/wp-sitemap.xml,0,,,
+Theater,Théâtre de la Ville d'Esch-sur-Alzette,KANDIDAT,https://theatre.esch.lu/,erlaubt,,https://theatre.esch.lu/sitemap_index.xml,1667,https://theatre.esch.lu/agenda/,nein,
+Theater,Théâtre du Centaure,NICHTS GEFUNDEN,https://www.theatrecentaure.lu/,erlaubt,,,0,,,
+Bibliothek,Bibliothèque Municipale,GESPERRT,http://bibliodiff.s1.olefa.com/,verbietet,,,,,,robots.txt untersagt das Crawlen
+Bibliothek,Bibliothèque Nationale,NICHTS GEFUNDEN,https://bnl.public.lu/,erlaubt,,,0,,,
+Bibliothek,Centre National de la littérature,NICHTS GEFUNDEN,https://cnl.public.lu/,erlaubt,,,0,,,
+Bibliothek,Luxembourg Learning Centre,KANDIDAT,https://library.uni.lu,erlaubt,,,1,https://www.uni.lu/en/events-overview/?fq_events-taxonomies-date%5B%5D=date-in-the-future%7CIn+the+future%7CDate&fq_events-taxonomies-organisation%5B%5D=luxembourg-learning-centre-llc%7CLuxembourg+Learning+Centre+%28LLC%29%7COrganisation,nein,"keine Sitemap, Pfad geraten"
+Bibliothek,Lëtzebuerg City Bibliothèque,KANDIDAT,https://citybiblio.lu/,erlaubt,,,1,https://citybiblio.lu/agenda,nein,"keine Sitemap, Pfad geraten"
+Bibliothek,Marc Grond,KANDIDAT,https://www.cigale.lu/bibliotheque-marc-grond,erlaubt,,https://www.cigale.lu/en_en-sitemap.xml,738,https://www.cigale.lu/event-details/l-mums?lang=en,ja,
+Bibliothek,Mierscher Lieshaus,NICHTS GEFUNDEN,https://www.mierscher-lieshaus.lu/,erlaubt,,https://www.mierscher-lieshaus.lu/sitemap.xml,0,,,
+Bibliothek,Ourdaller Bibliothéik,NICHTS GEFUNDEN,https://www.ourdallbibliotheik-vianden.lu/,erlaubt,,,0,,,
+Bibliothek,Photothèque de la Ville de Luxembourg,KANDIDAT,https://www.vdl.lu/phototheque.html,erlaubt,,https://www.vdl.lu/sitemap.xml,839,https://www.vdl.lu/fr/redirect/agenda,nein,
+Veranstaltungsort,ChouChou,KANDIDAT,https://www.chouchou.lu/,erlaubt,,https://www.chouchou.lu/sitemap.xml,3,https://www.chouchou.lu/d-tails-et-inscription/womens-day-workshops,ja,
+Veranstaltungsort,Quartier Stuff Grünewald,KANDIDAT,https://www.microtarians.com,erlaubt,,https://www.microtarians.com/sitemap.xml,37,https://www.microtarians.com/events,nein,
+Veranstaltungsort,Tero river house,KANDIDAT,https://tero.be/fr/lieux/salles-de-reception/river-house-luxembourg/,erlaubt,,,1,https://tero.be/fr/evenements/,nein,"keine Sitemap, Pfad geraten"
+Veranstaltungsort,Uergelfabrik,GESPERRT,https://www.uergelfabrik.lu/,verbietet,,,,,,robots.txt untersagt das Crawlen
+Veranstaltungsort,chu'mani asbl,NICHTS GEFUNDEN,http://www.tipi.lu,erlaubt,,,0,,,
+Gemeinschaftshaus,"Centre ""A Foussen""",GESPERRT,http://www.opf.lu,verbietet,,,,,,robots.txt untersagt das Crawlen
+Gemeinschaftshaus,Centre Culturel Portugais – Camões I.P.,GESPERRT,https://www.facebook.com/CCPLUXEMBURGO/,verbietet,,,,,,robots.txt untersagt das Crawlen
+Gemeinschaftshaus,Centre culturel,KANDIDAT,https://www.kehlen.lu/,erlaubt,,,1,https://www.kehlen.lu/fr/agenda,nein,"keine Sitemap, Pfad geraten"
+Gemeinschaftshaus,Centre culturel Al Schmelz,KANDIDAT,https://www.steinfort.lu/culture-et-loisirs/calendrier-des-manifestations/salles-communales,erlaubt,,,1,https://www.steinfort.lu/agenda,nein,"keine Sitemap, Pfad geraten"
+Gemeinschaftshaus,"Centre culturel régional ""Aalt Stadhaus""",KANDIDAT,https://www.stadhaus.lu/,erlaubt,,,1,https://www.stadhaus.lu/agenda,nein,"keine Sitemap, Pfad geraten"
+Gemeinschaftshaus,Centre de Jeunesse Weicherdange,NICHTS GEFUNDEN,https://weicherdange.snj.lu/,erlaubt,,,0,,,
+Gemeinschaftshaus,"Centre de Rencontre ""Um Buer""",KANDIDAT,https://reckange.lu/culture-musique/centre-de-rencontre,erlaubt,,https://reckange.lu/sitemap_index.xml,144,https://reckange.lu/events/,ja,
+Gemeinschaftshaus,Club Senior Prënzebierg,GESPERRT,http://homepages.internet.lu/clubseniorprenzebierg,verbietet,,,,,,robots.txt untersagt das Crawlen
+Gemeinschaftshaus,Eist Heem,GESPERRT,https://www.eistheem.lu/,verbietet,,,,,,robots.txt untersagt das Crawlen
+Gemeinschaftshaus,Hindu Forum Luxembourg,KANDIDAT,https://www.hinduforum.lu/,erlaubt,,,1,https://www.hinduforum.lu/agenda,nein,"keine Sitemap, Pfad geraten"
+Gemeinschaftshaus,Jugendhaus Niederanven,GESPERRT,http://www.jugendhaus-niederanven.lu/,verbietet,,,,,,robots.txt untersagt das Crawlen
+Gemeinschaftshaus,Jugendhaus Olm - JUKI Ollem,KANDIDAT,https://echwellechkann.lu/annuaire/jugendhaus-olm/,erlaubt,,https://echwellechkann.lu/sitemap.xml,53,https://echwellechkann.lu/fr/activities/,nein,
+Gemeinschaftshaus,Jugendtreff Norden,GESPERRT,http://www.jsic.lu/,verbietet,,,,,,robots.txt untersagt das Crawlen
+Gemeinschaftshaus,"Kultur- a Geschichtshaus ""A Gadder""",NICHTS GEFUNDEN,https://www.agadder.lu,erlaubt,10.0,https://www.agadder.lu/sitemap.xml,0,,,
+Gemeinschaftshaus,Level2 Hackerspace,GESPERRT,https://level2.lu/,verbietet,,,,,,robots.txt untersagt das Crawlen
+Gemeinschaftshaus,Lëtzebuerger Guiden a Scouten,KANDIDAT,https://lgs.lu,erlaubt,,https://lgs.lu/wp-sitemap.xml,1,https://lgs.lu/lokal-eventer/,nein,
+Gemeinschaftshaus,Maison de la Jeunesse,KANDIDAT,https://maison-jeunesse.lu/,erlaubt,,,1,https://maison-jeunesse.lu/agenda,nein,"keine Sitemap, Pfad geraten"
+Gemeinschaftshaus,Maison des Jeunes,KANDIDAT,https://mamer.lu/jeunesseniors/jugendhaus/,erlaubt,,https://mamer.lu/sitemap_index.xml,916,https://mamer.lu/events/go/,ja,
+Gemeinschaftshaus,Maison des Jeunes,KANDIDAT,https://www.judiff.lu/,erlaubt,,https://www.judiff.lu/de_de-sitemap.xml,4,https://www.judiff.lu/de/event-details/01-08-digital-art-workshop-brunch,ja,
+Gemeinschaftshaus,Maison des Jeunes Gare,KANDIDAT,https://www.inter-actions.lu/type_portfolio/maison-des-jeunes-gare/,erlaubt,,https://www.inter-actions.lu/sitemap.xml,328,https://inter-actions.lu/visiteca_sw/,nein,
+Gemeinschaftshaus,Maison des jeunes Mertert-Wasserbillig,KANDIDAT,https://www.croix-rouge.lu/fr/service/les-maisons-des-jeunes/mertert-wasserbillig/,erlaubt,,https://www.croix-rouge.lu/sitemap.xml,91,https://www.croix-rouge.lu/fr/actualites/,nein,
+Gemeinschaftshaus,Mamerhaff,NICHTS GEFUNDEN,http://www.mamerhaff.lu,erlaubt,,,0,,,
+Gemeinschaftshaus,Remigiussall,KANDIDAT,https://web.cathol.lu/article14238,erlaubt,,https://web.cathol.lu/sitemap.xml,158,https://web.cathol.lu/1/services/luxpele-a-s-b-l/article/agenda,nein,
+Gemeinschaftshaus,Schengener Haff,NICHTS GEFUNDEN,https://schengenerhaff.lu,erlaubt,,https://schengenerhaff.lu/sitemap_index.xml,0,,,
+Gemeinschaftshaus,Schëfflénger Jugendhaus,GESPERRT,http://tribe.lu/jugendhaus,verbietet,,,,,,robots.txt untersagt das Crawlen
+Gemeinschaftshaus,Scout Center Badboeschelchen,KANDIDAT,https://www.muma.lu,erlaubt,,,1,https://www.muma.lu/agenda,nein,"keine Sitemap, Pfad geraten"
+Gemeinschaftshaus,"Site Albert Hames, Spektrum",KANDIDAT,https://spektrum.lu/,erlaubt,,https://spektrum.lu/sitemap_index.xml,53,https://spektrum.lu/agenda/,nein,
+Gemeinschaftshaus,Verainshaus,KANDIDAT,https://www.acfischbach.lu/fr/vie-associative/ver%C3%A4inshaus,erlaubt,,https://acfischbach.lu/sitemap_index.xml,4,https://acfischbach.lu/agenda/,nein,
+Gemeinschaftshaus,Veräinshaus,GESPERRT,http://differdange.cathol.lu,verbietet,,,,,,robots.txt untersagt das Crawlen
+Gemeinschaftshaus,"Veräinshaus ""Um Widdem""",GESPERRT,https://ccuw.jimdo.com,verbietet,,,,,,robots.txt untersagt das Crawlen
+Gemeinschaftshaus,Vieille Église Saint-Laurent,NICHTS GEFUNDEN,https://diekirch.lu/fr/commune-de-diekirch/art-culture/musees/la-vieille-eglise-saint-laurent,erlaubt,,,0,,,
+Kino,Ciné Starlight,KANDIDAT,https://cinestarlight.lu/,erlaubt,,https://cinestarlight.lu/sitemap.xml,1,https://cinestarlight.lu/fr/events,nein,
+Kino,Ciné Sura,KANDIDAT,https://cinesura.com/de,erlaubt,,https://cinesura.com/sitemap.xml,4,https://cinesura.com/de/events,nein,
+Kino,Kinepolis Kirchberg,NICHTS GEFUNDEN,https://kinepolis.lu/en/cinemas/kinepolis-kirchberg,erlaubt,,,0,,,
+Kino,Kinoler,KANDIDAT,https://kinoler.lu,erlaubt,,https://kinoler.lu/sitemap.xml,9,https://kinoler.lu/fr/events,nein,
+Kino,Le Paris,KANDIDAT,https://leparis.lu/,erlaubt,,https://leparis.lu/sitemap.xml,9,https://leparis.lu/fr/events,nein,
+Kino,Prabbeli,NICHTS GEFUNDEN,https://www.prabbeli.lu,erlaubt,,,0,,,
+Galerie,1:1,NICHTS GEFUNDEN,https://gallery1to1.com/,erlaubt,,https://gallery1to1.com/sitemap.xml,0,,,
+Galerie,ClausenArt,KANDIDAT,https://clausenart.lu/,erlaubt,,https://clausenart.lu/sitemap.xml,1,https://clausenart.lu/fotoe-vum-event-vum-30-januar,nein,
+Galerie,Galerie Celsius,NICHTS GEFUNDEN,https://www.rolfschmitt.lu/fr-FR,erlaubt,,,0,,,
+Galerie,Galerie K,NICHTS GEFUNDEN,https://www.galerie-k.lu/,erlaubt,5.0,https://www.galerie-k.lu/sitemap.xml,0,,,
+Galerie,In Joy fine art,KANDIDAT,https://www.injoygallery.com/en,erlaubt,,,1,https://www.injoygallery.com/agenda,nein,"keine Sitemap, Pfad geraten"
+Galerie,Veiner Konstgalerie,NICHTS GEFUNDEN,https://viart.lu,erlaubt,,,0,,,
+Galerie,YellowKorner,NICHTS GEFUNDEN,https://www.yellowkorner.com,erlaubt,,https://www.yellowkorner.com/sitemap-custom?name=sitemap_index.xml,0,,,
+Freizeitpark,Fun-City,NICHTS GEFUNDEN,https://fun-city.lu/,erlaubt,,https://fun-city.lu/wp-sitemap.xml,0,,,
+Freizeitpark,Parc Merveilleux,NICHTS GEFUNDEN,https://www.parc-merveilleux.lu/,erlaubt,,https://www.parc-merveilleux.lu/sitemap.xml,0,,,
+Sehenswürdigkeit,Aquatower Berdorf,KANDIDAT,https://www.aquatower-berdorf.lu/,erlaubt,,,1,https://www.aquatower-berdorf.lu/fr/agenda,nein,"keine Sitemap, Pfad geraten"
+Sehenswürdigkeit,Brasserie Simon,NICHTS GEFUNDEN,https://brasseriesimon.lu/,erlaubt,,,0,,,
+Sehenswürdigkeit,Buerg Beefort,GESPERRT,http://www.chateau-beaufort.lu/,verbietet,,,,,,robots.txt untersagt das Crawlen
+Sehenswürdigkeit,Gewerkschaft Jünkerath n°11,NICHTS GEFUNDEN,https://www.industrie.lu/arbeddudelangecrassier.html,erlaubt,,,0,,,
+Sehenswürdigkeit,Luxembourg City: Old Quarters & Fortifications,NICHTS GEFUNDEN,https://luxembourg.public.lu/fr/visiter/que-faire/art-et-culture/forteresse,erlaubt,,,0,,,
+Sehenswürdigkeit,Postgebai Stad Lëtzebuerg,GESPERRT,https://hoteldespostes.lu/,verbietet,,,,,,robots.txt untersagt das Crawlen
+Sehenswürdigkeit,Train 1900,KANDIDAT,https://www.train1900.lu/,erlaubt,30.0,https://www.train1900.lu/sitemap.xml,6,https://www.train1900.lu/un-visiteur-exceptionnel/,nein,
+Tourist-Info,www.tours.lu,NICHTS GEFUNDEN,http://www.tours.lu/fr/scripts/detail.php?id=519,erlaubt,,,0,,,
+Tourist-Info,visitdudelange.lu,GESPERRT,https://visitdudelange.lu/,verbietet,,,,,,robots.txt untersagt das Crawlen
+Tourist-Info,D'Escher Infofabrik (City Tourist Office),KANDIDAT,https://citylife.esch.lu/lieux/descher-infofabrik/,erlaubt,,https://citylife.esch.lu/sitemap_index.xml,121,https://citylife.esch.lu/agenda/,nein,
+Tourist-Info,Départ Auto-Pédestre Bereldange,NICHTS GEFUNDEN,https://map.geoportail.lu/?map_id=f690b5f438244309ba943aa4620fa44c,erlaubt,,,0,,,
+Tourist-Info,Fridhaff 3,NICHTS GEFUNDEN,https://www.visit-eislek.lu/,erlaubt,,,0,,,
+Tourist-Info,Le Parcours Fitness de Bereldange,KANDIDAT,https://www.walfer.lu,erlaubt,,https://walfer.lu/sitemap_index.xml,11,https://walfer.lu/agenda/,nein,
+Tourist-Info,Luxembourg City Tourist Office,NICHTS GEFUNDEN,https://www.lcto.lu/,erlaubt,,https://www.lcto.lu/sitemap.xml,0,,,
+Tourist-Info,Office de tourisme Echternach,KANDIDAT,https://echternach.lu/decouvrir-2/tourisme/tourist-office-echternach/,erlaubt,,https://echternach.lu/sitemap_index.xml,11,https://echternach.lu/events/niklosbal/,ja,
+Tourist-Info,Tourist Info Beaufort,KANDIDAT,http://www.beaufort-tourisme.lu/,erlaubt,,,1,https://www.visitbeaufort.lu/fr/agenda,nein,"keine Sitemap, Pfad geraten"
+Tourist-Info,Tourist Info Berdorf,KANDIDAT,https://www.visitberdorf.lu/de,erlaubt,,,1,https://www.visitberdorf.lu/fr/agenda,nein,"keine Sitemap, Pfad geraten"
+Tourist-Info,Tourist Office Vianden,KANDIDAT,https://www.tourist-info-vianden.lu/,erlaubt,,https://tourist-info-vianden.lu/sitemap_index.xml,1,https://tourist-info-vianden.lu/auf-entspannung-programmiert-dein-luxurioeses-ferienhaus-in-luxemburg/,nein,
+Tourist-Info,Tourist office,KANDIDAT,http://grevenmacher-tourist.lu/,erlaubt,,https://visitmaacher.lu/wp-sitemap.xml,2,https://visitmaacher.lu/termine/,nein,
+Tourist-Info,TouristInfo Welle Westen,KANDIDAT,https://visitwellewesten.lu/,erlaubt,,,1,https://www.visitatertwark.lu/en,nein,"keine Sitemap, Pfad geraten"
+Tourist-Info,Touristcenter Heringer Millen,KANDIDAT,https://www.mullerthal-millen.lu/,erlaubt,,,1,https://www.mullerthal-millen.lu/fr/agenda,nein,"keine Sitemap, Pfad geraten"
+Tourist-Info,Touristinfo Troisvierges,KANDIDAT,https://www.visittroisvierges.lu/information/the-touristoffice/tourist-info-troisvierges/,erlaubt,,https://www.visittroisvierges.lu/sitemap.xml,60,https://www.visittroisvierges.lu/veranstaltungen/,nein,
+Tourist-Info,Visit Guttland,NICHTS GEFUNDEN,https://www.visitguttland.lu/,erlaubt,,,0,,,
+Burg,Administration communale,KANDIDAT,https://www.mersch.lu,erlaubt,,,1,https://www.mersch.lu/agenda,nein,"keine Sitemap, Pfad geraten"
+Burg,Ambassade de Russie,KANDIDAT,https://ambruslu.mid.ru,erlaubt,,https://ambruslu.mid.ru/sitemap.xml,1,https://luxembourg.mid.ru/ru/programma_pereseleniya_sootchestvennikov/,nein,
+Burg,Château de Bourglinster,NICHTS GEFUNDEN,https://www.visitluxembourg.com/en/place/castle/bourglinster-castle,erlaubt,,,0,,,
+Burg,Château de Schengen,KANDIDAT,https://www.chateauschengen.lu/,erlaubt,,https://www.chateauschengen.lu/wp-sitemap.xml,1,https://www.chateauschengen.lu/actualites/,nein,
+Burg,Château de Septfontaines,NICHTS GEFUNDEN,http://www.chateaudeseptfontaines.com/,erlaubt,,,0,,,
+Burg,Miami University John E. Dolibois European Campus,KANDIDAT,http://www.units.miamioh.edu/luxembourg/,erlaubt,,,1,https://miamioh.edu/units-page-not-found/,nein,"keine Sitemap, Pfad geraten"
+Burg,Schlass Ischpelt,KANDIDAT,http://www.chateau-urspelt.lu,erlaubt,,https://www.chateau-urspelt.lu/sitemap_index.xml,11,https://www.chateau-urspelt.lu/actualites/,nein,
+Sportzentrum,A-Form,NICHTS GEFUNDEN,http://aform.lu/,erlaubt,,,0,,,
+Sportzentrum,An der Schwämm,KANDIDAT,http://www.an-der-schwemm.lu/,erlaubt,,https://an-der-schwemm.lu/de/wp-sitemap.xml,4,https://an-der-schwemm.lu/de/aktuelles/,nein,
+Sportzentrum,Ancien Hall Sportif,GESPERRT,http://www.medernach.lu/culture-sport-et-loisirs/infrastructures,verbietet,,,,,,robots.txt untersagt das Crawlen
+Sportzentrum,Archery Guillaume Tell Strassen,NICHTS GEFUNDEN,https://www.gt-s.lu/,erlaubt,,https://www.gt-s.lu/sitemap.xml,0,,,
+Sportzentrum,Bloc House,GESPERRT,https://www.blochouse.lu,verbietet,,,,,,robots.txt untersagt das Crawlen
+Sportzentrum,BlocX - Urban Fitness,KANDIDAT,https://blocx.lu/,erlaubt,,,1,https://en.blocx.lu/,nein,"keine Sitemap, Pfad geraten"
+Sportzentrum,Boulder Klub Mamer,KANDIDAT,https://www.bkm.lu/,erlaubt,,,1,https://www.bkm.lu/agenda?CC=OK,nein,"keine Sitemap, Pfad geraten"
+Sportzentrum,Boulodrome national,KANDIDAT,https://flbp.lu/,erlaubt,,https://flbp.lu/wp-sitemap.xml,103,https://flbp.lu/events/play-off/,nein,
+Sportzentrum,CK Fitness Esch/Alzette,KANDIDAT,https://www.ck-fitness.lu,erlaubt,10.0,https://www.ck-fitness.lu/sitemap.xml,1,https://www.ck-fitness.lu/fr/nos-services/les-programmes-dentrainement-novateurs,nein,
+Sportzentrum,Centre Sportif et Culturel,KANDIDAT,http://bettembourg.lu/visiteurs/sports-et-loisirs/centre-sportif-et-culturel/,erlaubt,,https://bettembourg.lu/sitemap_index.xml,37,https://bettembourg.lu/agenda/,nein,
+Sportzentrum,Centre aquatique AquaSud,KANDIDAT,https://www.aquasud-differdange.com/,erlaubt,,https://www.aquasud-differdange.com/wp-sitemap.xml,5,https://www.aquasud-differdange.com/activites/,nein,
+Sportzentrum,"Centre sportif ""Am Eelerich""",GESPERRT,http://www.weiswmapach.lu,verbietet,,,,,,robots.txt untersagt das Crawlen
+Sportzentrum,ClimbX,KANDIDAT,https://climbx.lu/,erlaubt,,,1,https://en.climbx.lu/,nein,"keine Sitemap, Pfad geraten"
+Sportzentrum,Club Nautique du Luxembourg,NICHTS GEFUNDEN,http://www.cnlwaterski.lu,erlaubt,,,0,,,
+Sportzentrum,Dëschtennis Hueschtert Folscht,NICHTS GEFUNDEN,https://www.dthostertfolschette.net/,erlaubt,5.0,https://www.dthostertfolschette.net/sitemap.xml,0,,,
+Sportzentrum,Flic-Flac Deifferdeng,GESPERRT,http://www.flic-flac.lu/,verbietet,,,,,,robots.txt untersagt das Crawlen
+Sportzentrum,GRS Differdange,KANDIDAT,https://grs-differdange.lu/,erlaubt,,https://grs-differdange.lu/wp-sitemap.xml,1,https://grs-differdange.lu/agenda/,nein,
+Sportzentrum,Karate Club Strassen,NICHTS GEFUNDEN,https://www.karate-luxembourg.lu/,erlaubt,,,0,,,
+Sportzentrum,Kayak Hesper Club,GESPERRT,https://www.kayakhesper.lu,verbietet,,,,,,robots.txt untersagt das Crawlen
+Sportzentrum,Laser Game Evolution,NICHTS GEFUNDEN,https://luxembourg.lasergame-evolution.lu/,erlaubt,,https://luxembourg.lasergame-evolution.lu/sitemap.xml,0,,,
+Sportzentrum,Laser Game Evolution,NICHTS GEFUNDEN,https://ettelbruck.lasergame-evolution.lu/,erlaubt,,https://ettelbruck.lasergame-evolution.lu/sitemap.xml,0,,,
+Sportzentrum,Les Bains du parc,NICHTS GEFUNDEN,https://lesbainsduparc.esch.lu/,erlaubt,,https://lesbainsduparc.esch.lu/sitemap_index.xml,0,,,
+Sportzentrum,Luxembourg International Rowing Club,GESPERRT,https://www.luxrow.org/,verbietet,,,,,,robots.txt untersagt das Crawlen
+Sportzentrum,Mini Circuit Ville de Luxembourg,NICHTS GEFUNDEN,https://www.lmcc.lu,erlaubt,,https://www.lmcc.lu/sitemap.xml,0,,,
+Sportzentrum,Mur d'escalade,KANDIDAT,https://www.coque.lu/en/le-mur-descalade/our-infrastructures,erlaubt,10.0,,1,https://www.coque.lu/evenements,nein,"keine Sitemap, Pfad geraten"
+Sportzentrum,Mutferter Haff,KANDIDAT,https://www.mathellef.lu/mutferterhaff.html,erlaubt,,https://www.mathellef.lu/wp-sitemap.xml,109,https://www.mathellef.lu/agenda/,nein,
+Sportzentrum,Parc Le'h,GESPERRT,https://www.aventure.lu/,verbietet,,,,,,robots.txt untersagt das Crawlen
+Sportzentrum,Patinoire,KANDIDAT,https://www.kockelscheuer.com/,erlaubt,,https://www.kockelscheuer.com/de_de-sitemap.xml,1,https://www.kockelscheuer.com/de/events,nein,
+Sportzentrum,Piscine Krounebierg,NICHTS GEFUNDEN,https://www.krounebierg.lu,erlaubt,,,0,,,
+Sportzentrum,Piscine Mondercange-Dippach,KANDIDAT,http://www.mondercange.lu/index.php/infrastructures/piscine-pimodi,erlaubt,,,1,http://www.mondercange.lu/agenda,nein,"keine Sitemap, Pfad geraten"
+Sportzentrum,Piscine communale,NICHTS GEFUNDEN,https://centresportif.steinfort.lu/infrastructures/piscine,erlaubt,,,0,,,
+Sportzentrum,Piscine couverte de Troivierges,KANDIDAT,https://www.troisvierges.lu/culture-loisirs/infrastructures-sportives/,erlaubt,,https://www.troisvierges.lu/sitemap.xml,29,https://www.troisvierges.lu/agenda/,nein,
+Sportzentrum,Redrock Climbing Center,NICHTS GEFUNDEN,https://redrock-climbingcenter.lu/,erlaubt,,,0,,,
+Sportzentrum,Ski Nautique Grevenmacher,GESPERRT,http://www.sng.lu,verbietet,,,,,,robots.txt untersagt das Crawlen
+Sportzentrum,Sportzentrum Filano,KANDIDAT,https://www.larochette.lu/Filano.html,erlaubt,,https://larochette.lu/sitemap_index.xml,37,https://larochette.lu/events/,ja,
+Sportzentrum,Stade Maemerich,KANDIDAT,https://www.fcbiekerech.lu,erlaubt,,,1,https://www.fcbiekerech.lu/events,nein,"keine Sitemap, Pfad geraten"
+Sportzentrum,Star Gym,GESPERRT,http://www.stargym.lu/,verbietet,,,,,,robots.txt untersagt das Crawlen
+Sportzentrum,Strike Bowling and Games Center,KANDIDAT,https://strike.lu/index,erlaubt,,https://strike.lu/sitemap.xml,1,https://strike.lu/events,nein,
+Sportzentrum,Sunny Fitness,GESPERRT,http://www.sunny-fitness.lu/,verbietet,,,,,,robots.txt untersagt das Crawlen
+Sportzentrum,Syrdall Schwemm,NICHTS GEFUNDEN,https://www.syrdall-schwemm.lu,erlaubt,,https://www.syrdall-schwemm.lu/sitemap.xml,0,,,
+Sportzentrum,Tennis Club Capellen,NICHTS GEFUNDEN,https://tccaponline.lu/,erlaubt,,https://tccaponline.lu/wp-sitemap.xml,0,,,
+Sportzentrum,US Sandweiler,NICHTS GEFUNDEN,https://www.ussandweiler.com/,erlaubt,,https://www.ussandweiler.com/sitemap.xml,0,,,
+Sportzentrum,Uplay,KANDIDAT,https://www.uplay.lu/,erlaubt,,https://www.uplay.lu/sitemap.xml,7,https://www.uplay.lu/events-1/luke-griffith-nogi-workshop,ja,
+Sportzentrum,X-treme Bowling,NICHTS GEFUNDEN,https://www.x-treme.lu/,erlaubt,,https://www.x-treme.lu/sitemap.xml,0,,,
+Erlebnisbad,AquaNat’Our,KANDIDAT,https://www.aquanatour.lu/,erlaubt,,https://aquanatour.lu/sitemap_index.xml,17,https://aquanatour.lu/aktuelles/,nein,
+Erlebnisbad,Freibad Bollendorf,KANDIDAT,https://www.bollendorf.de/freibad-bollendorf,erlaubt,,https://www.bollendorf.de/sitemap.xml,13,https://www.bollendorf.de/aktuelles,nein,
+Erlebnisbad,Réidener Schwämm,NICHTS GEFUNDEN,https://www.reidener-schwemm.lu/,erlaubt,,,0,,,
+Erlebnisbad,Schwimmbad Camping Altschmiede,NICHTS GEFUNDEN,https://www.camping-altschmiede.de/,erlaubt,,https://www.camping-altschmiede.de/sitemap.xml,0,,,
+Schwimmbad,www.pidal.lu,KANDIDAT,https://www.pidal.lu/,erlaubt,,,1,https://www.pidal.lu/fr/informations/blog,nein,"keine Sitemap, Pfad geraten"
+Schwimmbad,Oa6 S.A.,KANDIDAT,https://oa6.lu/,erlaubt,,https://oa6.lu/sitemap_index.xml,11,https://oa6.lu/oa6-events/event/,nein,
+Naturschutzgebiet,Ourschleife/Falkenstein,NICHTS GEFUNDEN,https://berichte.naturschutz.rlp.de/oneo/nsg/NSG-7100-128,erlaubt,,,0,,,
+Naturschutzgebiet,Ronnheck,NICHTS GEFUNDEN,https://data.legilux.public.lu/file/eli-etat-leg-memorial-2014-117-fr-pdf.pdf,erlaubt,,,0,,,

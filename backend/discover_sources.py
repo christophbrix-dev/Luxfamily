@@ -33,7 +33,7 @@ import csv
 import json
 import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 from urllib.parse import urljoin, urlparse
 
 import httpx
@@ -118,6 +118,44 @@ def sitemap_urls_from_robots(robots_text: str) -> List[str]:
     return re.findall(r"(?im)^\s*sitemap:\s*(\S+)", robots_text or "")
 
 
+# Sections that really are calendars, as whole path segments. Matching these
+# as substrings is what put a shop page forward as Casino Luxembourg's example:
+# "atelier" appears in an exhibition-catalogue title too.
+_STRONG_SECTION = re.compile(
+    r"/(agenda|events?|evenements|manifestations?|veranstaltungen|programme?"
+    r"|expositions?|ausstellungen|kalender|termine)(/|$)",
+    re.I,
+)
+
+# Pages that carry an event word without being an event: a shop selling the
+# catalogue, a video archive, a press release about last year.
+_NOT_A_LISTING = re.compile(
+    r"/(shop|boutique|store|channel|video|presse?|press|blog|news|archiv\w*)(/|$)",
+    re.I,
+)
+
+
+def _event_url_rank(url: str) -> tuple:
+    """Best example first: a real calendar section, shallow, not a shop."""
+    path = urlparse(url).path
+    return (
+        0 if _STRONG_SECTION.search(path) else 1,
+        1 if _NOT_A_LISTING.search(path) else 0,
+        path.count("/"),
+        len(path),
+    )
+
+
+def _looks_like_sitemap(url: str) -> bool:
+    """A nested sitemap, even when a query string follows the extension.
+
+    casino-luxembourg.lu splits its index into sitemap.xml?page=1 through 4.
+    Testing url.endswith(".xml"), as this used to, files those as content
+    pages, so the index is never opened and the site reports no events at all.
+    """
+    return urlparse(url).path.lower().endswith((".xml", ".xml.gz"))
+
+
 def read_sitemap(url: str, depth: int = 0) -> List[str]:
     """URLs from a sitemap, following one level of nested sitemaps."""
     if depth > 1:
@@ -128,13 +166,21 @@ def read_sitemap(url: str, depth: int = 0) -> List[str]:
         return []
 
     locs = re.findall(r"<loc>\s*([^<\s]+)\s*</loc>", text)
-    nested = [u for u in locs if u.lower().endswith(".xml")]
-    plain = [u for u in locs if not u.lower().endswith(".xml")]
+    nested = [u for u in locs if _looks_like_sitemap(u)]
+    plain = [u for u in locs if not _looks_like_sitemap(u)]
 
-    # Only descend into nested sitemaps that look event-related; a commune site
-    # can carry dozens, and fetching all of them is not what politeness means.
-    for child in [u for u in nested
-                  if EVENTISH.search(u) and not NOT_EVENTISH.search(u)][:3]:
+    # A <sitemapindex> holds nothing but other sitemaps, so there is no content
+    # to filter and the event-word test below rejects every child over a name
+    # it never had: "sitemap.xml?page=2" says nothing about what is inside it.
+    # A <urlset> that happens to link to other sitemaps is the other case —
+    # there the name is the only clue, and a commune site can carry dozens.
+    if re.search(r"<sitemapindex", text, re.I):
+        children = nested[:5]
+    else:
+        children = [u for u in nested
+                    if EVENTISH.search(u) and not NOT_EVENTISH.search(u)][:3]
+
+    for child in children:
         plain.extend(read_sitemap(child, depth + 1))
     return plain
 
@@ -153,8 +199,26 @@ def has_event_markup(url: str) -> bool:
     return False
 
 
-def probe(name: str, website: str) -> Dict[str, str]:
-    """Everything observed about one commune site."""
+def probe(
+    name: str,
+    website: str,
+    *,
+    eventish: "re.Pattern[str]" = None,
+    fallback_paths: Optional[List[str]] = None,
+) -> Dict[str, str]:
+    """Everything observed about one site.
+
+    The vocabulary is injectable because a commune and a museum do not use the
+    same words. A commune publishes an *agenda*; Casino Luxembourg publishes a
+    *programme* of *expositions*. Probing a museum with the commune word list
+    finds nothing and reports "NICHTS GEFUNDEN", which reads as "this venue has
+    no events" — the opposite of the truth.
+
+    Defaults are the commune list, so existing callers and the cached
+    candidates.csv are unaffected.
+    """
+    eventish = eventish or EVENTISH
+    fallback_paths = fallback_paths or FALLBACK_PATHS
     row = {
         "Status": "OFFEN", "Gemeinde": name, "Website": website,
         "robots": "", "Crawl-Delay": "", "Sitemap": "",
@@ -198,7 +262,8 @@ def probe(name: str, website: str) -> Dict[str, str]:
             break
     row["Sitemap"] = used
 
-    event_urls = [u for u in urls if EVENTISH.search(u) and not NOT_EVENTISH.search(u)]
+    event_urls = [u for u in urls if eventish.search(u) and not NOT_EVENTISH.search(u)]
+    event_urls.sort(key=_event_url_rank)
     if not event_urls and not urls:
         # No sitemap at all — try a few conventional paths instead.
         for path in FALLBACK_PATHS:
@@ -216,8 +281,18 @@ def probe(name: str, website: str) -> Dict[str, str]:
 
     row["Veranstaltungsseiten"] = str(len(event_urls))
     if event_urls:
+        # Try the three best rather than only the first. A big site can have
+        # thousands of matching URLs, and judging the whole venue on whichever
+        # one happened to sort first is how Casino Luxembourg — which does
+        # publish its programme — got written off on the strength of a shop
+        # page. Three requests, and it stops at the first that answers.
         row["Beispiel-URL"] = event_urls[0]
-        row["JSON-LD"] = "ja" if has_event_markup(event_urls[0]) else "nein"
+        row["JSON-LD"] = "nein"
+        for candidate in event_urls[:3]:
+            if has_event_markup(candidate):
+                row["Beispiel-URL"] = candidate
+                row["JSON-LD"] = "ja"
+                break
         row["Status"] = "KANDIDAT"
     else:
         row["Status"] = "NICHTS GEFUNDEN"

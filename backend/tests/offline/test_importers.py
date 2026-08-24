@@ -209,3 +209,81 @@ def test_unescape_deep_keeps_non_strings_intact(importers):
     node = {"n": 3, "ok": True, "none": None, "list": [1, "a &amp; b"]}
     out = importers._unescape_deep(node)
     assert out == {"n": 3, "ok": True, "none": None, "list": [1, "a & b"]}
+
+
+# --- Following links from a listing page --------------------------------
+# The JSON-LD importer falls back to individual event pages when the listing
+# carries none. That fallback was broken in a way that looked like "this site
+# has no events": a commune site describes itself with a WebSite block, the
+# collector took `url` off any node it walked, and the anchor scan below ran
+# only `if not urls` — so one self-reference suppressed the whole scan.
+
+LISTING = """
+<html><head>
+<script type="application/ld+json">
+{"@type": "WebSite", "url": "https://gemeng.invalid/",
+ "image": {"@type": "ImageObject", "url": "https://gemeng.invalid/photo.jpg"}}
+</script>
+</head><body>
+  <a href="/events/">All events</a>
+  <a href="/de/events/">Alle Veranstaltungen</a>
+  <a href="/events/spillfest-2026/">Spillfest</a>
+  <a href="/events/chrëschtmaart/">Chrëschtmaart</a>
+  <a href="/wp-content/uploads/2024/photo-scaled.jpg">Photo</a>
+  <a href="/kontakt/">Kontakt</a>
+</body></html>
+"""
+
+BASE = "https://gemeng.invalid/events/"
+
+
+def links(importers, html=LISTING, base=BASE):
+    return importers._extract_event_links(html, base_url=base)
+
+
+def test_a_self_describing_page_no_longer_hides_its_events(importers):
+    """The regression. WebSite.url must not count as an event link."""
+    found = links(importers)
+    assert "https://gemeng.invalid/events/spillfest-2026/" in found
+    assert "https://gemeng.invalid/events/chrëschtmaart/" in found
+
+
+def test_the_sites_own_address_is_not_an_event(importers):
+    assert "https://gemeng.invalid/" not in links(importers)
+
+
+def test_images_are_never_followed(importers):
+    """Fetching a scaled photo and parsing it as HTML costs a request for nothing."""
+    assert not [u for u in links(importers) if u.endswith(".jpg")]
+
+
+def test_the_listing_does_not_link_to_itself(importers):
+    assert BASE not in links(importers)
+    assert BASE.rstrip("/") not in links(importers)
+
+
+def test_individual_events_come_before_listing_pages(importers):
+    """The caller follows at most twenty. /de/events/ is this page in German."""
+    found = links(importers)
+    first_listing = next(
+        (i for i, u in enumerate(found) if u.rstrip("/").endswith("/events")), len(found)
+    )
+    first_event = next(i for i, u in enumerate(found) if "spillfest" in u)
+    assert first_event < first_listing
+
+
+def test_unrelated_pages_are_left_out(importers):
+    assert not [u for u in links(importers) if "kontakt" in u]
+
+
+def test_real_event_json_ld_still_wins_over_the_anchor_scan(importers):
+    """When the page does describe Events, use those and skip the guessing."""
+    html = """
+    <html><head><script type="application/ld+json">
+    {"@type": "ItemList", "itemListElement": [
+      {"@type": "Event", "url": "https://gemeng.invalid/events/from-jsonld/"}]}
+    </script></head>
+    <body><a href="/events/from-anchor/">x</a></body></html>
+    """
+    found = links(importers, html)
+    assert found == ["https://gemeng.invalid/events/from-jsonld/"]
