@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 
 const strings = readFileSync(new URL("../src/i18n/strings.ts", import.meta.url), "utf8");
 const places = readFileSync(new URL("../src/data/places.ts", import.meta.url), "utf8");
+const onboarding = readFileSync(new URL("../src/data/onboarding.ts", import.meta.url), "utf8");
 
 /** Interface strings live in a separate LB_OVERRIDES map, not inline. */
 function interfaceCoverage() {
@@ -37,15 +38,33 @@ function placeCoverage() {
   };
 }
 
+/**
+ * Onboarding copy, which carries all four languages inline like place data.
+ *
+ * This table was invisible to the count until now, so the report could say
+ * 215/215 while the onboarding summary showed "5 interests" to someone who
+ * had picked Lëtzebuergesch two screens earlier. A number that excludes a
+ * whole file is worse than no number: it says the job is finished.
+ */
+function onboardingCoverage() {
+  const objects = [...onboarding.matchAll(/\{[^{}]*?\ben:\s*"[^{}]*?\}/gs)].map((m) => m[0]);
+  return {
+    total: objects.length,
+    done: objects.filter((o) => /\blb:\s*"/.test(o)).length,
+  };
+}
+
 const ui = interfaceCoverage();
 const pl = placeCoverage();
-const total = ui.total + pl.total;
-const done = ui.done + pl.done;
+const ob = onboardingCoverage();
+const total = ui.total + pl.total + ob.total;
+const done = ui.done + pl.done + ob.done;
 const pct = total ? Math.round((done / total) * 100) : 0;
 
 console.log("Lëtzebuergesch coverage");
 console.log(`  interface strings  ${ui.done}/${ui.total}`);
 console.log(`  place texts        ${pl.done}/${pl.total}`);
+console.log(`  onboarding copy    ${ob.done}/${ob.total}`);
 console.log(`  total              ${done}/${total}  (${pct}%)`);
 
 if (done < total) {

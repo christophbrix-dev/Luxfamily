@@ -10,6 +10,8 @@
 // endpoint. Fields that only exist there come back empty here, which is honest:
 // a card never showed them anyway.
 
+import type { Href } from "expo-router";
+
 import type { Canton, LocalizedString, Place } from "@/src/data/places";
 import type { ApiEventSummary, LocalizedString as ApiLocalizedString } from "@/src/utils/api";
 
@@ -101,7 +103,13 @@ function hashId(id: string): number {
  * Records that came from the API go to /event/[id], which fetches the full
  * document by its real id. /detail/[id] looks the entry up in the hard-coded
  * list and finds nothing for a real id, so the two are not interchangeable.
+ *
+ * The return type is Href, not string. app.json sets typedRoutes, so
+ * router.push() only accepts paths that match a real route — a typo in one of
+ * these two strings is then a compile error rather than a screen that does
+ * nothing when tapped. A plain string defeats that check everywhere this is
+ * used.
  */
-export function detailHref(item: Pick<Place, "id" | "sourceId">): string {
+export function detailHref(item: Pick<Place, "id" | "sourceId">): Href {
   return item.sourceId ? `/event/${item.sourceId}` : `/detail/${item.id}`;
 }

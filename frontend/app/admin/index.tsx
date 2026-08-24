@@ -18,6 +18,32 @@ import { useApp } from "@/src/contexts/AppContext";
 import { t } from "@/src/i18n/strings";
 import { api, getAdminToken, setAdminToken } from "@/src/utils/api";
 
+import type { Lang } from "@/src/data/places";
+
+/**
+ * Turn a failed login into something the reader can act on.
+ *
+ * The catch block used to render `e.message` straight from fetch, so a backend
+ * that was not running showed "Failed to fetch" under the password field. That
+ * reads like a rejected password — the natural next move is to try another
+ * one, or to reset a password that was never wrong. The request had not left
+ * the browser.
+ *
+ * fetch() rejects with a TypeError when it cannot reach the host at all;
+ * anything the server answered arrives as an HTTP error instead. That is the
+ * line between "no server" and "no".
+ */
+export function loginErrorMessage(e: unknown, lang: Lang): string {
+  const raw = e instanceof Error ? e.message : "";
+  const unreachable =
+    e instanceof TypeError ||
+    /failed to fetch|network request failed|load failed/i.test(raw);
+
+  if (unreachable) return t("adminBackendUnreachable", lang);
+  if (/401|403|invalid|credential/i.test(raw)) return t("adminBadCredentials", lang);
+  return raw || t("adminLoginFailed", lang);
+}
+
 export default function AdminLogin() {
   const { palette, shadow } = useAppPalette();
   const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
@@ -61,7 +87,7 @@ export default function AdminLogin() {
       await setAdminToken(res.access_token);
       router.replace("/admin/events");
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Login failed");
+      setErr(loginErrorMessage(e, lang));
     } finally {
       setBusy(false);
     }

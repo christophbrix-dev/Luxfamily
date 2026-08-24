@@ -109,6 +109,17 @@ cd frontend && yarn run check   # tsc --noEmit + eslint
 cd backend  && flake8 --select=E9,F . && pytest tests/offline -q
 ```
 
+`yarn check` ohne `run` ist ein **eingebauter Yarn-Befehl**, der das Skript
+verdeckt und unverwandte Fehler meldet. Immer `yarn run check`.
+
+Der Typecheck ist lokal strenger als in der CI. `app.json` setzt
+`typedRoutes`, aber die Routen-Typen (`.expo/types/router.d.ts`) entstehen erst
+beim Start des Dev-Servers und sind nicht eingecheckt. Wer die App einmal
+gestartet hat, sieht deshalb Fehler, die auf GitHub nie erscheinen — echte
+Fehler: ohne diese Typen prüft niemand, ob ein `router.push()` auf eine Route
+zeigt, die es gibt. **Vor dem Push einmal `yarn web` starten und dann
+`yarn run check`.**
+
 Beides läuft bei jedem Push über `.github/workflows/ci.yml`.
 
 Die Backend-Tests sind Integrationstests: Sie brauchen ein laufendes Backend
