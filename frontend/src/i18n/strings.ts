@@ -275,6 +275,24 @@ export const STRINGS: Dict = {
   totalPaid:         { en: "Total paid",        de: "Gezahlter Betrag",     fr: "Total payé" },
   backToApp:         { en: "Back to app",       de: "Zurück zur App",       fr: "Retour à l'app" },
 
+  // Admin login. "Failed to fetch" used to be shown verbatim, which reads like
+  // a rejected password when in fact nothing reached the server.
+  adminBackendUnreachable: {
+    en: "Cannot reach the server. Is the backend running, and does EXPO_PUBLIC_BACKEND_URL point at it?",
+    de: "Server nicht erreichbar. Läuft das Backend, und zeigt EXPO_PUBLIC_BACKEND_URL darauf?",
+    fr: "Serveur injoignable. Le backend tourne-t-il, et EXPO_PUBLIC_BACKEND_URL pointe-t-il dessus ?",
+  },
+  adminBadCredentials: {
+    en: "Email or password is wrong.",
+    de: "E-Mail oder Passwort stimmt nicht.",
+    fr: "Email ou mot de passe incorrect.",
+  },
+  adminLoginFailed: {
+    en: "Login failed.",
+    de: "Anmeldung fehlgeschlagen.",
+    fr: "Échec de la connexion.",
+  },
+
   // ------- Admin Console -------
   adminConsole:      { en: "Admin Console",     de: "Admin-Konsole",        fr: "Console d'administration" },
   adminSub:          { en: "Wat Elo? event management", de: "Wat Elo? Event-Verwaltung", fr: "Wat Elo? gestion d'événements" },
@@ -410,6 +428,9 @@ const LB_OVERRIDES: Record<string, string> = {
   paymentCancelled:      "Bezuelung ofgebrach",
   totalPaid:             "Bezuelt Bedrag",
   backToApp:             "Zréck an d'App",
+  adminBackendUnreachable: "Server net erreechbar. Leeft de Backend, a weist EXPO_PUBLIC_BACKEND_URL dorop?",
+  adminBadCredentials:   "E-Mail oder Passwuert stëmmt net.",
+  adminLoginFailed:      "Umeldung feelgeschloen.",
   notSet:                "Net gesat",
   bookingsPlural:        "Buchungen",
   ageRange:              "Alter",
