@@ -33,6 +33,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import httpx
 import osmium
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import UpdateOne
+from pymongo.errors import BulkWriteError
 
 from osm_taxonomy import (
     CATEGORIES,
@@ -361,23 +363,56 @@ async def ensure_indexes(db):
     await db.places.create_index("family_score")
 
 
+BULK_CHUNK = 500
+
+
 async def upsert_places(db, records: List[Dict[str, Any]]) -> Tuple[int, int]:
+    """Write a batch of places, in chunks rather than one round trip each.
+
+    The ingest produces around 8,000 records. Sent individually that is 8,000
+    sequential round trips to MongoDB, each waiting for the last — the same
+    N+1 shape the event importers had. bulk_write sends a chunk in one go.
+
+    `ordered=False` lets the server continue past a rejected document instead
+    of abandoning the rest of the chunk, which matters because one malformed
+    record should not cost the other 499. Failures are counted and logged, not
+    raised: a partial import is worth keeping.
+
+    Chunked rather than one enormous batch because MongoDB caps a command at
+    16 MB, and a whole ingest of tag-laden documents can exceed that.
+    """
     upserted = 0
     skipped = 0
-    for rec in records:
-        try:
-            res = await db.places.update_one(
+
+    for start in range(0, len(records), BULK_CHUNK):
+        chunk = records[start:start + BULK_CHUNK]
+        ops = [
+            UpdateOne(
                 {"id": rec["id"]},
                 {"$set": rec, "$setOnInsert": {"created_at": rec["updated_at"]}},
                 upsert=True,
             )
-            if res.upserted_id is not None or res.modified_count:
-                upserted += 1
-            else:
-                skipped += 1
+            for rec in chunk
+        ]
+        try:
+            res = await db.places.bulk_write(ops, ordered=False)
+            # A record already stored unchanged is neither upserted nor
+            # modified — it counts as skipped, as it did before.
+            written = len(res.upserted_ids) + res.modified_count
+            upserted += written
+            skipped += len(chunk) - written
+        except BulkWriteError as bwe:
+            # Everything the server did accept still counted.
+            details = bwe.details or {}
+            written = len(details.get("upserted", [])) + details.get("nModified", 0)
+            upserted += written
+            skipped += len(chunk) - written
+            for err in details.get("writeErrors", [])[:5]:
+                logger.error("upsert rejected: %s", err.get("errmsg", err))
         except Exception as e:
-            logger.error("upsert failed for %s: %s", rec.get("id"), e)
-            skipped += 1
+            logger.error("bulk upsert failed for %d records: %s", len(chunk), e)
+            skipped += len(chunk)
+
     return upserted, skipped
 
 
