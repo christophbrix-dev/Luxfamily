@@ -83,7 +83,14 @@ android-sdk/
 credentials.json
 *.key
 .credentials
-# Note: .env files ARE tracked so the deployment pipeline can read them.
+# Real .env files are never committed — they hold the admin password and the
+# JWT signing key, and a secret that has been in a git history has to be
+# rotated to be safe again. The deployment host sets these as environment
+# variables instead. (The note that used to sit here claimed the opposite;
+# nothing was ever tracked, so the rules below were always what applied.)
 .env
 .env.*
 *.env
+# The examples are the exception: variable names only, never values.
+!.env.example
+!**/.env.example
