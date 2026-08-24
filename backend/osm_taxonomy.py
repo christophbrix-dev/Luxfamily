@@ -317,14 +317,18 @@ SCORE_RULES = [
     ("opening_hours",     None,               +2),
     ("wheelchair",        r"^(yes|designated)$", +4),
     ("toilets",           r"^yes$",           +4),
-    ("amenity:toilets",   None,               +4),
+    # The POI *is* a toilet.  OSM spells this amenity=toilets — a key literally
+    # named "amenity:toilets" does not exist, so the old rule never once fired.
+    ("amenity",           r"^toilets$",       +4),
     ("drinking_water",    r"^yes$",           +3),
     ("shade",             r"^(yes|partial)$", +3),
     ("fee",               r"^no$",            +3),
     ("fee",               r"^yes$",           -3),
     ("playground:theme",  None,               +3),
     ("max_age",           None,               +2),
-    ("baby_feeding",      None,               +5),
+    # baby_feeding is commonly tagged "no".  Without a value check, a place that
+    # states it has nowhere to feed a baby scored the same as one that has.
+    ("baby_feeding",      r"^(yes|room|dedicated_room)$", +5),
     ("changing_table",    r"^yes$",           +5),
     ("access",            r"^(private|no|customers)$", -40),
 ]

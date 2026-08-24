@@ -333,7 +333,10 @@ class _POIHandler(osmium.SimpleHandler):
             "phone": tags.get("phone") or tags.get("contact:phone") or "",
             "opening_hours": tags.get("opening_hours") or "",
             "wheelchair": tags.get("wheelchair") in {"yes", "designated"},
-            "toilets": tags.get("toilets") == "yes" or "amenity:toilets" in tags,
+            # Either the place has toilets, or the place is one.  The second
+            # test used to look for a key "amenity:toilets", which OSM has no
+            # such thing as, so only the first half ever worked.
+            "toilets": tags.get("toilets") == "yes" or tags.get("amenity") == "toilets",
             "drinking_water": tags.get("drinking_water") == "yes",
             "shade": tags.get("shade") in {"yes", "partial"},
             "fee": tags.get("fee"),
