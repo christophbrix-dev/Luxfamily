@@ -165,10 +165,16 @@ export type ApiSource = {
   selectors?: Record<string, string> | null;
   created_at: string;
   last_run_at?: string | null;
-  last_status?: "ok" | "error" | "blocked_by_robots" | null;
+  // "no_events": the run succeeded and parsed nothing at all. Distinct from
+  // "ok" with zero imports, which happens whenever a calendar is simply quiet.
+  last_status?: "ok" | "no_events" | "error" | "blocked_by_robots" | null;
   last_error?: string | null;
   last_imported_count?: number | null;
   last_skipped_count?: number | null;
+  /** inserted + skipped: what the page yielded before any filtering. */
+  last_seen_count?: number | null;
+  /** Consecutive runs that yielded nothing. Reset by the first event seen. */
+  empty_runs?: number | null;
 };
 
 export type Analytics = {

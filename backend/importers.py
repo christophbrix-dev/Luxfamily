@@ -1153,6 +1153,13 @@ async def _import_visit_luxembourg(source: Dict[str, Any], db) -> tuple[int, int
 IMPORTERS["visit_luxembourg"] = _import_visit_luxembourg
 
 
+# How many runs of nothing at all before it is worth saying out loud. The
+# importer runs three times a day, so this is roughly a day of silence — long
+# enough that a site being briefly down does not raise it, short enough that a
+# commune which redesigned its calendar is noticed the next morning.
+EMPTY_RUNS_BEFORE_WARNING = 3
+
+
 async def run_source(source: Dict[str, Any], db) -> Dict[str, Any]:
     """Run a single source and persist the result on the source record."""
     kind = source.get("kind")
@@ -1168,13 +1175,27 @@ async def run_source(source: Dict[str, Any], db) -> Dict[str, Any]:
     else:
         try:
             inserted, skipped = await importer(source, db)
+            # inserted + skipped is what the page actually yielded: skipped
+            # counts events that were read and then set aside, usually for
+            # being in the past. Zero of both means nothing was parsed at all,
+            # which is what a redesigned website looks like from here — and
+            # under a plain "ok" it looks identical to a quiet week.
+            seen = inserted + skipped
+            empty_runs = 0 if seen else int(source.get("empty_runs") or 0) + 1
             result = {
                 "last_run_at": started,
-                "last_status": "ok",
+                "last_status": "ok" if seen else "no_events",
                 "last_error": None,
                 "last_imported_count": inserted,
                 "last_skipped_count": skipped,
+                "last_seen_count": seen,
+                "empty_runs": empty_runs,
             }
+            if empty_runs >= EMPTY_RUNS_BEFORE_WARNING:
+                logger.warning(
+                    "Source %s has parsed nothing %d runs running — check the page",
+                    source.get("name"), empty_runs,
+                )
         except RobotsBlocked as rb:
             logger.warning("Source %s blocked by robots.txt: %s", source.get("name"), rb)
             result = {

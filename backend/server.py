@@ -402,6 +402,11 @@ class SourceResponse(SourceBase):
     last_error: Optional[str] = None
     last_imported_count: Optional[int] = None
     last_skipped_count: Optional[int] = None
+    # inserted + skipped: what the page yielded before any filtering. Zero of
+    # both means nothing was parsed, which under a plain "ok" looks the same as
+    # a quiet week — the admin console needs to tell the two apart.
+    last_seen_count: Optional[int] = None
+    empty_runs: Optional[int] = None
 
 
 def _source_to_response(doc: Dict[str, Any]) -> SourceResponse:

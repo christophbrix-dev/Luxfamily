@@ -192,6 +192,19 @@ export default function AdminSources() {
                       ✓ Last run: {s.last_imported_count ?? 0} imported · {s.last_skipped_count ?? 0} skipped
                     </Text>
                   )}
+                  {/* Parsed nothing at all. A green tick here would look
+                      exactly like a quiet week, which is how a commune that
+                      redesigned its calendar goes unnoticed for months. */}
+                  {s.last_status === "no_events" && (
+                    <Text style={{ color: palette.amber }}>
+                      ⚠ Nothing found
+                      {(s.empty_runs ?? 0) > 1 ? ` — ${s.empty_runs} runs running` : ""}
+                      {(s.empty_runs ?? 0) >= 3 ? " · check the page" : ""}
+                    </Text>
+                  )}
+                  {s.last_status === "blocked_by_robots" && (
+                    <Text style={{ color: palette.textMuted }}>robots.txt says no</Text>
+                  )}
                   {s.last_status === "error" && (
                     <Text style={{ color: palette.red }}>✗ Error: {s.last_error}</Text>
                   )}
