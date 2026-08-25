@@ -215,6 +215,7 @@ export const api = {
     near?: { lat: number; lng: number };
     radiusKm?: number;
     limit?: number;
+    skip?: number;
   } = {}) => {
     const q = new URLSearchParams();
     if (opts.group) q.set("group", opts.group);
@@ -224,6 +225,7 @@ export const api = {
       q.set("radius_km", String(opts.radiusKm ?? 10));
     }
     q.set("limit", String(opts.limit ?? 60));
+    if (opts.skip) q.set("skip", String(opts.skip));
     return apiFetch<ApiPlace[]>(`/api/places?${q.toString()}`);
   },
   pingView: (id: string) =>

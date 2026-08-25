@@ -41,6 +41,10 @@ function label(entry: PlaceLabels, lang: Lang): string {
   return entry.label_en;
 }
 
+/** One page of places. Also the yardstick for "is there more": a short page
+ *  means the end, which saves asking for one that comes back empty. */
+const PAGE = 60;
+
 const GROUP_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   play: "happy-outline",
   nature: "leaf-outline",
@@ -62,6 +66,11 @@ export default function Places() {
   const [group, setGroup] = useState<string | null>(null);
   const [places, setPlaces] = useState<ApiPlace[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // There are over 8,000 places. One screenful used to be all anyone could
+  // reach: the endpoint had no skip, so "load more" was not possible and the
+  // first page read as though it were everything.
+  const [more, setMore] = useState(false);
+  const [exhausted, setExhausted] = useState(false);
 
   useEffect(() => {
     api.placesMeta().then(setMeta).catch(() => setMeta(null));
@@ -75,9 +84,10 @@ export default function Places() {
         group: group ?? undefined,
         near: coords ?? undefined,
         radiusKm: 15,
-        limit: 60,
+        limit: PAGE,
       });
       setPlaces(rows);
+      setExhausted(rows.length < PAGE);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load");
       setPlaces([]);
@@ -87,6 +97,27 @@ export default function Places() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /** Append the next page. A short page means we have reached the end. */
+  const loadMore = useCallback(async () => {
+    if (more || exhausted || !places) return;
+    setMore(true);
+    try {
+      const rows = await api.osmPlaces({
+        group: group ?? undefined,
+        near: coords ?? undefined,
+        radiusKm: 15,
+        limit: PAGE,
+        skip: places.length,
+      });
+      setPlaces([...places, ...rows]);
+      setExhausted(rows.length < PAGE);
+    } catch {
+      // Keep what is on screen; the button stays and can be pressed again.
+    } finally {
+      setMore(false);
+    }
+  }, [more, exhausted, places, group, coords]);
 
   /** Closest first once we know where the user is; otherwise the backend's order. */
   const sorted = useMemo<(ApiPlace & { km?: number })[]>(() => {
@@ -192,6 +223,21 @@ export default function Places() {
           ))
         )}
 
+        {sorted.length > 0 && !exhausted ? (
+          <TouchableOpacity
+            onPress={loadMore}
+            disabled={more}
+            style={styles.moreBtn}
+            testID="places-load-more"
+          >
+            {more ? (
+              <ActivityIndicator color={palette.primaryDark} />
+            ) : (
+              <Text style={styles.moreTxt}>{t("showMore", lang)}</Text>
+            )}
+          </TouchableOpacity>
+        ) : null}
+
         {/* ODbL requires attribution wherever the data is shown, not only on the map tiles. */}
         {sorted.length > 0 ? (
           <Text style={styles.attribution}>© OpenStreetMap contributors (ODbL)</Text>
@@ -233,5 +279,10 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
   closedNow: { color: palette.textMuted },
   mapBtn: { padding: 8 },
   empty: { textAlign: "center", color: palette.textSecondary, marginTop: 40 },
+  moreBtn: {
+    alignItems: "center", justifyContent: "center", paddingVertical: 14,
+    marginTop: 4, borderRadius: radii.md, backgroundColor: palette.primaryLight,
+  },
+  moreTxt: { fontSize: 13, fontWeight: "700", color: palette.primaryDark },
   attribution: { textAlign: "center", fontSize: 11, color: palette.textMuted, marginTop: 16 },
 });
