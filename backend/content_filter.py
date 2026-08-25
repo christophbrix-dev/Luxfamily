@@ -73,8 +73,22 @@ EXPLICIT = [
     r"bdsm", r"sm[- ]?studio", r"dominastudio",
     r"nackt(?:bar|club|tanz|party)\w*", r"nudisten?\w*", r"fkk[- ]?(?:club|party)",
     r"peep[- ]?show\w*", r"burlesque[- ]?(?:show|night|revue)",
-    r"xxx[- ]?(?:film|kino|movie|cinema)\w*",
+    r"xxx[- ]?(?:film|kino|movie|cinema)\w*", r"pornokino\w*",
     r"onlyfans",
+    # How these places name themselves on their own signage, which is not how
+    # a swear-word list names them. "Club libertin" is simply what a swinger
+    # club is called in French and in Luxembourg, and the first draft of this
+    # file would have let one straight through.
+    r"club[- ]libertin\w*", r"soir[ée]e[- ]libertine", r"partouze\w*",
+    r"maison de passe", r"salon de massage [ée]rotique", r"erotikmassage\w*",
+    r"prostitu\w+", r"prostitutie", r"freudenhaus\w*",
+    r"saunaclub\w*", r"sauna[- ]club\w*",      # not a plain sauna, which is a spa
+    r"animierbar\w*", r"nachtbar\w*", r"bumslokal\w*",
+    r"begleitservice\w*", r"hostessen[- ]?(?:service|agentur)",
+    r"modelwohnung\w*", r"terminwohnung\w*",
+    r"gogo[- ]?bar\w*", r"go[- ]go[- ]bar\w*",
+    r"adult[- ]shop\w*", r"erotikshop\w*", r"erotic[- ]shop\w*",
+    r"bordeel\w*", r"seksclub\w*",
 ]
 
 # Compounds that contain a flagged fragment and mean something else entirely.

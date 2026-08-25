@@ -42,6 +42,39 @@ def test_refuses_explicit(text):
     assert verdict[0] == "explicit"
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        # How these places name themselves, which is the register that matters.
+        # A commune feed will never publish an insult; it could conceivably
+        # syndicate a venue listing.
+        "Club libertin – soirée privée",
+        "Soirée libertine au château",
+        "Saunaclub Wellness 24",
+        "Begleitservice Luxembourg",
+        "Terminwohnung – neue Adresse",
+        "Gogo-Bar Eröffnung",
+        "Adult Shop – Neueröffnung",
+        "Salon de massage érotique",
+        "Maison de passe",
+        "Pornokino Nonstop",
+        "Seksclub Venlo",
+    ],
+)
+def test_refuses_the_operator_vocabulary(text):
+    """Added after a public swear-word list turned out to cover none of this."""
+    verdict = assess(text)
+    assert verdict is not None, f"slipped through: {text!r}"
+    assert verdict[0] == "explicit"
+
+
+def test_a_plain_sauna_is_not_a_saunaclub():
+    """Wellness is a normal family listing; only the compound is refused."""
+    assert is_family_safe("Sauna und Hallenbad, Familientarif")
+    assert is_family_safe("Wellness: Sauna, Dampfbad, Ruheraum")
+    assert assess("Saunaclub") is not None
+
+
 def test_explicit_description_beats_harmless_title():
     """A clean title does not launder the body text."""
     verdict = assess("Abend im Zentrum", "Striptease und Table-Dance ab 22 Uhr")
@@ -93,6 +126,50 @@ def test_reports_the_word_it_matched():
 def test_keeps_ordinary_events(text):
     verdict = assess(text)
     assert verdict is None, f"wrongly refused {text!r} because of {verdict}"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # Luxembourgish "ass" is the verb "is" — the copula of the national
+        # language. An English swear-word list contains "ass", and matching it
+        # hit 39 events in the live database.
+        "ADRAD Kayldall weist wat Funken ass",
+        "Wat ass lass an der Gemeng?",
+        # French "con" inside a dish, on a commune dinner listing.
+        "Chili con carne am Kulturzentrum",
+        # A wreath laid at a war memorial. "gerbe" is on the French list.
+        "Cérémonie de dépôt de gerbe au monument aux morts",
+        # A public swimming pool whose name is an acronym.
+        "Piscine SPIC",
+        # Dutch lists carry "nicht"; German "nicht" means "not".
+        "Nicht-Mitglieder: Erwachsene 21 EUR",
+        # Adult-site category names are ordinary English words.
+        "Outdoor swimming pool",
+        "Halloween Party am Duerf",
+        "Jardin éphémère – Ephemeral Garden",
+        "Musée 385th bomb group",
+        "Un parking public se trouve des deux côtés du parc",
+        "Séance tout public à 15h",
+    ],
+)
+def test_public_wordlists_would_have_eaten_these(text):
+    """Every line here is real text from the live database.
+
+    Two off-the-shelf vocabularies were evaluated as a way to strengthen this
+    filter: a public multi-language swear-word list, and the category taxonomy
+    of adult sites. Measured against the 8,210 documents we actually hold,
+    neither found a single piece of adult content — and between them they
+    matched a war-memorial ceremony, a chili con carne dinner, a swimming
+    pool, a WWII museum, the outdoor pool, the Halloween party, and 39
+    Luxembourgish sentences containing the word "is".
+
+    They are the wrong instrument: they are built to catch insults typed by
+    anonymous users in chat, and our problem is classifying event listings
+    from 103 curated municipal and cultural sources. These cases are kept as
+    tests so the conclusion survives the next person who has the same idea.
+    """
+    assert assess(text) is None, f"wrongly refused real text: {text!r}"
 
 
 def test_keeps_the_schueberfouer_in_full():
