@@ -31,7 +31,8 @@ from typing import Dict, List, Optional, Tuple
 
 import osmium
 
-from osm_ingest import ensure_pbf
+# Geometry lives with the ingest, which is the other user of it.
+from osm_ingest import Ring, ensure_pbf, point_in_ring
 
 logger = logging.getLogger("commune_index")
 
@@ -66,7 +67,6 @@ CANTON_NAMES = {
     "Wiltz": "Wiltz",
 }
 
-Ring = List[Tuple[float, float]]
 
 
 def _strip_canton_prefix(name: str) -> str:
@@ -77,25 +77,6 @@ def _strip_canton_prefix(name: str) -> str:
     return name.strip()
 
 
-def point_in_ring(lon: float, lat: float, ring: Ring) -> bool:
-    """Ray casting: does a horizontal ray from the point cross the ring oddly?
-
-    Standard even-odd test. A point exactly on an edge is undefined and may
-    fall either way — irrelevant here, where the points are town centres well
-    inside their own canton.
-    """
-    inside = False
-    n = len(ring)
-    for i in range(n):
-        x1, y1 = ring[i]
-        x2, y2 = ring[(i + 1) % n]
-        # Does the edge straddle the point's latitude?
-        if (y1 > lat) != (y2 > lat):
-            # Longitude where the edge crosses that latitude.
-            x_at = x1 + (lat - y1) * (x2 - x1) / (y2 - y1)
-            if x_at > lon:
-                inside = not inside
-    return inside
 
 
 class _BoundaryHandler(osmium.SimpleHandler):

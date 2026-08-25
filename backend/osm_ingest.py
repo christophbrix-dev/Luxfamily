@@ -142,6 +142,28 @@ def _compile_category(kind_key: str) -> Tuple[Callable[[Dict[str, Any]], bool], 
     return match, relations_only, min_area
 
 
+Ring = List[Tuple[float, float]]
+
+
+def point_in_ring(lon: float, lat: float, ring: Ring) -> bool:
+    """Ray casting: does a horizontal ray from the point cross the ring oddly?
+
+    Standard even-odd test. A point exactly on an edge is undefined and may
+    fall either way — irrelevant for the two things this is used for, placing
+    a POI in its commune and a commune in its canton.
+    """
+    inside = False
+    n = len(ring)
+    for i in range(n):
+        x1, y1 = ring[i]
+        x2, y2 = ring[(i + 1) % n]
+        if (y1 > lat) != (y2 > lat):
+            x_at = x1 + (lat - y1) * (x2 - x1) / (y2 - y1)
+            if x_at > lon:
+                inside = not inside
+    return inside
+
+
 def polygon_area_m2(ring: List[Tuple[float, float]]) -> float:
     """Area of a lon/lat ring in square metres.
 
@@ -236,6 +258,13 @@ class _POIHandler(osmium.SimpleHandler):
         self.matchers = matchers  # {kind_key: (predicate, relations_only)}
         self.records: List[Dict[str, Any]] = []
         self.raw_counts: Dict[str, int] = {k: 0 for k in matchers}
+        # Commune boundaries, collected in the same pass. 79% of the places
+        # here have no name in OSM and fall back to their category label, so a
+        # list reads "Spielplatz, Spielplatz, Spielplatz". The commune is what
+        # tells them apart, and almost none of them carry an address: of 3,689
+        # unnamed playgrounds, parks and picnic sites, exactly one has addr:*.
+        # The boundaries are in this file already.
+        self.communes: List[Tuple[str, Tuple[float, float, float, float], List[Ring]]] = []
 
     # -- helpers ------------------------------------------------------
     def _tags_to_dict(self, t) -> Dict[str, str]:
@@ -255,6 +284,45 @@ class _POIHandler(osmium.SimpleHandler):
         if not lats:
             return None
         return sum(lats) / len(lats), sum(lons) / len(lons)
+
+    def _collect_commune(self, a, tags: Dict[str, str]) -> None:
+        """A Luxembourg commune boundary, kept with its bounding box.
+
+        ref:lau2 is what separates a Luxembourg commune from the German and
+        French ones the Geofabrik extract also carries.
+        """
+        if tags.get("boundary") != "administrative" or tags.get("admin_level") != "8":
+            return
+        if "ref:lau2" not in tags:
+            return
+        name = (tags.get("name") or "").strip()
+        if not name:
+            return
+        try:
+            rings = [[(n.lon, n.lat) for n in ring] for ring in a.outer_rings()]
+        except osmium.InvalidLocationError:
+            return
+        rings = [r for r in rings if len(r) >= 3]
+        if not rings:
+            return
+        pts = [p for r in rings for p in r]
+        box = (min(p[0] for p in pts), min(p[1] for p in pts),
+               max(p[0] for p in pts), max(p[1] for p in pts))
+        self.communes.append((name, box, rings))
+
+    def commune_at(self, lat: float, lon: float) -> str:
+        """Which commune contains this point, or "" if none does.
+
+        The bounding box is checked first. Without it this is 8,354 points
+        against 100 polygons of several thousand vertices each; with it almost
+        every pair is settled by four comparisons.
+        """
+        for name, (minx, miny, maxx, maxy), rings in self.communes:
+            if not (minx <= lon <= maxx and miny <= lat <= maxy):
+                continue
+            if any(point_in_ring(lon, lat, ring) for ring in rings):
+                return name
+        return ""
 
     # -- osmium callbacks --------------------------------------------
     def node(self, n):
@@ -318,6 +386,7 @@ class _POIHandler(osmium.SimpleHandler):
         tags = self._tags_to_dict(a.tags)
         if not tags:
             return
+        self._collect_commune(a, tags)
         for kind_key, (match, _relations_only, min_area) in self.matchers.items():
             if not min_area or not match(tags):
                 continue
@@ -368,6 +437,7 @@ class _POIHandler(osmium.SimpleHandler):
                 return None
 
         name = pick_name(tags, cat["label_de"])
+        named = any(tags.get(k) for k in NAME_KEYS)
         score = compute_family_score(tags, cat["base_score"])
         a_min, a_max = age_range(tags, kind_key)
 
@@ -412,6 +482,9 @@ class _POIHandler(osmium.SimpleHandler):
             "shade": tags.get("shade") in {"yes", "partial"},
             "fee": tags.get("fee"),
             "wikidata": tags.get("wikidata") or "",
+            # Filled in after the pass, once every boundary has been seen.
+            "commune": "",
+            "named": named,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -491,7 +564,37 @@ def _parse_pbf(kinds: List[str]) -> Tuple[Dict[str, int], List[Dict[str, Any]]]:
     matchers = {k: _compile_category(k) for k in kinds}
     handler = _POIHandler(matchers)
     handler.apply_file(str(PBF_CACHE), locations=True, idx="flex_mem")
+    _assign_communes(handler)
     return handler.raw_counts, handler.records
+
+
+def _assign_communes(handler: "_POIHandler") -> None:
+    """Give every record its commune, and a name that tells it from the rest.
+
+    Four in five places here have no name in OSM, so pick_name falls back to
+    the category label and a list reads "Spielplatz" forty times over. They
+    are all real playgrounds; what is missing is which one. Appending the
+    commune is enough to tell them apart, and it is the answer a family wants
+    anyway — "Spillplaz, Beetebuerg" rather than a marker on a map.
+
+    Records that do have a name keep it untouched. "Parc Merveilleux" does not
+    become "Parc Merveilleux, Beetebuerg".
+    """
+    if not handler.communes:
+        logger.warning("no commune boundaries in the extract — names left as they are")
+        return
+    placed = 0
+    for rec in handler.records:
+        if rec["lat"] is None or rec["lng"] is None:
+            continue
+        commune = handler.commune_at(rec["lat"], rec["lng"])
+        if not commune:
+            continue
+        rec["commune"] = commune
+        placed += 1
+        if not rec.get("named"):
+            rec["name"] = f"{rec['name']}, {commune}"
+    logger.info("  placed %d/%d records in a commune", placed, len(handler.records))
 
 
 async def ingest_category(kind_key: str, db=None, dry_run: bool = False) -> Dict[str, Any]:

@@ -226,8 +226,17 @@ CATEGORIES = {
         "group": "animals", "base_score": 92,
         "filters": [
             '["tourism"="zoo"]',
-            '["attraction"="animal"]',
+            # Not ["attraction"="animal"]. In OSM that tags one exhibit inside
+            # an attraction, not a place to go: the 41 in Luxembourg are
+            # "Dunkelroter Ara", "Molukkenkakadu", "Wellensittich", "Schweine"
+            # — individual cages and pens in the Parc Merveilleux, listed
+            # beside the park itself as though each were its own outing. Not
+            # one of them also carries tourism=zoo, so nothing is lost.
         ],
+        # Unnamed tourism=zoo areas are enclosures inside a zoo: five of them
+        # sit in Bettembourg, all of them inside the Parc Merveilleux, which is
+        # listed once under its own name.
+        "require_name": True,
     },
     "horse": {
         "label_de": "Reiterhof / Ponys", "label_fr": "Centre équestre",
@@ -237,6 +246,10 @@ CATEGORIES = {
             '["leisure"="horse_riding"]',
             '["sport"="equestrian"]',
         ],
+        # 8 named against 148 unnamed. A riding school has a name; the rest are
+        # paddocks and fields tagged leisure=horse_riding, which is not
+        # somewhere to take the children on a Sunday.
+        "require_name": True,
     },
 
     # ---------- Kultur & Lernen ----------
@@ -255,6 +268,12 @@ CATEGORIES = {
             '["historic"="fort"]',
             '["historic"="ruins"]',
         ],
+        # A castle is its name. Unnamed, historic=ruins is a fragment of wall or
+        # a sally port — 133 of them against 26 named ones, most in Echternach
+        # where the Roman remains are mapped piece by piece — and an unnamed
+        # historic=castle with building=yes is usually the keep of a castle
+        # that is already listed under its own name.
+        "require_name": True,
     },
     "library": {
         "label_de": "Bibliothek", "label_fr": "Bibliothèque",
