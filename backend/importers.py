@@ -31,6 +31,7 @@ from bs4 import BeautifulSoup
 from dateutil import parser as dateutil_parser
 from icalendar import Calendar
 
+import content_filter
 from town_names import canonical_town
 from crawler_utils import RobotsBlocked, polite_get
 
@@ -103,7 +104,30 @@ def _build_event_doc(
     lat: float,
     lng: float,
     image: str = "",
-) -> Dict[str, Any]:
+) -> Optional[Dict[str, Any]]:
+    """Build the stored event, or None when it does not belong in a family app.
+
+    The check sits here because this is the one place all five feed importers
+    pass through, so nothing explicit can reach the database by way of an
+    importer that forgot to ask. Refusal happens before the document exists:
+    Christoph asked that this content never be "eingespielt", and the cheapest
+    way to keep that promise is to never write it down.
+
+    What is refused is only NSFW material — see content_filter for why an
+    over-18 marker is deliberately not enough. Bars, wine tastings and the
+    Schueberfouer stay.
+    """
+    verdict = content_filter.assess(title, description)
+    if verdict:
+        reason, matched = verdict
+        # The matched term and the id, not the text: enough to audit the rule
+        # and find the page again, without copying the content into the log.
+        logger.warning(
+            "Refused %s event from %s (%r matched %s)",
+            reason, source.get("name", "?"), matched, external_id[:120],
+        )
+        return None
+
     now = _now_iso()
     return {
         "id": str(uuid.uuid4()),
@@ -184,6 +208,7 @@ async def _import_ical(source: Dict[str, Any], db) -> Tuple[int, int]:
     known_ids = await _known_external_ids(source, db)
     inserted = 0
     skipped = 0
+    blocked = 0   # refused by content_filter, never stored
     today = datetime.now(timezone.utc).date()
     horizon = today + timedelta(days=365)
 
@@ -243,11 +268,14 @@ async def _import_ical(source: Dict[str, Any], db) -> Tuple[int, int]:
             lng=lng,
             image=source.get("image_default", ""),
         )
+        if doc is None:
+            blocked += 1
+            continue
         await db.events.insert_one(doc)
         known_ids.add(doc["external_id"])
         inserted += 1
 
-    return inserted, skipped
+    return inserted, skipped, blocked
 
 
 # ---------------------------------------------------------------------------
@@ -274,6 +302,7 @@ async def _import_data_public_lu(source: Dict[str, Any], db) -> Tuple[int, int]:
     known_ids = await _known_external_ids(source, db)
     inserted = 0
     skipped = 0
+    blocked = 0   # refused by content_filter, never stored
     today = datetime.now(timezone.utc).date()
 
     for row in rows:
@@ -324,11 +353,14 @@ async def _import_data_public_lu(source: Dict[str, Any], db) -> Tuple[int, int]:
             lng=lng,
             image=str(image) if image else "",
         )
+        if doc is None:
+            blocked += 1
+            continue
         await db.events.insert_one(doc)
         known_ids.add(doc["external_id"])
         inserted += 1
 
-    return inserted, skipped
+    return inserted, skipped, blocked
 
 
 # ---------------------------------------------------------------------------
@@ -418,6 +450,7 @@ async def _import_html_scraper(source: Dict[str, Any], db) -> Tuple[int, int]:
     known_ids = await _known_external_ids(source, db)
     inserted = 0
     skipped = 0
+    blocked = 0   # refused by content_filter, never stored
     today = datetime.now(timezone.utc).date()
 
     for el in items:
@@ -467,11 +500,14 @@ async def _import_html_scraper(source: Dict[str, Any], db) -> Tuple[int, int]:
             lng=float(source.get("lng_default", 6.1319)),
             image=image,
         )
+        if doc is None:
+            blocked += 1
+            continue
         await db.events.insert_one(doc)
         known_ids.add(doc["external_id"])
         inserted += 1
 
-    return inserted, skipped
+    return inserted, skipped, blocked
 
 
 IMPORTERS["html_scraper"] = _import_html_scraper
@@ -530,6 +566,7 @@ async def _import_json_ld(source: Dict[str, Any], db) -> Tuple[int, int]:
     known_ids = await _known_external_ids(source, db)
     inserted = 0
     skipped = 0
+    blocked = 0   # refused by content_filter, never stored
     today = datetime.now(timezone.utc).date()
 
     for ev in events:
@@ -611,11 +648,14 @@ async def _import_json_ld(source: Dict[str, Any], db) -> Tuple[int, int]:
             lng=lng,
             image=image,
         )
+        if doc is None:
+            blocked += 1
+            continue
         await db.events.insert_one(doc)
         known_ids.add(doc["external_id"])
         inserted += 1
 
-    return inserted, skipped
+    return inserted, skipped, blocked
 
 
 def _unescape_deep(node: Any) -> Any:
@@ -877,6 +917,7 @@ async def _import_sitemap(source: Dict[str, Any], db) -> Tuple[int, int]:
     known_ids = await _known_external_ids(source, db)
     inserted = 0
     skipped = 0
+    blocked = 0   # refused by content_filter, never stored
     today = datetime.now(timezone.utc).date()
 
     for page_url in candidates:
@@ -967,11 +1008,14 @@ async def _import_sitemap(source: Dict[str, Any], db) -> Tuple[int, int]:
                 lng=lng,
                 image=image,
             )
+            if doc is None:
+                blocked += 1
+                continue
             await db.events.insert_one(doc)
             known_ids.add(doc["external_id"])
             inserted += 1
 
-    return inserted, skipped
+    return inserted, skipped, blocked
 
 
 def _collect_sitemap_urls(xml_text: str, *, base: str) -> List[str]:
@@ -1126,7 +1170,7 @@ async def _import_kids_in_lux(source: Dict[str, Any], db) -> tuple[int, int]:
         client = MongoClient(os.environ["MONGO_URL"])
         sdb    = client[os.environ["DB_NAME"]]
 
-        inserted = updated = failed = 0
+        inserted = updated = failed = blocked = 0
         try:
             with httpx.Client() as hx:
                 for index_url, cats, ev_type in k.INDEX_URLS:
@@ -1140,6 +1184,16 @@ async def _import_kids_in_lux(source: Dict[str, Any], db) -> tuple[int, int]:
                         if not parsed:
                             failed += 1
                             continue
+                        verdict = content_filter.assess(
+                            parsed.get("title"), parsed.get("desc"))
+                        if verdict:
+                            logger.warning(
+                                "Refused %s event from %s (%r matched %s)",
+                                verdict[0], source.get("name", "?"),
+                                verdict[1], url[:120],
+                            )
+                            blocked += 1
+                            continue
                         status = k.upsert_event(sdb, parsed, cats, ev_type, source["id"])
                         if status == "inserted":
                             inserted += 1
@@ -1148,7 +1202,7 @@ async def _import_kids_in_lux(source: Dict[str, Any], db) -> tuple[int, int]:
                         _t.sleep(k.PAUSE_S)
         finally:
             client.close()
-        return inserted, failed
+        return inserted, failed, blocked
 
     return await asyncio.to_thread(_run_sync)
 
@@ -1168,7 +1222,7 @@ async def _import_visit_luxembourg(source: Dict[str, Any], db) -> tuple[int, int
 
         client = MongoClient(os.environ["MONGO_URL"])
         sdb    = client[os.environ["DB_NAME"]]
-        inserted = updated = failed = 0
+        inserted = updated = failed = blocked = 0
         try:
             with httpx.Client() as hx:
                 urls = list(v.list_detail_urls(hx))
@@ -1181,6 +1235,15 @@ async def _import_visit_luxembourg(source: Dict[str, Any], db) -> tuple[int, int
                     if not parsed:
                         failed += 1
                         continue
+                    verdict = content_filter.assess(
+                        parsed.get("title"), parsed.get("desc"))
+                    if verdict:
+                        logger.warning(
+                            "Refused %s event from %s (%r matched %s)",
+                            verdict[0], source.get("name", "?"), verdict[1], url[:120],
+                        )
+                        blocked += 1
+                        continue
                     status = v.upsert_event(sdb, parsed, source["id"])
                     if status == "inserted":
                         inserted += 1
@@ -1189,7 +1252,7 @@ async def _import_visit_luxembourg(source: Dict[str, Any], db) -> tuple[int, int
                     _t.sleep(v.PAUSE_S)
         finally:
             client.close()
-        return inserted, failed
+        return inserted, failed, blocked
 
     return await asyncio.to_thread(_run_sync)
 
@@ -1218,13 +1281,14 @@ async def run_source(source: Dict[str, Any], db) -> Dict[str, Any]:
         }
     else:
         try:
-            inserted, skipped = await importer(source, db)
-            # inserted + skipped is what the page actually yielded: skipped
-            # counts events that were read and then set aside, usually for
-            # being in the past. Zero of both means nothing was parsed at all,
-            # which is what a redesigned website looks like from here — and
-            # under a plain "ok" it looks identical to a quiet week.
-            seen = inserted + skipped
+            inserted, skipped, blocked = await importer(source, db)
+            # inserted + skipped + blocked is what the page actually yielded:
+            # skipped counts events that were read and then set aside, usually
+            # for being in the past, and blocked counts the ones content_filter
+            # refused. Zero of all three means nothing was parsed at all, which
+            # is what a redesigned website looks like from here — and under a
+            # plain "ok" it looks identical to a quiet week.
+            seen = inserted + skipped + blocked
             empty_runs = 0 if seen else int(source.get("empty_runs") or 0) + 1
             result = {
                 "last_run_at": started,
@@ -1232,9 +1296,19 @@ async def run_source(source: Dict[str, Any], db) -> Dict[str, Any]:
                 "last_error": None,
                 "last_imported_count": inserted,
                 "last_skipped_count": skipped,
+                "last_blocked_count": blocked,
                 "last_seen_count": seen,
                 "empty_runs": empty_runs,
             }
+            if blocked:
+                # Visible on the source, not just in the log. A filter whose
+                # work nobody can see is a filter nobody can correct — and the
+                # cost of a wrong rule here is a village festival that quietly
+                # stops appearing.
+                logger.warning(
+                    "Source %s: %d event(s) refused as not family-safe",
+                    source.get("name"), blocked,
+                )
             if empty_runs >= EMPTY_RUNS_BEFORE_WARNING:
                 logger.warning(
                     "Source %s has parsed nothing %d runs running — check the page",

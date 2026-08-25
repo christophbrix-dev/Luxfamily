@@ -55,7 +55,7 @@ def make_ics(n, uid=lambda i: f"uid-{i}", start=lambda i: TODAY + timedelta(days
 
 def test_ical_import_maps_fields(importers, db, run, monkeypatch):
     monkeypatch.setattr(importers, "_fetch", feed(make_ics(20)))
-    inserted, _ = run(importers._import_ical(BASE_SOURCE, db))
+    inserted, _, _ = run(importers._import_ical(BASE_SOURCE, db))
     assert inserted == 20
 
     doc = run(db.events.find_one({"external_id": "uid-3"}))
@@ -67,7 +67,7 @@ def test_ical_import_maps_fields(importers, db, run, monkeypatch):
 def test_reimporting_the_same_feed_changes_nothing(importers, db, run, monkeypatch):
     monkeypatch.setattr(importers, "_fetch", feed(make_ics(20)))
     run(importers._import_ical(BASE_SOURCE, db))
-    inserted, skipped = run(importers._import_ical(BASE_SOURCE, db))
+    inserted, skipped, _blocked = run(importers._import_ical(BASE_SOURCE, db))
 
     assert inserted == 0
     assert skipped == 20
@@ -92,7 +92,7 @@ def test_dedup_costs_one_query_not_one_per_row(importers, db, run, monkeypatch):
 
 def test_duplicate_ids_within_one_feed_collapse(importers, db, run, monkeypatch):
     monkeypatch.setattr(importers, "_fetch", feed(make_ics(6, uid=lambda i: "same")))
-    inserted, skipped = run(importers._import_ical(BASE_SOURCE, db))
+    inserted, skipped, _blocked = run(importers._import_ical(BASE_SOURCE, db))
     assert inserted == 1
     assert skipped == 5
 
@@ -101,14 +101,14 @@ def test_dedup_is_scoped_to_one_source(importers, db, run, monkeypatch):
     """Two sources may legitimately carry the same external id."""
     monkeypatch.setattr(importers, "_fetch", feed(make_ics(5)))
     run(importers._import_ical(BASE_SOURCE, db))
-    inserted, _ = run(importers._import_ical({**BASE_SOURCE, "id": "src-2"}, db))
+    inserted, _, _ = run(importers._import_ical({**BASE_SOURCE, "id": "src-2"}, db))
     assert inserted == 5
 
 
 def test_past_events_are_skipped(importers, db, run, monkeypatch):
     old = make_ics(3, start=lambda i: TODAY - timedelta(days=30 + i))
     monkeypatch.setattr(importers, "_fetch", feed(old))
-    inserted, skipped = run(importers._import_ical(BASE_SOURCE, db))
+    inserted, skipped, _blocked = run(importers._import_ical(BASE_SOURCE, db))
     assert inserted == 0
     assert skipped == 3
 
