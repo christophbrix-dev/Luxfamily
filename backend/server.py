@@ -47,6 +47,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 
+from check_family_safe import audit_family_safety
 from geocode_events import geocode_pending
 from importers import run_all_active, run_source
 
@@ -542,6 +543,25 @@ async def _run_importers_once() -> None:
         # A geocoding failure must not make the import look failed: the events
         # are already stored, they simply keep the coordinate they arrived with.
         logger.exception("Scheduled geocoding failed")
+
+    try:
+        # Ask the family-safety question of the whole database, not just of
+        # what arrived. The import filter cannot see events stored before it
+        # existed, or an entry an importer wrote without asking, or a source
+        # that changed what it publishes after we first read it.
+        #
+        # Findings are hidden, never deleted: a hit is a question for a person,
+        # and an entry that is gone cannot be looked at to decide whether the
+        # rule was right. Nothing is expected to turn up — the point is the day
+        # something does.
+        hidden = await audit_family_safety(db)
+        if hidden:
+            logger.warning(
+                "Family-safety audit hid %d stored entr(ies) — review family_flag",
+                hidden,
+            )
+    except Exception:
+        logger.exception("Family-safety audit failed")
     finally:
         await _release_importer_lease(db)
 
