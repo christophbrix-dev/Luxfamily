@@ -218,7 +218,11 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
     boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.05)",
     elevation: 2,
   },
-  chipRowOuter: { marginTop: 18, marginBottom: 4, maxHeight: 56, marginHorizontal: -20 },
+// flexShrink: 0 because maxHeight does not stop a flex child from being
+  // squeezed — it only caps how tall it may grow. React Native Web gives
+  // every view flexShrink: 1, so this row collapsed to 10px and the filter
+  // chips were simply not on screen.
+  chipRowOuter: { marginTop: 18, marginBottom: 4, maxHeight: 56, flexShrink: 0, marginHorizontal: -20 },
   chipRow: { gap: 8, alignItems: "center", height: 56, paddingHorizontal: 20 },
   groupList: { marginTop: 14, gap: 28 },
   group: { gap: 12 },
