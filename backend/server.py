@@ -1491,6 +1491,11 @@ async def list_places(
     group: Optional[str] = None,
     min_score: int = 0,
     limit: int = 200,
+    # There are 8,354 places and this endpoint could return at most 200 of
+    # them, with no way to ask for the next ones. The events list has had skip
+    # since it was written; this one never did, so the app showed the first
+    # page and stopped there.
+    skip: int = 0,
     near_lat: Optional[float] = None,
     near_lng: Optional[float] = None,
     radius_km: float = 10.0,
@@ -1519,7 +1524,11 @@ async def list_places(
     projection = {"_id": 0, "tags_raw": 0}
     cursor = (
         db.places.find(query, projection)
-        .sort("family_score", -1)
+        # family_score first, then id: without a tiebreak Mongo may order two
+        # equally scored places differently between calls, and with paging that
+        # means a place appearing on two pages while another appears on none.
+        .sort([("family_score", -1), ("id", 1)])
+        .skip(max(skip, 0))
         .limit(min(max(limit, 1), 1000))
     )
     docs = await cursor.to_list(length=None)

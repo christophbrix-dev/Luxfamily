@@ -29,6 +29,7 @@ import type { Lang } from "@/src/data/places";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { distanceKm, useUserLocation } from "@/src/hooks/useUserLocation";
 import { t } from "@/src/i18n/strings";
+import { isOpenAt, openLabel } from "@/src/utils/openingHours";
 import { type Palette, radii, shadowFor } from "@/src/theme";
 import { api, type ApiPlace, type PlaceLabels, type PlacesMeta } from "@/src/utils/api";
 
@@ -39,6 +40,10 @@ function label(entry: PlaceLabels, lang: Lang): string {
   if (lang === "fr") return entry.label_fr;
   return entry.label_en;
 }
+
+/** One page of places. Also the yardstick for "is there more": a short page
+ *  means the end, which saves asking for one that comes back empty. */
+const PAGE = 60;
 
 const GROUP_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   play: "happy-outline",
@@ -61,6 +66,11 @@ export default function Places() {
   const [group, setGroup] = useState<string | null>(null);
   const [places, setPlaces] = useState<ApiPlace[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // There are over 8,000 places. One screenful used to be all anyone could
+  // reach: the endpoint had no skip, so "load more" was not possible and the
+  // first page read as though it were everything.
+  const [more, setMore] = useState(false);
+  const [exhausted, setExhausted] = useState(false);
 
   useEffect(() => {
     api.placesMeta().then(setMeta).catch(() => setMeta(null));
@@ -74,9 +84,10 @@ export default function Places() {
         group: group ?? undefined,
         near: coords ?? undefined,
         radiusKm: 15,
-        limit: 60,
+        limit: PAGE,
       });
       setPlaces(rows);
+      setExhausted(rows.length < PAGE);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load");
       setPlaces([]);
@@ -86,6 +97,27 @@ export default function Places() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /** Append the next page. A short page means we have reached the end. */
+  const loadMore = useCallback(async () => {
+    if (more || exhausted || !places) return;
+    setMore(true);
+    try {
+      const rows = await api.osmPlaces({
+        group: group ?? undefined,
+        near: coords ?? undefined,
+        radiusKm: 15,
+        limit: PAGE,
+        skip: places.length,
+      });
+      setPlaces([...places, ...rows]);
+      setExhausted(rows.length < PAGE);
+    } catch {
+      // Keep what is on screen; the button stays and can be pressed again.
+    } finally {
+      setMore(false);
+    }
+  }, [more, exhausted, places, group, coords]);
 
   /** Closest first once we know where the user is; otherwise the backend's order. */
   const sorted = useMemo<(ApiPlace & { km?: number })[]>(() => {
@@ -161,6 +193,19 @@ export default function Places() {
                   ].filter(Boolean).join(" · ")}
                 </Text>
                 <View style={styles.badgeRow}>
+                  {/* Only when we are sure. openLabel returns null for hours
+                      written as "by appointment" or with a public-holiday
+                      rule, and then the raw text above is all we claim. */}
+                  {openLabel(p.opening_hours, lang) ? (
+                    <Text
+                      style={[
+                        styles.openState,
+                        isOpenAt(p.opening_hours) === "open" ? styles.openNow : styles.closedNow,
+                      ]}
+                    >
+                      {openLabel(p.opening_hours, lang)}
+                    </Text>
+                  ) : null}
                   {p.wheelchair ? <Ionicons name="accessibility-outline" size={13} color={palette.textMuted} /> : null}
                   {p.toilets ? <Ionicons name="water-outline" size={13} color={palette.textMuted} /> : null}
                 </View>
@@ -178,6 +223,21 @@ export default function Places() {
           ))
         )}
 
+        {sorted.length > 0 && !exhausted ? (
+          <TouchableOpacity
+            onPress={loadMore}
+            disabled={more}
+            style={styles.moreBtn}
+            testID="places-load-more"
+          >
+            {more ? (
+              <ActivityIndicator color={palette.primaryDark} />
+            ) : (
+              <Text style={styles.moreTxt}>{t("showMore", lang)}</Text>
+            )}
+          </TouchableOpacity>
+        ) : null}
+
         {/* ODbL requires attribution wherever the data is shown, not only on the map tiles. */}
         {sorted.length > 0 ? (
           <Text style={styles.attribution}>© OpenStreetMap contributors (ODbL)</Text>
@@ -192,7 +252,11 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
   headerRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingTop: 8 },
   backBtn: { padding: 6 },
   h1: { fontSize: 22, fontWeight: "800", color: palette.textPrimary, letterSpacing: -0.5 },
-  chipRowOuter: { maxHeight: 56 },
+// flexShrink: 0 because maxHeight does not stop a flex child from being
+  // squeezed — it only caps how tall it may grow. React Native Web gives
+  // every view flexShrink: 1, so this row collapsed to 10px and the filter
+  // chips were simply not on screen.
+  chipRowOuter: { maxHeight: 56, flexShrink: 0 },
   chipRow: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
   prompt: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
@@ -209,8 +273,16 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
   iconWrap: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
   cardTitle: { fontSize: 14, fontWeight: "700", color: palette.textPrimary },
   cardMeta: { fontSize: 12, color: palette.textSecondary, marginTop: 2 },
-  badgeRow: { flexDirection: "row", gap: 6, marginTop: 4 },
+  badgeRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
+  openState: { fontSize: 11, fontWeight: "700" },
+  openNow: { color: palette.primaryDark },
+  closedNow: { color: palette.textMuted },
   mapBtn: { padding: 8 },
   empty: { textAlign: "center", color: palette.textSecondary, marginTop: 40 },
+  moreBtn: {
+    alignItems: "center", justifyContent: "center", paddingVertical: 14,
+    marginTop: 4, borderRadius: radii.md, backgroundColor: palette.primaryLight,
+  },
+  moreTxt: { fontSize: 13, fontWeight: "700", color: palette.primaryDark },
   attribution: { textAlign: "center", fontSize: 11, color: palette.textMuted, marginTop: 16 },
 });

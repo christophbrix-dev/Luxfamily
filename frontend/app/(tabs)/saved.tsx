@@ -90,7 +90,11 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
   safe: { flex: 1, backgroundColor: palette.background },
   scroll: { padding: 20, paddingBottom: 32 },
   h1: { fontSize: 30, fontWeight: "800", color: palette.textPrimary, letterSpacing: -0.5 },
-  chipRowOuter: { marginTop: 16, marginBottom: 4, maxHeight: 56, marginHorizontal: -20 },
+// flexShrink: 0 because maxHeight does not stop a flex child from being
+  // squeezed — it only caps how tall it may grow. React Native Web gives
+  // every view flexShrink: 1, so this row collapsed to 10px and the filter
+  // chips were simply not on screen.
+  chipRowOuter: { marginTop: 16, marginBottom: 4, maxHeight: 56, flexShrink: 0, marginHorizontal: -20 },
   chipRow: { gap: 8, alignItems: "center", height: 56, paddingHorizontal: 20 },
   list: { gap: 14, marginTop: 12 },
   empty: { alignItems: "center", padding: 36, gap: 10 },

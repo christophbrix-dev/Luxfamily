@@ -287,6 +287,11 @@ export const STRINGS: Dict = {
     de: "E-Mail oder Passwort stimmt nicht.",
     fr: "Email ou mot de passe incorrect.",
   },
+  showMore: {
+    en: "Show more",
+    de: "Mehr anzeigen",
+    fr: "Afficher plus",
+  },
   adminLoginFailed: {
     en: "Login failed.",
     de: "Anmeldung fehlgeschlagen.",
@@ -431,6 +436,7 @@ const LB_OVERRIDES: Record<string, string> = {
   adminBackendUnreachable: "Server net erreechbar. Leeft de Backend, a weist EXPO_PUBLIC_BACKEND_URL dorop?",
   adminBadCredentials:   "E-Mail oder Passwuert stëmmt net.",
   adminLoginFailed:      "Umeldung feelgeschloen.",
+  showMore:              "Méi weisen",
   notSet:                "Net gesat",
   bookingsPlural:        "Buchungen",
   ageRange:              "Alter",

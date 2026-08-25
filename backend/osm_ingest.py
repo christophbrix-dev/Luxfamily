@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 import re
 import time
@@ -124,15 +125,42 @@ def _compile_filter(filter_str: str) -> Callable[[Dict[str, Any]], bool]:
     return predicate
 
 
-def _compile_category(kind_key: str) -> Tuple[Callable[[Dict[str, Any]], bool], bool]:
+def _compile_category(kind_key: str) -> Tuple[Callable[[Dict[str, Any]], bool], bool, float]:
     cat = CATEGORIES[kind_key]
     preds = [_compile_filter(f) for f in cat["filters"]]
     relations_only = cat.get("relations_only", False)
+    # Categories that need a size: a lake worth driving to and a storm basin
+    # carry the same tags, and only the area tells them apart. These are read
+    # from osmium's assembled areas rather than from way()/relation(), because
+    # measuring one needs a closed polygon and a multipolygon relation has no
+    # geometry of its own.
+    min_area = float(cat.get("min_area_m2", 0) or 0)
 
     def match(tags: Dict[str, Any]) -> bool:
         return any(p(tags) for p in preds)
 
-    return match, relations_only
+    return match, relations_only, min_area
+
+
+def polygon_area_m2(ring: List[Tuple[float, float]]) -> float:
+    """Area of a lon/lat ring in square metres.
+
+    The shoelace formula on coordinates projected to metres about the ring's
+    own latitude. Across a few kilometres of Luxembourg the error is far below
+    anything that changes a decision here — the threshold separates 0.4 ha from
+    30 ha, not 19,999 m² from 20,001.
+    """
+    if len(ring) < 3:
+        return 0.0
+    lat0 = sum(p[1] for p in ring) / len(ring)
+    k = math.cos(math.radians(lat0))
+    pts = [(lon * 111_320 * k, lat * 110_540) for lon, lat in ring]
+    total = 0.0
+    for i in range(len(pts)):
+        x1, y1 = pts[i]
+        x2, y2 = pts[(i + 1) % len(pts)]
+        total += x1 * y2 - x2 * y1
+    return abs(total) / 2
 
 
 # -------- Normalisation helpers ------------------------------------
@@ -233,7 +261,7 @@ class _POIHandler(osmium.SimpleHandler):
         tags = self._tags_to_dict(n.tags)
         if not tags:
             return
-        for kind_key, (match, relations_only) in self.matchers.items():
+        for kind_key, (match, relations_only, min_area) in self.matchers.items():
             if relations_only:
                 continue
             if match(tags):
@@ -247,9 +275,9 @@ class _POIHandler(osmium.SimpleHandler):
         tags = self._tags_to_dict(w.tags)
         if not tags:
             return
-        for kind_key, (match, relations_only) in self.matchers.items():
-            if relations_only:
-                continue
+        for kind_key, (match, relations_only, min_area) in self.matchers.items():
+            if relations_only or min_area:
+                continue  # sized categories are handled in area()
             if match(tags):
                 self.raw_counts[kind_key] += 1
                 c = self._way_centroid(w)
@@ -264,7 +292,9 @@ class _POIHandler(osmium.SimpleHandler):
         tags = self._tags_to_dict(r.tags)
         if not tags:
             return
-        for kind_key, (match, _relations_only) in self.matchers.items():
+        for kind_key, (match, _relations_only, min_area) in self.matchers.items():
+            if min_area:
+                continue  # handled in area(), which has the geometry
             if match(tags):
                 self.raw_counts[kind_key] += 1
                 # Coordinates for relations are hard w/o multipolygon build.
@@ -275,6 +305,45 @@ class _POIHandler(osmium.SimpleHandler):
                 if rec:
                     self.records.append(rec)
                 break
+
+    def area(self, a):
+        """Categories that need a size, from osmium's assembled polygons.
+
+        Only these come through here, and way()/relation() skip them, so
+        nothing is counted twice. osmium hands closed ways and multipolygon
+        relations to the same callback — which is what makes this work at all:
+        the Lac d'Echternach is a relation and has no geometry of its own,
+        while the Lac de Weiswampach is a plain closed way.
+        """
+        tags = self._tags_to_dict(a.tags)
+        if not tags:
+            return
+        for kind_key, (match, _relations_only, min_area) in self.matchers.items():
+            if not min_area or not match(tags):
+                continue
+            try:
+                rings = [[(n.lon, n.lat) for n in ring] for ring in a.outer_rings()]
+            except osmium.InvalidLocationError:
+                return
+            rings = [r for r in rings if len(r) >= 3]
+            if not rings:
+                return
+
+            self.raw_counts[kind_key] += 1
+            if max(polygon_area_m2(r) for r in rings) < min_area:
+                return
+
+            pts = [p for r in rings for p in r]
+            lon = sum(p[0] for p in pts) / len(pts)
+            lat = sum(p[1] for p in pts) / len(pts)
+            # from_way tells the two apart: osmium reports an area id derived
+            # from the source object, and the same lake reached twice must land
+            # on one record rather than two.
+            osm_type = "way" if a.from_way() else "relation"
+            rec = self._normalise(kind_key, osm_type, a.orig_id(), tags, lat, lon)
+            if rec:
+                self.records.append(rec)
+            return
 
     # -- normalise ---------------------------------------------------
     def _normalise(self, kind_key: str, osm_type: str, osm_id: int,

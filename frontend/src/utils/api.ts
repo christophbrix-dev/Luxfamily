@@ -192,7 +192,13 @@ export const api = {
   // List endpoints return ApiEventSummary, not the full document. Every field
   // the list screens currently read is included; anything else needs the detail
   // endpoint (or a new field on the backend's EventSummary).
-  publicEvents: () => apiFetch<ApiEventSummary[]>("/api/events?upcoming=false&limit=200"),
+  // upcoming=true, not false. The backend caps limit at 200 and sorts featured
+  // first, then by date ascending — so with upcoming=false the 200 rows that
+  // come back are the *oldest* ones. Against the live database that was 200
+  // events and not one of them in the future: an empty calendar, a "near you"
+  // row of things that already happened, and no sign anything was wrong.
+  // Every screen here asks "what is on", which is what this flag means.
+  publicEvents: () => apiFetch<ApiEventSummary[]>("/api/events?upcoming=true&limit=200"),
   event: (id: string) => apiFetch<ApiEvent>(`/api/events/${id}`),
 
   /** The OSM taxonomy: group and category names in every language. */
@@ -209,6 +215,7 @@ export const api = {
     near?: { lat: number; lng: number };
     radiusKm?: number;
     limit?: number;
+    skip?: number;
   } = {}) => {
     const q = new URLSearchParams();
     if (opts.group) q.set("group", opts.group);
@@ -218,6 +225,7 @@ export const api = {
       q.set("radius_km", String(opts.radiusKm ?? 10));
     }
     q.set("limit", String(opts.limit ?? 60));
+    if (opts.skip) q.set("skip", String(opts.skip));
     return apiFetch<ApiPlace[]>(`/api/places?${q.toString()}`);
   },
   pingView: (id: string) =>

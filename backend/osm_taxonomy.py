@@ -112,6 +112,28 @@ CATEGORIES = {
             '["sport"="swimming"]["natural"="water"]',
         ],
     },
+    # Luxembourg's bathing lakes. They are tagged natural=water + water=lake
+    # and nothing else — no swimming_area, no beach — so the category above
+    # never matched a single one, and the Lac d'Echternach was missing from an
+    # app about family outings in Luxembourg.
+    #
+    # Matching water=lake on its own is useless: 3,110 unnamed ponds sit inside
+    # the country's bounding box. A name cuts that to 41, and a minimum size
+    # settles the rest — a storm basin called "A2" is 0.4 ha, a lake people
+    # drive to is not. At 2 ha the whole country yields exactly four: Haute-
+    # Sûre, Echternach, the Riemescher Weieren and Weiswampach. Which is the
+    # right answer, because that is how many bathing lakes Luxembourg has.
+    #
+    # water=reservoir stays out deliberately: at this size it means the upper
+    # basins at Vianden, which are fenced industrial pumped storage.
+    "lake": {
+        "label_de": "Badesee", "label_fr": "Lac de baignade",
+        "label_lb": "Badeséi", "label_en": "Bathing lake",
+        "group": "nature", "base_score": 85,
+        "filters": ['["natural"="water"]["water"="lake"]'],
+        "require_name": True,
+        "min_area_m2": 20_000,
+    },
     "cave_rock": {
         "label_de": "Höhle / Fels", "label_fr": "Grotte / Rocher",
         "label_lb": "Buedem / Fiels", "label_en": "Cave / Rock",
