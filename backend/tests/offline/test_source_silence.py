@@ -32,9 +32,9 @@ BASE = {
 @pytest.fixture
 def stub(importers, monkeypatch):
     """Replace the importer with one returning whatever a test asks for."""
-    def yielding(inserted, skipped):
+    def yielding(inserted, skipped, blocked=0):
         async def fake(source, db):
-            return inserted, skipped
+            return inserted, skipped, blocked
         monkeypatch.setitem(importers.IMPORTERS, "ical", fake)
     return yielding
 
