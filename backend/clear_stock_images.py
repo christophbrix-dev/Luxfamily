@@ -25,17 +25,17 @@ from __future__ import annotations
 import argparse
 import collections
 import logging
-import os
 from urllib.parse import urlparse
 
 from motor.motor_asyncio import AsyncIOMotorClient
+
+from db_config import mongo_settings
 import asyncio
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger("clear_stock_images")
 
-MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-DB_NAME = os.environ.get("DB_NAME", "")
+# See db_config: reads backend/.env and refuses when DB_NAME is missing.
 
 # Kept in step with frontend/src/utils/photo.ts, which decides the same thing
 # at display time. Both lists exist because a record can reach the screen
@@ -57,11 +57,9 @@ def is_stock(url: str) -> bool:
 
 
 async def run(write: bool) -> int:
-    if not DB_NAME:
-        raise SystemExit("DB_NAME is not set — refusing to guess at a database.")
-
-    mongo = AsyncIOMotorClient(MONGO_URL)
-    db = mongo[DB_NAME]
+    mongo_url, db_name = mongo_settings()
+    mongo = AsyncIOMotorClient(mongo_url)
+    db = mongo[db_name]
     try:
         hosts: collections.Counter = collections.Counter()
         ids = []

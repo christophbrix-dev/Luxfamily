@@ -113,6 +113,11 @@ def test_one_identity_for_every_outgoing_request():
     site operator could not tell who was calling, nor reach anyone."""
     offenders = []
     for path in BACKEND.rglob("*.py"):
+        # Our own files only. A virtualenv lives here once the backend is run
+        # locally, and httpx defines a USER_AGENT of its own — which is not a
+        # second identity of ours, just a library naming itself.
+        if any(part in {".venv", "venv", "site-packages", "__pycache__"} for part in path.parts):
+            continue
         if path.name == "crawler_utils.py" or "tests" in path.parts:
             continue
         for line in path.read_text().splitlines():

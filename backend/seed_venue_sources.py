@@ -25,7 +25,6 @@ import asyncio
 import csv
 import json
 import logging
-import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -33,6 +32,8 @@ from typing import Dict, List, Optional
 from urllib.parse import urlparse
 
 from motor.motor_asyncio import AsyncIOMotorClient
+
+from db_config import mongo_settings
 
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -44,8 +45,9 @@ VENUES = ROOT / "sources" / "venue_candidates.csv"
 COMMUNES_CSV = ROOT / "sources" / "candidates.csv"
 COMMUNES = HERE / "communes_lu.json"
 
-MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-DB_NAME = os.environ.get("DB_NAME", "test_database")
+# Resolved when the script runs, not at import: mongo_settings() stops with a
+# message when DB_NAME is missing, and a module-level call would make that a
+# stack trace on import instead.
 
 # What each sort of venue tends to put on. Broad on purpose: the importer
 # overrides these whenever the JSON-LD names something better, and a wrong
@@ -165,8 +167,9 @@ async def seed(write: bool, activate: bool) -> int:
         log.info("\nPreview only. Re-run with --write to create them.")
         return 0
 
-    mongo = AsyncIOMotorClient(MONGO_URL)
-    db = mongo[DB_NAME]
+    mongo_url, db_name = mongo_settings()
+    mongo = AsyncIOMotorClient(mongo_url)
+    db = mongo[db_name]
     inserted = updated = 0
     try:
         for s in sources:

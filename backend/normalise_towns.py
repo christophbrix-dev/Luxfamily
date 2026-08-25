@@ -18,9 +18,10 @@ import argparse
 import asyncio
 import collections
 import logging
-import os
 
 from motor.motor_asyncio import AsyncIOMotorClient
+
+from db_config import mongo_settings
 from pymongo import UpdateOne
 
 from town_names import canonical_town
@@ -28,18 +29,15 @@ from town_names import canonical_town
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger("normalise_towns")
 
-MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-DB_NAME = os.environ.get("DB_NAME", "")
+# See db_config: reads backend/.env and refuses when DB_NAME is missing.
 
 COLLECTIONS = ("events", "places")
 
 
 async def run(write: bool) -> int:
-    if not DB_NAME:
-        raise SystemExit("DB_NAME is not set — refusing to guess at a database.")
-
-    mongo = AsyncIOMotorClient(MONGO_URL)
-    db = mongo[DB_NAME]
+    mongo_url, db_name = mongo_settings()
+    mongo = AsyncIOMotorClient(mongo_url)
+    db = mongo[db_name]
     total_changed = 0
     try:
         for name in COLLECTIONS:

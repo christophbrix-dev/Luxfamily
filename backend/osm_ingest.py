@@ -37,6 +37,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import UpdateOne
 from pymongo.errors import BulkWriteError
 
+from db_config import mongo_settings
 from osm_taxonomy import (
     CATEGORIES,
     CATEGORY_ORDER,
@@ -491,8 +492,11 @@ class _POIHandler(osmium.SimpleHandler):
 
 # -------- Mongo upsert ---------------------------------------------
 async def _get_db():
-    mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-    db_name = os.environ.get("DB_NAME", "familyluxembourg")
+    # One place decides this, and it refuses rather than guessing: the old
+    # fallback was "familyluxembourg", so running this from a shell without
+    # DB_NAME wrote 7,856 places into a database nothing serves and reported
+    # success.
+    mongo_url, db_name = mongo_settings()
     client = AsyncIOMotorClient(mongo_url)
     return client[db_name], client
 

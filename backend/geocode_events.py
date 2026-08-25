@@ -129,6 +129,77 @@ def resolve(db, ev: dict, cache: Dict[str, Optional[dict]]) -> GeoResult:
     return GeoResult(lat, lng, "canton", "fallback")
 
 
+# Events that have never been geocoded, or only landed on a fallback.
+#
+# This used to look for lat == 0 or a missing lat, which no imported event ever
+# has: every importer writes the source's lat_default. So the query matched
+# nothing, the script printed "0 events to geocode" and stopped, and 122 of 304
+# events sat on 49.6117, 6.1319 — the generic point for Luxembourg City — with
+# 92% of all events sharing a coordinate with another. On a map that is a
+# handful of pins where there should be hundreds.
+#
+# geocode_precision records how a coordinate was arrived at. "exact" and "place"
+# are real; the rest are stand-ins worth retrying, since a venue may since have
+# been added to our own OSM places.
+PENDING_QUERY = {
+    "$or": [
+        {"lat": 0}, {"lat": {"$exists": False}}, {"lat": None},
+        {"geocode_precision": {"$exists": False}},
+        {"geocode_precision": {"$in": [None, "", "canton", "commune", "fallback", "source_default"]}},
+    ],
+}
+
+# How many to resolve in one scheduled pass. Each unresolved event may cost a
+# request to the geoportal, and that is somebody else's service: three passes a
+# day at this size is a few hundred lookups, which clears a backlog over a
+# couple of days without ever arriving as a burst.
+SCHEDULED_BATCH = 150
+
+
+def geocode_pending(limit: int = SCHEDULED_BATCH) -> Dict[str, int]:
+    """Resolve a batch of events, for the scheduler to call after an import.
+
+    Synchronous and opening its own connection on purpose: everything below —
+    resolve(), the local place lookup, the geocoders — works against pymongo,
+    and the server runs this in a worker thread rather than having two database
+    drivers understand each other.
+
+    Returns the count per source of coordinate, so the caller can log what a
+    pass actually achieved.
+    """
+    client = MongoClient(os.environ["MONGO_URL"])
+    try:
+        db = client[os.environ["DB_NAME"]]
+        todo = list(db.events.find(PENDING_QUERY).limit(max(1, limit)))
+        if not todo:
+            return {}
+
+        cache: Dict[str, Optional[dict]] = {}
+        counts: Dict[str, int] = {}
+        for ev in todo:
+            try:
+                result = resolve(db, ev, cache)
+            except Exception:
+                # One unreachable address must not abandon the rest of the
+                # batch; the next pass picks this event up again.
+                counts["error"] = counts.get("error", 0) + 1
+                continue
+            counts[result.source] = counts.get(result.source, 0) + 1
+            db.events.update_one(
+                {"_id": ev["_id"]},
+                {"$set": {
+                    "lat": result.lat,
+                    "lng": result.lng,
+                    "country": (ev.get("country") or DEFAULT_COUNTRY).upper(),
+                    "geocode_precision": result.precision,
+                    "geocode_source": result.source,
+                }},
+            )
+        return counts
+    finally:
+        client.close()
+
+
 def main() -> None:
     client = MongoClient(os.environ["MONGO_URL"])
     db = client[os.environ["DB_NAME"]]
@@ -146,13 +217,7 @@ def main() -> None:
     # geocode_precision records how a coordinate was arrived at. "exact" and
     # "place" are real; "canton" and "commune" are stand-ins worth retrying,
     # since a venue may since have been added to our own OSM places.
-    todo = list(db.events.find({
-        "$or": [
-            {"lat": 0}, {"lat": {"$exists": False}}, {"lat": None},
-            {"geocode_precision": {"$exists": False}},
-            {"geocode_precision": {"$in": [None, "", "canton", "commune", "fallback", "source_default"]}},
-        ],
-    }))
+    todo = list(db.events.find(PENDING_QUERY))
     print(f"[geocode] {len(todo)} events to geocode")
 
     cache_path = "/tmp/geocode_cache.json"
