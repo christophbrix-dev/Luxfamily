@@ -26,7 +26,6 @@ import asyncio
 import csv
 import json
 import logging
-import os
 import re
 import unicodedata
 import uuid
@@ -37,6 +36,8 @@ from urllib.parse import urlparse
 
 from motor.motor_asyncio import AsyncIOMotorClient
 
+from db_config import mongo_settings
+
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger("seed_communes")
 
@@ -45,8 +46,9 @@ ROOT = HERE.parent
 CANDIDATES = ROOT / "sources" / "candidates.csv"
 COMMUNES = HERE / "communes_lu.json"
 
-MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-DB_NAME = os.environ.get("DB_NAME", "test_database")
+# Resolved when the script runs, not at import: mongo_settings() stops with a
+# message when DB_NAME is missing, and a module-level call would make that a
+# stack trace on import instead.
 
 # What a commune actually publishes: markets, concerts, village fêtes, council
 # meetings. Culture is the honest umbrella; the importer overrides it whenever
@@ -162,8 +164,9 @@ async def seed(write: bool, activate: bool) -> int:
             log.info("   %s -> %s", s["name"], s["url"])
         return 0
 
-    mongo = AsyncIOMotorClient(MONGO_URL)
-    db = mongo[DB_NAME]
+    mongo_url, db_name = mongo_settings()
+    mongo = AsyncIOMotorClient(mongo_url)
+    db = mongo[db_name]
     inserted = updated = 0
     try:
         for s in sources:
