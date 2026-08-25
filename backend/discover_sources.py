@@ -122,7 +122,7 @@ def sitemap_urls_from_robots(robots_text: str) -> List[str]:
 # as substrings is what put a shop page forward as Casino Luxembourg's example:
 # "atelier" appears in an exhibition-catalogue title too.
 _STRONG_SECTION = re.compile(
-    r"/(agenda|events?|evenements|manifestations?|veranstaltungen|programme?"
+    r"/(agenda|events?|[ée]v[ée]nements?|manifestations?|veranstaltungen|programme?"
     r"|expositions?|ausstellungen|kalender|termine)(/|$)",
     re.I,
 )

@@ -39,6 +39,9 @@ DB_NAME = os.environ["DB_NAME"]
 # Coordinates for common LU cities/venues.
 LOC = {
     "lux": (49.6116, 6.1319),
+    # Same point, spelled so src() derives "Luxembourg" rather than "Lux" —
+    # town_names.canonical_town() would otherwise treat that as its own place.
+    "luxembourg": (49.6116, 6.1319),
     "esch": (49.4953, 5.9764),
     "differdange": (49.5236, 5.8911),
     "dudelange": (49.4805, 6.0872),
@@ -87,6 +90,30 @@ def src(name, kind, url, canton, town_key, categories,
 
 
 SOURCES = [
+    # ============== VILLE DE LUXEMBOURG ==============
+    # The capital publishes more than anyone else in the country and carries no
+    # structured data at all — checked on both the listing and the detail
+    # pages. So it gets the one thing per-site selectors are worth writing:
+    # 365 event pages sit in its sitemap, and the agenda shows the day's
+    # programme, which three runs a day accumulate.
+    #
+    # The date selector is deliberately the whole .media-date text rather than
+    # span.start-date. On a multi-day entry that span holds "26.07" with the
+    # year in a sibling, and on one entry the site itself writes "29.11.0206".
+    # Read alone it yields July of this year, or the year 206. The full text
+    # parses single-day entries correctly and returns nothing for ranges, so
+    # those are skipped rather than filed under an invented date.
+    src("Ville de Luxembourg — Agenda", "html_scraper",
+        "https://www.vdl.lu/fr/agenda",
+        "Luxembourg", "luxembourg", ["Culture", "Festivals"],
+        selectors={
+            "item": "a.media-event",
+            "title": ".media-title",
+            "date": ".media-date",
+            "location": ".media-category",
+            "link": "self",
+        }),
+
     # ============== BIG VENUES ==============
     src("Philharmonie Luxembourg — Sitemap", "sitemap",
         "https://www.philharmonie.lu/sitemap.xml",
