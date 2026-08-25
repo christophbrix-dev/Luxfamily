@@ -47,6 +47,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 
+from geocode_events import geocode_pending
 from importers import run_all_active, run_source
 
 # ---------------------------------------------------------------------------
@@ -505,7 +506,18 @@ async def _release_importer_lease(db_) -> None:
 
 
 async def _run_importers_once() -> None:
-    """Scheduled entry point: run every active source, but only once globally."""
+    """Scheduled entry point: crawl every active source, then place what arrived.
+
+    Geocoding runs here rather than as a separate job because it only has work
+    to do once an import has produced some. Left as a manual script it was
+    never run at all, and 122 of 304 events sat on the same generic point for
+    Luxembourg City.
+
+    It runs under the same lease as the import and after it, so two workers
+    cannot both be resolving the same events, and a batch is capped — each
+    unresolved event may cost a request to the geoportal, which is somebody
+    else's service.
+    """
     if not await _acquire_importer_lease(db):
         logger.info("Importer run skipped — another worker holds the lease")
         return
@@ -514,6 +526,22 @@ async def _run_importers_once() -> None:
         logger.info("Importer run finished for %d sources", len(results))
     except Exception:
         logger.exception("Scheduled importer run failed")
+
+    try:
+        # Synchronous, with its own connection: resolve() and the geocoders all
+        # work against pymongo. A worker thread is cheaper than teaching two
+        # database drivers about each other.
+        counts = await asyncio.to_thread(geocode_pending)
+        if counts:
+            logger.info(
+                "Geocoded %d events (%s)",
+                sum(counts.values()),
+                ", ".join(f"{k}={v}" for k, v in sorted(counts.items())),
+            )
+    except Exception:
+        # A geocoding failure must not make the import look failed: the events
+        # are already stored, they simply keep the coordinate they arrived with.
+        logger.exception("Scheduled geocoding failed")
     finally:
         await _release_importer_lease(db)
 
