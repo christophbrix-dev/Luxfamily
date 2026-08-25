@@ -35,6 +35,12 @@ jobs:
       - name: Lint
         run: yarn lint
 
+      # Decides whether the app tells someone a place is open. A wrong "open"
+      # sends a family to a locked door, which is the problem the app exists to
+      # solve — so this one fails the build rather than reporting a number.
+      - name: Opening hours
+        run: yarn test-hours
+
       # Reports how much of the app speaks Luxembourgish. Never fails the
       # build — a missing translation is work in progress, not a broken commit.
       - name: Luxembourgish coverage

@@ -29,6 +29,7 @@ import type { Lang } from "@/src/data/places";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { distanceKm, useUserLocation } from "@/src/hooks/useUserLocation";
 import { t } from "@/src/i18n/strings";
+import { isOpenAt, openLabel } from "@/src/utils/openingHours";
 import { type Palette, radii, shadowFor } from "@/src/theme";
 import { api, type ApiPlace, type PlaceLabels, type PlacesMeta } from "@/src/utils/api";
 
@@ -161,6 +162,19 @@ export default function Places() {
                   ].filter(Boolean).join(" · ")}
                 </Text>
                 <View style={styles.badgeRow}>
+                  {/* Only when we are sure. openLabel returns null for hours
+                      written as "by appointment" or with a public-holiday
+                      rule, and then the raw text above is all we claim. */}
+                  {openLabel(p.opening_hours, lang) ? (
+                    <Text
+                      style={[
+                        styles.openState,
+                        isOpenAt(p.opening_hours) === "open" ? styles.openNow : styles.closedNow,
+                      ]}
+                    >
+                      {openLabel(p.opening_hours, lang)}
+                    </Text>
+                  ) : null}
                   {p.wheelchair ? <Ionicons name="accessibility-outline" size={13} color={palette.textMuted} /> : null}
                   {p.toilets ? <Ionicons name="water-outline" size={13} color={palette.textMuted} /> : null}
                 </View>
@@ -213,7 +227,10 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
   iconWrap: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
   cardTitle: { fontSize: 14, fontWeight: "700", color: palette.textPrimary },
   cardMeta: { fontSize: 12, color: palette.textSecondary, marginTop: 2 },
-  badgeRow: { flexDirection: "row", gap: 6, marginTop: 4 },
+  badgeRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
+  openState: { fontSize: 11, fontWeight: "700" },
+  openNow: { color: palette.primaryDark },
+  closedNow: { color: palette.textMuted },
   mapBtn: { padding: 8 },
   empty: { textAlign: "center", color: palette.textSecondary, marginTop: 40 },
   attribution: { textAlign: "center", fontSize: 11, color: palette.textMuted, marginTop: 16 },
