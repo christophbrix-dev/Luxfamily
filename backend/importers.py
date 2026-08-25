@@ -91,6 +91,29 @@ def _extract_time_range(value: str) -> str:
     return " - ".join(times) if len(times) == 2 else times[0]
 
 
+# WordPress page builders leave their layout markup in the fields a feed
+# exposes, so a description arrives as 700 characters of
+# `[et_pb_section fb_built="1" _builder_version="4.24.2" …]` wrapped around two
+# sentences of actual text. 51 of 354 events in the live database read that way
+# — every one of them from a commune running Divi.
+#
+# Only the known builder prefixes are removed, not every bracketed word:
+# "[Sold out]" and "[FR]" are things a human wrote and has to survive.
+_PAGE_BUILDER = re.compile(
+    r"\[/?(?:et_pb_|vc_|fusion_|av_|dt_|mk_)[a-z0-9_]*(?:\s[^\]]*)?\]"
+    r"|\[/?(?:caption|gallery|embed|audio|video|playlist|vc_row|vc_column)"
+    r"(?:\s[^\]]*)?\]",
+    re.I,
+)
+
+
+def _strip_page_builder(text: str) -> str:
+    """Remove page-builder shortcodes, keeping the text they wrapped."""
+    if not text or "[" not in text:
+        return text
+    return re.sub(r"\s{2,}", " ", _PAGE_BUILDER.sub(" ", text)).strip()
+
+
 def _build_event_doc(
     *,
     source: Dict[str, Any],
@@ -117,6 +140,12 @@ def _build_event_doc(
     over-18 marker is deliberately not enough. Bars, wine tastings and the
     Schueberfouer stay.
     """
+    # Clean before filtering and before storing: markup must not hide a word
+    # the filter looks for, and it must never reach a reader either. Some of
+    # these descriptions are markup end to end, and an empty description is
+    # more honest than a wall of shortcodes — the title carries the meaning.
+    description = _strip_page_builder(description) or title
+
     verdict = content_filter.assess(title, description)
     if verdict:
         reason, matched = verdict
