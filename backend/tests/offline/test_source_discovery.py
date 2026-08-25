@@ -105,3 +105,35 @@ class TestSitemapIndexIsFollowed:
         ds.read_sitemap("https://x.invalid/sitemap.xml")
         assert "https://x.invalid/sitemap-events.xml" in asked
         assert "https://x.invalid/sitemap-products.xml" not in asked
+
+
+class TestSingularAndAccentedSections:
+    """/evenement/ is a calendar; /actualites/ is a news page.
+
+    kaerjeng.lu files each event under /evenement/<slug> — singular, no accent.
+    The first version of the ranking listed only "evenements", so that path
+    scored no better than /actualites/, lost on depth, and the commune went
+    from usable to not. It was the only source the rewrite cost, and it cost it
+    to a missing letter.
+    """
+
+    def rank(self, *urls):
+        return sorted(urls, key=ds._event_url_rank)
+
+    def test_singular_french(self):
+        assert self.rank(
+            "https://x.invalid/actualites/",
+            "https://x.invalid/evenement/themendag/",
+        )[0].endswith("/evenement/themendag/")
+
+    def test_accented(self):
+        assert self.rank(
+            "https://x.invalid/actualites/",
+            "https://x.invalid/événements/fest/",
+        )[0].endswith("/événements/fest/")
+
+    def test_news_is_still_not_a_calendar(self):
+        assert self.rank(
+            "https://x.invalid/agenda/",
+            "https://x.invalid/actualites/",
+        )[0].endswith("/agenda/")
