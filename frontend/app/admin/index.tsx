@@ -16,6 +16,7 @@ import { radii, type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { useApp } from "@/src/contexts/AppContext";
 import { t } from "@/src/i18n/strings";
+import { ApiError } from "@/src/utils/apiError";
 import { api, getAdminToken, setAdminToken } from "@/src/utils/api";
 
 import type { Lang } from "@/src/data/places";
@@ -35,12 +36,26 @@ import type { Lang } from "@/src/data/places";
  */
 export function loginErrorMessage(e: unknown, lang: Lang): string {
   const raw = e instanceof Error ? e.message : "";
+  const status = e instanceof ApiError ? e.status : 0;
   const unreachable =
     e instanceof TypeError ||
     /failed to fetch|network request failed|load failed/i.test(raw);
 
   if (unreachable) return t("adminBackendUnreachable", lang);
-  if (/401|403|invalid|credential/i.test(raw)) return t("adminBadCredentials", lang);
+
+  // The status decides, not the wording. Matching on the word "invalid"
+  // reported a rejected email address as a wrong password: the account was
+  // configured as admin@localhost.invalid, .invalid is a reserved suffix the
+  // validator refuses, and the 422 it came back with contained the address —
+  // so the message said "email or password is wrong" about a password that had
+  // never been looked at. Twenty minutes went into checking a correct
+  // password against a correct hash.
+  if (status === 422) return t("adminEmailNotAccepted", lang);
+  if (status === 401 || status === 403) return t("adminBadCredentials", lang);
+  if (status === 429) return t("adminTooManyAttempts", lang);
+  if (status) return raw || t("adminLoginFailed", lang);
+
+  // No status: an error from somewhere other than the request itself.
   return raw || t("adminLoginFailed", lang);
 }
 
