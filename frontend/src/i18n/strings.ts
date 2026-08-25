@@ -336,6 +336,16 @@ export const STRINGS: Dict = {
     de: "Falls du es vergisst: ADMIN_PASSWORD in der Umgebung ändern und neu starten — das überschreibt, was hier gesetzt ist.",
     fr: "En cas d'oubli : modifiez ADMIN_PASSWORD dans l'environnement et redémarrez — cela remplace ce qui est défini ici.",
   },
+  adminEmailNotAccepted: {
+    en: "The server did not accept that email address. Check ADMIN_EMAIL — reserved suffixes like .invalid or .localhost are refused.",
+    de: "Der Server hat diese E-Mail-Adresse nicht angenommen. Prüfe ADMIN_EMAIL — reservierte Endungen wie .invalid oder .localhost werden abgelehnt.",
+    fr: "Le serveur a refusé cette adresse email. Vérifiez ADMIN_EMAIL — les suffixes réservés comme .invalid ou .localhost sont refusés.",
+  },
+  adminTooManyAttempts: {
+    en: "Too many attempts — wait a minute.",
+    de: "Zu viele Versuche — warte eine Minute.",
+    fr: "Trop de tentatives — attendez une minute.",
+  },
   adminLoginFailed: {
     en: "Login failed.",
     de: "Anmeldung fehlgeschlagen.",
@@ -480,6 +490,8 @@ const LB_OVERRIDES: Record<string, string> = {
   adminBackendUnreachable: "Server net erreechbar. Leeft de Backend, a weist EXPO_PUBLIC_BACKEND_URL dorop?",
   adminBadCredentials:   "E-Mail oder Passwuert stëmmt net.",
   adminLoginFailed:      "Umeldung feelgeschloen.",
+  adminEmailNotAccepted: "De Server huet dës E-Mail-Adress net ugeholl. Kuck ADMIN_EMAIL no — reservéiert Endungen wéi .invalid oder .localhost ginn refuséiert.",
+  adminTooManyAttempts:  "Ze vill Versich — waart eng Minutt.",
   changePassword:        "Passwuert änneren",
   currentPassword:       "Aktuellt Passwuert",
   newPassword:           "Neit Passwuert",
