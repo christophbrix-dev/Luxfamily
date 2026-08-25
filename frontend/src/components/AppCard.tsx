@@ -7,6 +7,7 @@ import { useApp } from "@/src/contexts/AppContext";
 import { pickLang } from "@/src/i18n/pickLang";
 import type { Place } from "@/src/data/places";
 import { palette, radii, shadow, spacing } from "@/src/theme";
+import { categoryIcon, hasOwnPhoto } from "@/src/utils/photo";
 
 type Props = {
   item: Place;
@@ -30,7 +31,21 @@ export function AppCard({ item, large = false, onPress, testID }: Props) {
       testID={testID ?? `place-card-${item.id}`}
     >
       <View style={[styles.imageWrap, large ? styles.imageLarge : styles.imageSmall]}>
-        <Image source={{ uri: item.image }} style={styles.image} />
+        {/* A photo is a claim. Where the record has none of its own — the
+            backend fills those with a category-generic stock image, and the
+            one for Culture is the Taj Mahal — draw a plain panel instead of
+            asserting something untrue about the place. */}
+        {hasOwnPhoto(item.image) ? (
+          <Image source={{ uri: item.image }} style={styles.image} />
+        ) : (
+          <View style={[styles.image, styles.noPhoto]}>
+            <Ionicons
+              name={categoryIcon(item.type) as keyof typeof Ionicons.glyphMap}
+              size={large ? 44 : 30}
+              color={palette.primaryDark}
+            />
+          </View>
+        )}
         <LinearGradient
           colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.55)"]}
           style={StyleSheet.absoluteFill}
@@ -126,6 +141,11 @@ const styles = StyleSheet.create({
   imageLarge: { height: 240 },
   imageSmall: { height: 140 },
   image: { width: "100%", height: "100%" },
+  noPhoto: {
+    backgroundColor: palette.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   badge: {
     position: "absolute",
     top: 14,

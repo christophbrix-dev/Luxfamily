@@ -41,6 +41,11 @@ jobs:
       - name: Opening hours
         run: yarn test-hours
 
+      # A photo is the loudest claim on a card. This checks the app can tell a
+      # picture of the place from a stock library's idea of the category.
+      - name: Photos
+        run: yarn test-photo
+
       # Reports how much of the app speaks Luxembourgish. Never fails the
       # build — a missing translation is work in progress, not a broken commit.
       - name: Luxembourgish coverage
