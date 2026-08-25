@@ -56,14 +56,20 @@ class RobotsBlocked(Exception):
 
 
 class _RobotsEntry:
-    __slots__ = ("parser", "crawl_delay", "fetched_at", "ttl")
+    # `unreadable` holds why robots.txt could not be read, when that is the
+    # reason the host is closed. Refusing is right either way, but the two
+    # cases need different answers from a person: a site that forbids us has
+    # to be dropped, a domain that no longer resolves has to be corrected.
+    __slots__ = ("parser", "crawl_delay", "fetched_at", "ttl", "unreadable")
 
     def __init__(self, parser: RobotFileParser, crawl_delay: float,
-                 fetched_at: float, ttl: float) -> None:
+                 fetched_at: float, ttl: float,
+                 unreadable: Optional[str] = None) -> None:
         self.parser = parser
         self.crawl_delay = crawl_delay
         self.fetched_at = fetched_at
         self.ttl = ttl
+        self.unreadable = unreadable
 
 
 _robots_cache: Dict[str, _RobotsEntry] = {}
@@ -104,12 +110,16 @@ def _build_entry(host: str, status: Optional[int], text: Optional[str],
     parser.set_url(host.rstrip("/") + "/robots.txt")
     ttl = ROBOTS_CACHE_TTL_SECONDS
 
+    unreadable = None
     if error is not None or (status is not None and status >= 500):
         parser.disallow_all = True
         ttl = ROBOTS_ERROR_TTL_SECONDS
+        unreadable = str(error) if error is not None else f"HTTP {status}"
+        if not unreadable.strip():
+            unreadable = type(error).__name__ if error is not None else "unknown"
         logger.warning(
             "robots.txt unreadable for %s (%s) — treating host as disallowed until retry",
-            host, error if error is not None else f"HTTP {status}",
+            host, unreadable,
         )
     elif status == 200 and text and text.strip():
         parser.parse(text.splitlines())
@@ -119,7 +129,7 @@ def _build_entry(host: str, status: Optional[int], text: Optional[str],
         logger.info("no robots.txt for %s (HTTP %s) — everything allowed", host, status)
 
     delay = parser.crawl_delay(USER_AGENT) or parser.crawl_delay("*") or 0.0
-    entry = _RobotsEntry(parser, float(delay), time.monotonic(), ttl)
+    entry = _RobotsEntry(parser, float(delay), time.monotonic(), ttl, unreadable)
     with _state_lock:
         _robots_cache[host] = entry
     if delay:
@@ -173,6 +183,19 @@ def _reserve_slot(host: str, crawl_delay: float) -> float:
 
 
 def _check_allowed(entry: _RobotsEntry, url: str) -> None:
+    """Refuse when robots.txt says no — and say which kind of no it is.
+
+    Both cases end here, and for a while both reported "robots.txt disallows".
+    That sent a reader looking for a rule in a file that, for utopolis.lu and
+    kulturkanner.lu, could not be fetched at all because the domain no longer
+    resolves. The refusal was right; the reason given for it was not.
+    """
+    if entry.unreadable:
+        raise RobotsBlocked(
+            f"could not read robots.txt for {_host_of(url)} ({entry.unreadable}); "
+            f"treating the host as disallowed — the site may be fine, "
+            f"check the address"
+        )
     if not entry.parser.can_fetch(USER_AGENT, url):
         raise RobotsBlocked(f"robots.txt disallows {url} for {USER_AGENT}")
 
