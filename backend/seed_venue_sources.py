@@ -173,7 +173,11 @@ async def seed(write: bool, activate: bool) -> int:
     inserted = updated = 0
     try:
         for s in sources:
-            existing = await db.sources.find_one({"url": s["url"]}, {"_id": 0})
+            # Matched by name, not by URL. The name is derived from the
+            # commune or venue and does not change; the URL does — correcting
+            # the event section for Käerjeng from /events/ to /evenement/
+            # created a second source and left the broken one running.
+            existing = await db.sources.find_one({"name": s["name"]}, {"_id": 0})
             if existing:
                 await db.sources.update_one(
                     {"id": existing["id"]},
