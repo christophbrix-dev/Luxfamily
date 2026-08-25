@@ -93,15 +93,37 @@ def match_commune(name: str, communes: List[Dict]) -> Optional[Dict]:
     return partial[0] if len(partial) == 1 else None
 
 
+# The path segment a site files its events under. Most use /events/, but not
+# all: Käerjeng writes /evenement/ and Ernztal /actualite/agenda/.
+_SECTION = re.compile(
+    r"^(events?|agenda|[ée]v[ée]nements?|manifestations?|veranstaltungen|actualites?)$",
+    re.I,
+)
+
+
 def events_url(website: str, example: str) -> str:
     """The event listing page for a commune.
 
-    The example URL from discovery is one page out of the sitemap, which is
-    usually the listing but is sometimes a single event — /events/marche-au-
-    frais-2/ for Mamer. Rebuilding /events/ from the site root gives the
-    listing in both cases.
+    The section comes from the URL discovery actually verified rather than
+    being assumed. Rebuilding /events/ for everyone gave two 404s on the first
+    full crawl — kaerjeng.lu and dippach.lu file theirs under /evenement/, and
+    the listing we asked for does not exist.
+
+    The example is one page out of the sitemap: sometimes the listing itself,
+    sometimes a single event below it. Either way the section is the part up to
+    and including the first event-shaped segment, so /events/marche-au-frais-2/
+    and /events/ both give /events/.
     """
     host = urlparse(website or example).netloc
+    parts = [p for p in urlparse(example or "").path.split("/") if p]
+    # The deepest match, not the first. aerenzdall.lu files its calendar at
+    # /actualite/agenda/, and stopping at the first match would hand back
+    # /actualite/ — the news section, which is a different page.
+    # _SECTION matches a whole segment, so an event slug called "agenda-2026"
+    # is not mistaken for one.
+    hits = [i for i, part in enumerate(parts) if _SECTION.match(part)]
+    if hits:
+        return f"https://{host}/" + "/".join(parts[: hits[-1] + 1]) + "/"
     return f"https://{host}/events/"
 
 
@@ -170,7 +192,11 @@ async def seed(write: bool, activate: bool) -> int:
     inserted = updated = 0
     try:
         for s in sources:
-            existing = await db.sources.find_one({"url": s["url"]}, {"_id": 0})
+            # Matched by name, not by URL. The name is derived from the
+            # commune or venue and does not change; the URL does — correcting
+            # the event section for Käerjeng from /events/ to /evenement/
+            # created a second source and left the broken one running.
+            existing = await db.sources.find_one({"name": s["name"]}, {"_id": 0})
             if existing:
                 # Never flip a source someone has already switched on or off.
                 await db.sources.update_one(

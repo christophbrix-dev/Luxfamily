@@ -36,12 +36,56 @@ memory/PRD.md     Produktbeschreibung und offene Punkte
 
 ## Entwicklung
 
+### Einmal einrichten (macOS, ohne Administratorrechte)
+
+Alles kostenlos und quelloffen, alles in `~/.local`, jederzeit rückstandslos
+löschbar. Das System-Python bleibt unangetastet.
+
+```bash
+# Python 3.11 — macOS liefert 3.9 mit, und das ist zu alt
+curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+uv python install 3.11
+
+# MongoDB Community (Apple Silicon; für Intel mongodb-macos-x86_64-*)
+curl -sSL -o /tmp/mongodb.tgz https://fastdl.mongodb.org/osx/mongodb-macos-arm64-8.0.4.tgz
+tar xzf /tmp/mongodb.tgz -C "$HOME/.local"
+ln -sf "$HOME"/.local/mongodb-macos-*/bin/mongod "$HOME/.local/bin/mongod"
+mkdir -p "$HOME/.local/var/mongodb" "$HOME/.local/var/log"
+
+cd backend
+uv venv --python 3.11 .venv
+uv pip install --python .venv/bin/python -r requirements-dev.txt
+cp .env.example .env        # ausfüllen, siehe Tabelle unten
+```
+
+### Jeden Tag starten
+
+Nach einem Neustart des Rechners sind alle drei Prozesse weg. Die Daten bleiben
+in `~/.local/var/mongodb`; nur die Dienste müssen wieder hoch.
+
+```bash
+# 1 — Datenbank
+mongod --dbpath ~/.local/var/mongodb --fork --logpath ~/.local/var/log/mongod.log
+
+# 2 — Backend
+cd backend && .venv/bin/python -m uvicorn server:app --reload --port 8001
+
+# 3 — App, in einem zweiten Terminal
+cd frontend && yarn web        # http://localhost:8081
+```
+
+Beenden: `pkill -f uvicorn`, `pkill -f "expo start"`, und
+`mongod --dbpath ~/.local/var/mongodb --shutdown`.
+
 ### Backend
 
 Braucht **Python 3.10 oder neuer**: `fastapi`, `python-dotenv` und `icalendar`
 liefern für ältere Versionen keine Pakete mehr. Unter 3.9 bricht `pip install`
 mit „No matching distribution found" ab und nennt den Grund nicht. Die CI läuft
 auf 3.11.
+
+Ohne die Werkzeuge von oben geht es auch klassisch:
 
 ```bash
 cd backend
@@ -50,6 +94,10 @@ pip install -r requirements.txt        # requirements-dev.txt für Tests dazu
 cp .env.example .env                   # ausfüllen, siehe Tabelle
 uvicorn server:app --reload --port 8001
 ```
+
+`DB_NAME` hat bewusst **keinen** Vorgabewert. Die Werkzeuge brechen lieber ab,
+als in eine Datenbank zu schreiben, aus der niemand liest — das ist einmal
+passiert und sah dabei wie ein erfolgreicher Import aus.
 
 Erwartet eine erreichbare MongoDB und eine `backend/.env`
 (`backend/.env.example` listet alles auf):
