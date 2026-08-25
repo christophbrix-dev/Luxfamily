@@ -931,6 +931,9 @@ _SITEMAP_EVENT_PATTERNS = re.compile(
     r"|expo|expositions?|kalender|calendar|whats?[-_]on"
     r"|actualit(e|é)s?|ateliers?|workshops?"
     r"|concerts?|spectacles?|festivals?|kids?|jeunesse|jeunes|enfants?"
+    # "shows" is how the Rockhal names its 998 event pages, and French spells
+    # the word with accents that "events?" cannot match.
+    r"|shows?|[ée]v[eè]nements?|[ée]v[ée]nements?"
     r"|familles?|familien?)([/_-]|$)",
     re.IGNORECASE,
 )
@@ -957,7 +960,8 @@ async def _import_sitemap(source: Dict[str, Any], db) -> Tuple[int, int]:
 
     sitemap_url, xml = await _find_sitemap(source["url"], origin)
 
-    all_urls = _collect_sitemap_urls(xml, base=origin)
+    all_entries = _collect_sitemap_entries(xml, base=origin)
+    all_urls = [u for u, _ in all_entries]
 
     # Recursively expand sitemap indexes (one level deep). We recurse when
     # a URL looks like another sitemap: ends with .xml OR the path contains
@@ -968,25 +972,31 @@ async def _import_sitemap(source: Dict[str, Any], db) -> Tuple[int, int]:
 
     nested = [u for u in all_urls if _looks_like_sitemap(u)]
     if nested and len(all_urls) < 30:
-        expanded: List[str] = []
+        expanded: List[Tuple[str, str]] = []
         for nested_url in nested[:10]:
             try:
                 sub_xml = await _fetch_text(nested_url)
-                expanded.extend(_collect_sitemap_urls(sub_xml, base=origin))
+                expanded.extend(_collect_sitemap_entries(sub_xml, base=origin))
             except Exception as e:
                 logger.info("nested sitemap %s failed: %s", nested_url, e)
         # Replace originals with what we found inside them
-        all_urls = expanded or all_urls
+        if expanded:
+            all_entries = expanded
+            all_urls = [u for u, _ in all_entries]
 
-    # Filter to event-like paths, dedup, cap
-    candidates: List[str] = []
+    # Filter to event-like paths and dedup, then spend the page budget on the
+    # most recently changed pages rather than on whatever the file happens to
+    # list first. Without this, Rockhal's 998-entry show archive gave us
+    # twenty concerts from 2022 and no import at all.
+    matched: List[Tuple[str, str]] = []
     seen = set()
-    for u in all_urls:
+    for u, mod in all_entries:
         if _SITEMAP_EVENT_PATTERNS.search(u) and u not in seen:
             seen.add(u)
-            candidates.append(u)
-        if len(candidates) >= max_pages:
-            break
+            matched.append((u, mod))
+
+    matched.sort(key=lambda pair: pair[1] or "", reverse=True)
+    candidates: List[str] = [u for u, _ in matched[:max_pages]]
 
     logger.info(
         "[sitemap] %s → %d total sitemap URLs, %d event-like candidates",
@@ -1100,18 +1110,40 @@ async def _import_sitemap(source: Dict[str, Any], db) -> Tuple[int, int]:
     return inserted, skipped, blocked
 
 
-def _collect_sitemap_urls(xml_text: str, *, base: str) -> List[str]:
-    """Extract every <loc> URL from a sitemap or sitemap-index XML string."""
-    urls: List[str] = []
+def _collect_sitemap_entries(xml_text: str, *, base: str) -> List[Tuple[str, str]]:
+    """Every (url, lastmod) pair in a sitemap or sitemap-index XML string.
+
+    lastmod is kept because the page budget is small and the archive is not:
+    rockhal.lu lists 998 shows going back years, and spending 20 fetches on
+    whichever 20 happen to come first in the file means fetching 2022 concerts
+    and importing nothing. The sitemap already says which entries are fresh.
+    Missing lastmod sorts last rather than being dropped — unknown is not old,
+    but a dated entry is the better bet.
+    """
+    entries: List[Tuple[str, str]] = []
     try:
         soup = BeautifulSoup(xml_text, "lxml-xml")
     except Exception:
         soup = BeautifulSoup(xml_text, "lxml")
-    for loc in soup.find_all("loc"):
-        text = (loc.get_text() or "").strip()
-        if text:
-            urls.append(text)
-    return urls
+    for node in soup.find_all(["url", "sitemap"]) or []:
+        loc = node.find("loc")
+        text = (loc.get_text() or "").strip() if loc else ""
+        if not text:
+            continue
+        mod = node.find("lastmod")
+        entries.append((text, (mod.get_text() or "").strip() if mod else ""))
+    if not entries:
+        # Some sitemaps nest <loc> outside <url>/<sitemap>; fall back to those.
+        for loc in soup.find_all("loc"):
+            text = (loc.get_text() or "").strip()
+            if text:
+                entries.append((text, ""))
+    return entries
+
+
+def _collect_sitemap_urls(xml_text: str, *, base: str) -> List[str]:
+    """Extract every <loc> URL from a sitemap or sitemap-index XML string."""
+    return [u for u, _ in _collect_sitemap_entries(xml_text, base=base)]
 
 
 def _extract_open_graph_event(html: str, *, page_url: str) -> Optional[Dict[str, Any]]:
