@@ -114,6 +114,78 @@ def _strip_page_builder(text: str) -> str:
     return re.sub(r"\s{2,}", " ", _PAGE_BUILDER.sub(" ", text)).strip()
 
 
+# Where a sitemap lives when it is not at /sitemap.xml. Yoast SEO — which most
+# Luxembourg commune sites run — publishes /sitemap_index.xml, and WordPress
+# 5.5 and later serves /wp-sitemap.xml.
+SITEMAP_FALLBACKS = ("/sitemap_index.xml", "/wp-sitemap.xml", "/sitemap.xml")
+
+
+def _sitemaps_from_robots(robots_txt: str) -> List[str]:
+    """The Sitemap: lines of a robots.txt, in the order they appear."""
+    found = []
+    for line in robots_txt.splitlines():
+        if line.lower().lstrip().startswith("sitemap:"):
+            value = line.split(":", 1)[1].strip()
+            if value:
+                found.append(value)
+    return found
+
+
+async def _find_sitemap(source_url: str, origin: str) -> Tuple[str, str]:
+    """(url, xml) of the first sitemap that answers. Raises when none does.
+
+    A configured URL is tried first and usually wins. It is not trusted to be
+    right, though, and that is the point of this function: every one of these
+    sources was seeded with `<domain>/sitemap.xml` appended, so the configured
+    URL always ended in .xml, which satisfied the old "is it already a sitemap"
+    check — and skipped the robots.txt lookup underneath it. The discovery code
+    existed and was unreachable for exactly the sources that needed it. 22 of
+    45 inactive sources failed with 404, and robots.txt named the real address
+    on several of them.
+
+    robots.txt comes next because a site declaring its own sitemap there is
+    telling us the answer, and we already fetch that file for politeness. The
+    guessed paths come last.
+    """
+    tried: List[str] = []
+    errors: List[str] = []
+
+    async def attempt(url: str):
+        """The sitemap at `url`, or None. Never asks the same host twice."""
+        if not url or url in tried:
+            return None
+        tried.append(url)
+        try:
+            return await _fetch_text(url)
+        except Exception as exc:
+            errors.append(f"{url} ({type(exc).__name__})")
+            return None
+
+    # The configured URL first, and nothing else when it works. Building the
+    # whole candidate list up front would fetch robots.txt from every site on
+    # every run, including the ones already pointing at the right file — an
+    # extra request per source, and under a crawl delay an extra wait too.
+    if source_url.endswith(".xml"):
+        xml = await attempt(source_url)
+        if xml is not None:
+            return source_url, xml
+
+    try:
+        declared = _sitemaps_from_robots(await _fetch_text(origin + "/robots.txt"))
+    except Exception:
+        # No robots.txt, or the host is unreachable. polite_get already refuses
+        # the host in the second case, so the guesses below fail too and the
+        # error the caller sees will say so.
+        declared = []
+
+    for url in [*declared, *(origin + path for path in SITEMAP_FALLBACKS)]:
+        xml = await attempt(url)
+        if xml is not None:
+            return url, xml
+
+    raise RuntimeError("No sitemap found. Tried: " + "; ".join(errors))
+
+
 def _build_event_doc(
     *,
     source: Dict[str, Any],
@@ -883,26 +955,7 @@ async def _import_sitemap(source: Dict[str, Any], db) -> Tuple[int, int]:
     parsed = urlparse(source["url"])
     origin = f"{parsed.scheme}://{parsed.netloc}"
 
-    # Resolve the actual sitemap URL
-    sitemap_url = source["url"] if source["url"].endswith(".xml") else None
-    if not sitemap_url:
-        # Try robots.txt first (sites often list all sitemaps there)
-        try:
-            robots = await _fetch_text(origin + "/robots.txt")
-            for line in robots.splitlines():
-                if line.lower().startswith("sitemap:"):
-                    sitemap_url = line.split(":", 1)[1].strip()
-                    break
-        except Exception:
-            pass
-    if not sitemap_url:
-        sitemap_url = origin + "/sitemap.xml"
-
-    # Fetch sitemap (may be a sitemap index containing more sitemaps)
-    try:
-        xml = await _fetch_text(sitemap_url)
-    except Exception as exc:
-        raise RuntimeError(f"Could not fetch sitemap {sitemap_url}: {exc}")
+    sitemap_url, xml = await _find_sitemap(source["url"], origin)
 
     all_urls = _collect_sitemap_urls(xml, base=origin)
 
