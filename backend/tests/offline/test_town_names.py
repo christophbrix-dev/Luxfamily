@@ -67,3 +67,40 @@ class TestItIsIdempotent:
         for t in ("Luxemburg-Stadt", "Petingen", "Kirchberg", "Trier"):
             once = canonical_town(t)
             assert canonical_town(once) == once
+
+
+class TestShortForms:
+    """Abbreviations, and the one that names two different places.
+
+    134 events arrived from eleven newly enabled sources carrying both "Esch"
+    and "Esch-sur-Alzette" — one town, two entries in every list and filter,
+    and a search for one that misses the other. The Rockhal and the
+    Kulturfabrik both write the short form.
+    """
+
+    def test_lux_is_the_capital(self):
+        assert canonical_town("Lux") == "Luxembourg"
+
+    def test_esch_with_its_canton_resolves(self):
+        assert canonical_town("Esch", "Esch-sur-Alzette") == "Esch-sur-Alzette"
+
+    def test_the_other_esch_also_resolves(self):
+        """Esch-sur-Sûre is 50km away and is not the obvious reading."""
+        assert canonical_town("Esch", "Wiltz") == "Esch-sur-Sûre"
+
+    def test_esch_without_a_canton_is_left_alone(self):
+        """An inconsistent spelling beats a confident wrong answer."""
+        assert canonical_town("Esch") == "Esch"
+
+    def test_an_unknown_canton_does_not_force_a_guess(self):
+        assert canonical_town("Esch", "Gutland") == "Esch"
+
+    def test_case_and_accents_still_do_not_matter(self):
+        assert canonical_town("ESCH", "esch-sur-alzette") == "Esch-sur-Alzette"
+
+    def test_a_known_commune_ignores_the_canton(self):
+        """The canton resolves short forms; it never overrides a real name."""
+        assert canonical_town("Echternach", "Wiltz") == "Echternach"
+
+    def test_quarters_are_still_untouched(self):
+        assert canonical_town("Kirchberg", "Luxembourg") == "Kirchberg"

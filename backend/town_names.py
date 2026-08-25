@@ -62,21 +62,54 @@ def _index() -> Dict[str, str]:
     return table
 
 
-def canonical_town(town: Optional[str]) -> str:
+# Short forms no commune list contains, because they are not names — they are
+# what a writer uses when the full one is obvious from context.
+_ALIASES = {
+    "lux": "Luxembourg",
+    "luxbg": "Luxembourg",
+}
+
+# Short forms that name more than one commune, and the canton that settles it.
+# "Esch" means Esch-sur-Alzette to almost everyone — the country's second city,
+# and where both the Rockhal and the Kulturfabrik file their events — but
+# Esch-sur-Sûre exists too, and mapping blindly would move its events 50km into
+# the wrong half of the country. Without a canton the input is left alone: an
+# inconsistent spelling is a smaller problem than a confident wrong answer.
+_AMBIGUOUS = {
+    "esch": {
+        "eschsuralzette": "Esch-sur-Alzette",
+        "wiltz": "Esch-sur-Sûre",
+    },
+}
+
+
+def canonical_town(town: Optional[str], canton: Optional[str] = None) -> str:
     """The one spelling for this town, or the input unchanged.
 
     Unchanged is the common case and the safe one: venue names, quarters and
     foreign towns all arrive here too, and guessing at them would be worse than
     leaving them alone.
+
+    `canton` is consulted only for short forms that genuinely name more than
+    one commune. It never overrides a name the commune list already knows.
     """
     raw = (town or "").strip()
     if not raw:
         return ""
 
     index = _index()
-    hit = index.get(_fold(raw))
+    folded = _fold(raw)
+    hit = index.get(folded)
     if hit:
         return hit
+
+    if folded in _ALIASES:
+        return _ALIASES[folded]
+
+    choices = _AMBIGUOUS.get(folded)
+    if choices:
+        # No canton, or one we do not recognise: leave it, do not guess.
+        return choices.get(_fold(canton or ""), raw)
 
     # "Luxembourg-Stadt" -> "Luxembourg". Only if the remainder is a commune;
     # otherwise "Belval Centre" would lose a word for nothing.
