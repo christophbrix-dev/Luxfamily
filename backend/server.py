@@ -584,31 +584,47 @@ async def lifespan(_: FastAPI):
     except Exception:
         pass  # already exists with different options — non-fatal
 
-    # Admin seeding. ADMIN_PASSWORD is authoritative: if it no longer matches
-    # the stored hash, the stored hash is replaced on boot.
+    # Admin seeding. ADMIN_PASSWORD is the way in and the way back in, not a
+    # standing instruction.
     #
-    # It used to seed only when the account was absent, which meant there was no
-    # way to rotate the password at all — changing the variable did nothing, and
-    # no endpoint existed to change it either. Rotating now means updating
-    # ADMIN_PASSWORD in the environment and restarting.
+    # It used to compare the variable against the stored hash on every boot and
+    # overwrite the hash whenever they differed. That made the variable the only
+    # possible source of the password: change it anywhere else and the next
+    # restart silently undid you — which is why the console can now offer a
+    # change form at all.
+    #
+    # What is compared instead is the *variable* against what it was last time,
+    # recorded as a fingerprint. Editing it in the environment still rotates the
+    # password, so a forgotten one is still recoverable; leaving it alone leaves
+    # a password changed in the console alone.
+    #
+    # The fingerprint is a salted hash. It never has to be checked against a
+    # candidate, only against itself, so nothing here can be used to test
+    # guesses even by someone holding the database.
+    env_fingerprint = hashlib.sha256(
+        f"{ADMIN_EMAIL}:{ADMIN_PASSWORD}".encode()
+    ).hexdigest()
+
     existing = await db.users.find_one({"email": ADMIN_EMAIL})
     if not existing:
         admin_doc = {
             "id": str(uuid.uuid4()),
             "email": ADMIN_EMAIL,
             "hashed_password": hash_password(ADMIN_PASSWORD),
+            "admin_password_env_fingerprint": env_fingerprint,
             "role": "admin",
             "name": "Administrator",
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.users.insert_one(admin_doc)
         logger.info("Seeded admin user %s", ADMIN_EMAIL)
-    elif not verify_password(ADMIN_PASSWORD, existing.get("hashed_password", "")):
+    elif existing.get("admin_password_env_fingerprint") != env_fingerprint:
         await db.users.update_one(
             {"email": ADMIN_EMAIL},
             {
                 "$set": {
                     "hashed_password": hash_password(ADMIN_PASSWORD),
+                    "admin_password_env_fingerprint": env_fingerprint,
                     "password_rotated_at": datetime.now(timezone.utc).isoformat(),
                 }
             },
@@ -736,6 +752,62 @@ async def root():
 
 
 # ---- Auth ----
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+# Short enough not to be a nuisance, long enough that guessing is hopeless
+# against a 5/minute limit. Nothing longer is enforced: a passphrase someone
+# will actually remember beats a short one they write on a sticky note.
+MIN_PASSWORD_LENGTH = 12
+
+
+@app.post("/api/admin/password", status_code=204)
+@limiter.limit("5/minute")
+async def change_admin_password(
+    request: Request,
+    body: PasswordChangeRequest = Body(...),
+    user: Dict[str, Any] = Depends(require_admin),
+):
+    """Change the signed-in admin's password.
+
+    The current password is required even though the caller already holds a
+    valid token. A token lives seven days and travels in browser storage; an
+    unattended console should not be enough to lock the owner out of their own
+    admin account.
+
+    This survives a restart. The boot code used to overwrite the stored hash
+    whenever it differed from ADMIN_PASSWORD, which would have undone this at
+    the next deploy; it now rotates only when the variable itself changes, so
+    the environment stays the way back in without being a standing order.
+
+    Neither password is logged, not even its length.
+    """
+    stored = await db.users.find_one({"id": user["id"]})
+    if not stored or not verify_password(body.current_password, stored.get("hashed_password", "")):
+        raise HTTPException(status_code=403, detail="Current password is not correct")
+
+    new = body.new_password
+    if len(new) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"New password must be at least {MIN_PASSWORD_LENGTH} characters",
+        )
+    if verify_password(new, stored.get("hashed_password", "")):
+        raise HTTPException(status_code=400, detail="New password must differ from the old one")
+
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {
+            "hashed_password": hash_password(new),
+            "password_changed_at": datetime.now(timezone.utc).isoformat(),
+        }},
+    )
+    logger.info("Admin password changed via the console for %s", stored.get("email"))
+    return Response(status_code=204)
+
+
 @app.post("/api/auth/login", response_model=TokenResponse)
 @limiter.limit("10/minute")
 async def login(request: Request, body: LoginRequest = Body(...)):

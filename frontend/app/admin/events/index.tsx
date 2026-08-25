@@ -94,6 +94,13 @@ export default function AdminEvents() {
             <Ionicons name="cloud-download-outline" size={18} color={palette.textPrimary} />
           </TouchableOpacity>
           <TouchableOpacity
+            onPress={() => router.push("/admin/password")}
+            style={styles.iconBtn}
+            testID="admin-password"
+          >
+            <Ionicons name="key-outline" size={18} color={palette.textPrimary} />
+          </TouchableOpacity>
+          <TouchableOpacity
             onPress={async () => {
               await setAdminToken(null);
               router.replace("/admin");

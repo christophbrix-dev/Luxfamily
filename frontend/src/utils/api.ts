@@ -195,6 +195,20 @@ export const api = {
       body: { email, password },
     }),
   me: () => apiFetch<AdminUser>("/api/auth/me", { admin: true }),
+
+  /**
+   * Change the signed-in admin's password.
+   *
+   * The current one is sent as well as the new one: the backend requires it,
+   * because a seven-day token sitting in browser storage should not be enough
+   * to lock the owner out of their own account.
+   */
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiFetch<void>("/api/admin/password", {
+      method: "POST",
+      admin: true,
+      body: { current_password: currentPassword, new_password: newPassword },
+    }),
   // List endpoints return ApiEventSummary, not the full document. Every field
   // the list screens currently read is included; anything else needs the detail
   // endpoint (or a new field on the backend's EventSummary).
