@@ -96,9 +96,20 @@ def build_address_query(ev: dict) -> str:
     The venue name is left out on purpose: address geocoders match streets and
     house numbers, and a name in the query only pulls the result towards an
     unrelated locality. Names are handled by the places lookup instead.
+
+    So is the canton, which used to be appended and did real damage. Luxembourg
+    names its cantons after their main town, and the service latches onto the
+    part it recognises: "Bech, Echternach" came back as Echternach, "Boulaide,
+    Wiltz" as Wiltz, "Bettendorf, Diekirch" as Diekirch. Every commune in a
+    canton collapsed onto its cantonal seat, and the guard against a wrong
+    locality could not see it — the address it got back did echo a word from
+    the query, just the wrong one.
+
+    The service covers Luxembourg and nothing else, so the town alone is the
+    whole question. Where that is ambiguous the guard rejects the answer and
+    the event keeps a canton centroid, marked as one.
     """
-    parts = [p for p in (clean_town(ev), (ev.get("canton") or "").strip()) if p]
-    return ", ".join(parts)
+    return clean_town(ev)
 
 
 def resolve(db, ev: dict, cache: Dict[str, Optional[dict]]) -> GeoResult:
