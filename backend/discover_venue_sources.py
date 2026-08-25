@@ -95,6 +95,8 @@ class _VenueHandler(osmium.SimpleHandler):
     def __init__(self) -> None:
         super().__init__()
         self.found: List[Dict[str, str]] = []
+        self._lat: float = None
+        self._lng: float = None
 
     def _take(self, tags: Dict[str, str]) -> None:
         site = (tags.get("website") or tags.get("contact:website") or "").strip()
@@ -108,16 +110,32 @@ class _VenueHandler(osmium.SimpleHandler):
                     "name": (tags.get("name") or tags.get("name:lb")
                              or tags.get("name:fr") or "").strip(),
                     "website": site,
+                    # Where it is. A source needs a canton, and this is the
+                    # only place the coordinates exist — re-deriving them
+                    # later would mean asking a geocoder for something the
+                    # extract already knows.
+                    "lat": self._lat,
+                    "lng": self._lng,
                 })
                 return
 
     def node(self, n) -> None:
+        self._lat, self._lng = n.location.lat, n.location.lon
         self._take({t.k: t.v for t in n.tags})
 
     def way(self, w) -> None:
+        pts = [(x.location.lat, x.location.lon) for x in w.nodes
+               if x.location.valid()]
+        if not pts:
+            return
+        self._lat = sum(p[0] for p in pts) / len(pts)
+        self._lng = sum(p[1] for p in pts) / len(pts)
         self._take({t.k: t.v for t in w.tags})
 
     def relation(self, r) -> None:
+        # No geometry without building the multipolygon; a venue mapped only
+        # as a relation is rare and is skipped rather than placed at a guess.
+        self._lat = self._lng = None
         self._take({t.k: t.v for t in r.tags})
 
 
@@ -132,7 +150,7 @@ def venues() -> List[Dict[str, str]]:
             f"{PBF_CACHE} missing — run build_commune_index.py once to fetch it."
         )
     handler = _VenueHandler()
-    handler.apply_file(str(PBF_CACHE))
+    handler.apply_file(str(PBF_CACHE), locations=True, idx="flex_mem")
 
     by_domain: Dict[str, Dict[str, str]] = {}
     for v in handler.found:
@@ -150,6 +168,14 @@ def venues() -> List[Dict[str, str]]:
     log.info("%d venues with a website, %d distinct domains",
              len(handler.found), len(out))
     return out
+
+
+def _coords(v: Dict[str, str]) -> Dict[str, str]:
+    """The venue's position, formatted for the CSV."""
+    return {
+        "lat": "" if v.get("lat") is None else f"{v['lat']:.6f}",
+        "lng": "" if v.get("lng") is None else f"{v['lng']:.6f}",
+    }
 
 
 def _cache() -> dict:
@@ -175,16 +201,20 @@ def main() -> int:
     for i, v in enumerate(todo, 1):
         key = v["website"]
         if key in cache:
-            rows.append(cache[key])
+            # Coordinates come from this run's PBF pass, not from the cache:
+            # the cache holds what the site answered, which does not change
+            # when the extract gains a column.
+            rows.append({**cache[key], **_coords(v)})
             continue
         log.info("[%3d/%d] %s — %s", i, len(todo), v["kind"], v["name"] or key)
         row = probe(v["name"] or urlparse(key).netloc, key,
                     eventish=VENUE_EVENTISH, fallback_paths=VENUE_PATHS)
         # probe() names its subject column "Gemeinde"; these are venues.
         row = {"Art": v["kind"], "Name": row.pop("Gemeinde"), **row}
-        rows.append(row)
         cache[key] = row
+        rows.append({**row, **_coords(v)})
         CACHE.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+        continue
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     with OUT.open("w", encoding="utf-8-sig", newline="") as fh:
