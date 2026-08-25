@@ -127,6 +127,13 @@ def _build_event_doc(
         "image": image,
         "lat": lat,
         "lng": lng,
+        # Where this coordinate came from. Every importer falls back to the
+        # source's lat_default, which is a commune centroid or a venue's front
+        # door — never the event's own address. Saying so lets geocode_events
+        # find these again; inferring it from a missing field is how they were
+        # missed, since lat is always set to something.
+        "geocode_precision": "source_default",
+        "geocode_source": "source",
         "bookable": False,
         "published": True,   # crawler results auto-publish per user request
         "rating": 4.5,

@@ -133,8 +133,25 @@ def main() -> None:
     client = MongoClient(os.environ["MONGO_URL"])
     db = client[os.environ["DB_NAME"]]
 
+    # Events that have never been geocoded, or only landed on a fallback.
+    #
+    # This used to look for lat == 0 or a missing lat, which no imported event
+    # ever has: every importer writes the source's lat_default. So the query
+    # matched nothing, the script printed "0 events to geocode" and stopped,
+    # and 122 of 304 events sat on 49.6117, 6.1319 — the generic point for
+    # Luxembourg City — with 92% of all events sharing a coordinate with
+    # another. On a map that is a handful of pins where there should be
+    # hundreds.
+    #
+    # geocode_precision records how a coordinate was arrived at. "exact" and
+    # "place" are real; "canton" and "commune" are stand-ins worth retrying,
+    # since a venue may since have been added to our own OSM places.
     todo = list(db.events.find({
-        "$or": [{"lat": 0}, {"lat": {"$exists": False}}, {"lat": None}],
+        "$or": [
+            {"lat": 0}, {"lat": {"$exists": False}}, {"lat": None},
+            {"geocode_precision": {"$exists": False}},
+            {"geocode_precision": {"$in": [None, "", "canton", "commune", "fallback", "source_default"]}},
+        ],
     }))
     print(f"[geocode] {len(todo)} events to geocode")
 
