@@ -46,6 +46,16 @@ def app_module():
 
     server.client = AsyncMongoMockClient()
     server.db = server.client["offline"]
+    # The rate limiter counts per client address, and every test here shares
+    # one, so counts leak from one test into the next: a test passes or fails
+    # depending on how many requests the tests before it made. Clearing the
+    # counters rather than disabling the limiter keeps the tests that assert
+    # the limits working — one of them checks the sponsor endpoint refuses a
+    # thirteenth request.
+    try:
+        server.limiter._storage.reset()
+    except Exception:
+        pass
     return server
 
 

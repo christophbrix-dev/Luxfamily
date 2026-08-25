@@ -46,6 +46,11 @@ jobs:
       - name: Photos
         run: yarn test-photo
 
+      # A failed request must reach the reader as a sentence, not as a parser
+      # complaint about a body that was never JSON.
+      - name: API errors
+        run: yarn test-api-errors
+
       # Reports how much of the app speaks Luxembourgish. Never fails the
       # build — a missing translation is work in progress, not a broken commit.
       - name: Luxembourgish coverage

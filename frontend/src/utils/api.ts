@@ -2,6 +2,7 @@
 // and always prefixes endpoints with /api so the Kubernetes ingress routes
 // requests to the FastAPI service.
 
+import { ApiError, describeHttpError, readBody } from "@/src/utils/apiError";
 import { storage } from "@/src/utils/storage";
 
 const RAW = process.env.EXPO_PUBLIC_BACKEND_URL ?? "";
@@ -24,6 +25,8 @@ type FetchOpts = {
   admin?: boolean; // attach admin JWT if true
 };
 
+export { ApiError };
+
 export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (opts.admin) {
@@ -36,11 +39,23 @@ export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
   if (res.status === 204) return undefined as unknown as T;
+
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+
+  // Not every response is JSON, and assuming so turned a plain "404 page not
+  // found" from a gateway into "Unexpected non-whitespace character after JSON
+  // at position 4" on the user's screen — because "404" parses as a number and
+  // the rest of the sentence does not. Anything that is not our own API
+  // answering can arrive as HTML or text: a proxy, a maintenance page, a
+  // container that has not started.
+  const { data, parsed } = readBody(text);
+
   if (!res.ok) {
-    const detail = (data && (data.detail ?? data.message)) || `HTTP ${res.status}`;
-    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+    throw new ApiError(res.status, describeHttpError(res.status, data, parsed ? "" : text));
+  }
+  if (text && !parsed) {
+    // A 200 that is not JSON means something answered in our place.
+    throw new ApiError(res.status, `Unexpected reply from ${BASE || "the server"}`);
   }
   return data as T;
 }
@@ -195,6 +210,20 @@ export const api = {
       body: { email, password },
     }),
   me: () => apiFetch<AdminUser>("/api/auth/me", { admin: true }),
+
+  /**
+   * Change the signed-in admin's password.
+   *
+   * The current one is sent as well as the new one: the backend requires it,
+   * because a seven-day token sitting in browser storage should not be enough
+   * to lock the owner out of their own account.
+   */
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiFetch<void>("/api/admin/password", {
+      method: "POST",
+      admin: true,
+      body: { current_password: currentPassword, new_password: newPassword },
+    }),
   // List endpoints return ApiEventSummary, not the full document. Every field
   // the list screens currently read is included; anything else needs the detail
   // endpoint (or a new field on the backend's EventSummary).

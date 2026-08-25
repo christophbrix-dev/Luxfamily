@@ -292,6 +292,50 @@ export const STRINGS: Dict = {
     de: "Mehr anzeigen",
     fr: "Afficher plus",
   },
+  changePassword: {
+    en: "Change password", de: "Passwort ändern", fr: "Changer le mot de passe",
+  },
+  currentPassword: {
+    en: "Current password", de: "Aktuelles Passwort", fr: "Mot de passe actuel",
+  },
+  newPassword: {
+    en: "New password", de: "Neues Passwort", fr: "Nouveau mot de passe",
+  },
+  repeatPassword: {
+    en: "Repeat new password", de: "Neues Passwort wiederholen",
+    fr: "Répéter le nouveau mot de passe",
+  },
+  passwordRule: {
+    en: "At least 12 characters. A phrase you will remember beats a short one you write down.",
+    de: "Mindestens 12 Zeichen. Ein Satz, den du dir merkst, ist besser als ein kurzes, das du aufschreibst.",
+    fr: "Au moins 12 caractères. Une phrase dont vous vous souvenez vaut mieux qu'un mot court noté quelque part.",
+  },
+  passwordTooShort: {
+    en: "Too short — at least 12 characters.",
+    de: "Zu kurz — mindestens 12 Zeichen.",
+    fr: "Trop court — au moins 12 caractères.",
+  },
+  passwordsDoNotMatch: {
+    en: "The two do not match.", de: "Die beiden stimmen nicht überein.",
+    fr: "Les deux ne correspondent pas.",
+  },
+  passwordSameAsOld: {
+    en: "That is the current password.", de: "Das ist das aktuelle Passwort.",
+    fr: "C'est le mot de passe actuel.",
+  },
+  passwordChanged: {
+    en: "Password changed", de: "Passwort geändert", fr: "Mot de passe changé",
+  },
+  passwordChangedHint: {
+    en: "It stays changed across restarts. Use it the next time you sign in.",
+    de: "Es bleibt auch über Neustarts hinweg gültig. Beim nächsten Anmelden gilt es.",
+    fr: "Il reste valable après un redémarrage. Utilisez-le à la prochaine connexion.",
+  },
+  passwordEnvNote: {
+    en: "If you ever forget it: change ADMIN_PASSWORD in the hosting environment and restart — that overrides whatever is set here.",
+    de: "Falls du es vergisst: ADMIN_PASSWORD in der Umgebung ändern und neu starten — das überschreibt, was hier gesetzt ist.",
+    fr: "En cas d'oubli : modifiez ADMIN_PASSWORD dans l'environnement et redémarrez — cela remplace ce qui est défini ici.",
+  },
   adminLoginFailed: {
     en: "Login failed.",
     de: "Anmeldung fehlgeschlagen.",
@@ -436,6 +480,17 @@ const LB_OVERRIDES: Record<string, string> = {
   adminBackendUnreachable: "Server net erreechbar. Leeft de Backend, a weist EXPO_PUBLIC_BACKEND_URL dorop?",
   adminBadCredentials:   "E-Mail oder Passwuert stëmmt net.",
   adminLoginFailed:      "Umeldung feelgeschloen.",
+  changePassword:        "Passwuert änneren",
+  currentPassword:       "Aktuellt Passwuert",
+  newPassword:           "Neit Passwuert",
+  repeatPassword:        "Neit Passwuert widderhuelen",
+  passwordRule:          "Mindestens 12 Zeechen. E Saz, deen s du dir mierks, ass besser wéi e kuerzt, dat s du opschreifs.",
+  passwordTooShort:      "Ze kuerz — mindestens 12 Zeechen.",
+  passwordsDoNotMatch:   "Déi zwee stëmmen net iwwereneen.",
+  passwordSameAsOld:     "Dat ass dat aktuellt Passwuert.",
+  passwordChanged:       "Passwuert geännert",
+  passwordChangedHint:   "Et bleift och no engem Neistart gëlteg. Beim nächsten Umelden gëllt et.",
+  passwordEnvNote:       "Falls du et vergëss: ADMIN_PASSWORD an der Ëmgeewung änneren an nei starten — dat iwwerschreift, wat hei gesat ass.",
   showMore:              "Méi weisen",
   notSet:                "Net gesat",
   bookingsPlural:        "Buchungen",
