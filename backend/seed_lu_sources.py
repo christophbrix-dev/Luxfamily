@@ -110,7 +110,10 @@ SOURCES = [
             "item": "a.media-event",
             "title": ".media-title",
             "date": ".media-date",
-            "location": ".media-category",
+            # .place, not .media-category: the latter is the badge row
+            # ("Cinéma Pour tous publics"), and stored as the town it made 28
+            # events share one point and read "Cinéma" as a place name.
+            "location": ".place",
             "link": "self",
         }),
 

@@ -105,6 +105,22 @@ def resolve(db, ev: dict, cache: Dict[str, Optional[dict]]) -> GeoResult:
     """Coordinates for one event, best available source first."""
     name, town = clean_title(ev), clean_town(ev)
 
+    # The venue first, then the title.
+    #
+    # Only the title was tried, and an event is rarely named after the building
+    # it happens in: "Museum Break : Layers of summer" matches nothing, while
+    # its town field holds "Lëtzebuerg City Museum", which is in our own places
+    # with a coordinate. Both museum events in Luxembourg City fell through to
+    # the city centre, on the same point as everything else.
+    #
+    # The town is only a venue for imported events — a commune source writes a
+    # commune name there, which will not match a place and costs one indexed
+    # lookup that finds nothing.
+    if town and town != name:
+        local = lookup_local_place(db, town, "")
+        if local:
+            return local
+
     local = lookup_local_place(db, name, town)
     if local:
         return local

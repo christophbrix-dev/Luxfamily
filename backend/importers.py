@@ -369,6 +369,23 @@ def _abs_url(base: str, href: str) -> str:
     return href
 
 
+def _clean_location(text: str) -> str:
+    """The venue out of a labelled field.
+
+    Sites label these in the markup rather than around it: vdl.lu writes
+    "Lieu | Théâtre des Capucins" inside one element. Stored whole, the label
+    travels with the value into the town field and into the geocoder, which
+    then has to make sense of the word "Lieu".
+
+    Only a labelled separator is trimmed. A venue that legitimately contains a
+    dash or a comma keeps it.
+    """
+    value = (text or "").strip()
+    if "|" in value:
+        value = value.rsplit("|", 1)[-1].strip()
+    return value
+
+
 async def _import_html_scraper(source: Dict[str, Any], db) -> Tuple[int, int]:
     """Generic HTML scraper. Source.selectors must be a dict, e.g.:
 
@@ -426,7 +443,8 @@ async def _import_html_scraper(source: Dict[str, Any], db) -> Tuple[int, int]:
             continue
 
         description = _pick(el, selectors.get("description")) or title
-        town = _pick(el, selectors.get("location")) or source.get("town_default", "Luxembourg")
+        town = _clean_location(_pick(el, selectors.get("location"))) \
+            or source.get("town_default", "Luxembourg")
         image_src = _pick(el, selectors.get("image"), attr="src")
         link = _pick(el, selectors.get("link"), attr="href")
         image = _abs_url(source["url"], image_src) if image_src else source.get("image_default", "")
@@ -489,6 +507,25 @@ async def _import_json_ld(source: Dict[str, Any], db) -> Tuple[int, int]:
                 logger.info("Skipping %s: %s", link, rb)
             except Exception as exc:
                 logger.warning("Sub-page %s failed: %s", link, exc)
+
+    if not events:
+        # The listing holds nothing and links to nothing we can follow, which
+        # is what a page that builds its list in the browser looks like from
+        # here: echternach.lu loads its events through admin-ajax, so the HTML
+        # arrives with a heading and no events at all. Switched on for the
+        # first time, it came back "no_events".
+        #
+        # Its sitemap does list them and the individual pages do carry
+        # JSON-LD — that is how the site cleared discovery. So walk it.
+        #
+        # Decided here rather than when the source is registered, because
+        # registration cannot tell: whether a listing works is a property of
+        # the page, and reading it is the only way to know. Guessing from the
+        # discovered URL sent Mamer down this path too, and Mamer's listing
+        # works perfectly well.
+        logger.info("%s: listing carried no events, trying its sitemap",
+                    source.get("name"))
+        return await _import_sitemap(source, db)
 
     known_ids = await _known_external_ids(source, db)
     inserted = 0
