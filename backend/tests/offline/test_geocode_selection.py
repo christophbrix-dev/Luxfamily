@@ -14,7 +14,7 @@
 
 import pytest
 
-from geocode_events import PENDING_QUERY, SCHEDULED_BATCH
+from geocode_events import pending_query, SCHEDULED_BATCH
 
 
 @pytest.fixture
@@ -31,7 +31,7 @@ def picked(app_module, run):
         async def call():
             await app_module.db.events.delete_many({})
             await app_module.db.events.insert_one({"id": "e1", **event})
-            return await app_module.db.events.find_one(PENDING_QUERY)
+            return await app_module.db.events.find_one(pending_query())
         return run(call()) is not None
     return check
 
@@ -112,3 +112,50 @@ class TestTheScheduledBatch:
 
     def test_three_passes_a_day_clear_a_backlog_in_days_not_months(self):
         assert SCHEDULED_BATCH * 3 >= 300
+
+
+class TestRetryCooldown:
+    """Imprecise results are retried — but not on every single run.
+
+    "canton" and "commune" stay in the pending set on purpose: a later pass may
+    do better once a town spelling is corrected or new places are ingested.
+    With no cooldown, "later" meant "every run": four consecutive passes each
+    re-resolved the same 69 events and each re-asked the geoportal the same
+    questions that had never worked once.
+    """
+
+    def _match(self, doc):
+        import mongomock
+        db = mongomock.MongoClient()["g"]
+        db.events.insert_one(doc)
+        return db.events.find_one(pending_query()) is not None
+
+    def test_a_never_attempted_event_is_pending(self):
+        assert self._match({"lat": 0, "geocode_precision": "source_default"})
+
+    def test_a_fresh_canton_result_waits(self):
+        from datetime import datetime, timezone
+        assert not self._match({
+            "lat": 49.6, "geocode_precision": "canton",
+            "geocoded_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+    def test_a_fresh_commune_result_waits(self):
+        from datetime import datetime, timezone
+        assert not self._match({
+            "lat": 49.6, "geocode_precision": "commune",
+            "geocoded_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+    def test_an_old_canton_result_is_retried(self):
+        from datetime import datetime, timedelta, timezone
+        old = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        assert self._match({"lat": 49.6, "geocode_precision": "canton", "geocoded_at": old})
+
+    def test_a_precise_result_is_never_pending(self):
+        """Not even after the cooldown — there is nothing better to find."""
+        from datetime import datetime, timedelta, timezone
+        old = (datetime.now(timezone.utc) - timedelta(days=365)).isoformat()
+        assert not self._match({
+            "lat": 49.6, "geocode_precision": "address", "geocoded_at": old,
+        })

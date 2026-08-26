@@ -55,10 +55,16 @@ WORKING = {
 }
 
 # Rockhal returned exactly the default budget of 20, which means the cap bound
-# and not the source. Its sitemap holds 1165 event pages; fetching more of them
-# costs more requests, so the number is raised for this one source only and
-# stays modest.
-PAGE_BUDGET = {"Rockhal — Sitemap": 60}
+# and not the source: its sitemap holds 1165 event pages. Raised for this one
+# source only, and to a number that was measured rather than picked.
+#
+# 60 pages gave 50 events, 200 gave 90 — and all 90 fall in the future, so the
+# freshness ordering is spending the budget on the live calendar rather than on
+# the archive. Going deeper buys little: the remaining pages are past shows.
+# Rockhal declares no crawl delay, so our own two-second minimum applies and
+# 200 pages costs about seven minutes against their server. That is the trade
+# this number represents.
+PAGE_BUDGET = {"Rockhal — Sitemap": 200}
 
 
 async def run(write: bool) -> int:

@@ -237,7 +237,14 @@ def _build_event_doc(
         "description": _default_localized(description),
         "type": "Event",
         "canton": source.get("canton_default") or "Luxembourg",
-        "town": canonical_town(town or source.get("town_default") or "Luxembourg"),
+        # The canton is passed because some short forms name two communes:
+        # "Esch" is Esch-sur-Alzette or Esch-sur-Sûre, and only the canton
+        # says which. Without it the name is left as written rather than
+        # guessed at.
+        "town": canonical_town(
+            town or source.get("town_default") or "Luxembourg",
+            source.get("canton_default"),
+        ),
         "category": source.get("category_default") or ["Culture"],
         "age_min": source.get("age_min_default", 0),
         "age_max": source.get("age_max_default", 99),

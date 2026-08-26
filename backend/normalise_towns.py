@@ -43,9 +43,12 @@ async def run(write: bool) -> int:
         for name in COLLECTIONS:
             coll = db[name]
             ops, moves = [], collections.Counter()
-            async for doc in coll.find({}, {"_id": 1, "town": 1}):
+            # The canton comes along because "Esch" names two communes and
+            # only the canton distinguishes them; without it the name is left
+            # alone rather than guessed at.
+            async for doc in coll.find({}, {"_id": 1, "town": 1, "canton": 1}):
                 old = (doc.get("town") or "").strip()
-                new = canonical_town(old)
+                new = canonical_town(old, doc.get("canton"))
                 if new and new != old:
                     moves[(old, new)] += 1
                     ops.append(UpdateOne({"_id": doc["_id"]}, {"$set": {"town": new}}))
