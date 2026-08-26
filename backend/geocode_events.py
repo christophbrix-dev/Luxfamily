@@ -79,7 +79,13 @@ def lookup_local_place(db, name: str, town: str) -> Optional[GeoResult]:
     if len(name) < 4:
         return None
     pattern = {"$regex": f"^{re.escape(name)}", "$options": "i"}
-    for query in ({"name": pattern, "town": town} if town else None, {"name": pattern}):
+    # Places record their municipality as `commune`; nothing in that collection
+    # has ever had a `town`. Narrowing by "town" therefore matched no document
+    # at all, so the narrowed lookup silently did nothing and every venue fell
+    # through to the wider name-only search or out to the geoportal — with
+    # 6,857 places carrying exactly the answer being asked for. 70 events sat
+    # on a canton centroid because of it.
+    for query in ({"name": pattern, "commune": town} if town else None, {"name": pattern}):
         if query is None:
             continue
         hit = db.places.find_one(query, {"_id": 0, "lat": 1, "lng": 1, "name": 1})
@@ -88,6 +94,33 @@ def lookup_local_place(db, name: str, town: str) -> Optional[GeoResult]:
                 float(hit["lat"]), float(hit["lng"]), "address", "places", hit.get("name", "")
             )
     return None
+
+
+def commune_centre(db, town: str) -> Optional[GeoResult]:
+    """The middle of the OSM places we hold inside this commune, or None.
+
+    A last resort before the canton centroid, and a much closer one. Averaging
+    is crude, but a Luxembourg commune is a few kilometres across, so the mean
+    lands in or beside the village; the canton fallback puts every commune in
+    the canton on one pin, often twenty kilometres away.
+
+    Requires a handful of places, because the mean of two scattered ones says
+    less than nothing, and it reports "commune" precision so the result is
+    never mistaken for a real address.
+    """
+    if not town:
+        return None
+    points = list(
+        db.places.find(
+            {"commune": town, "lat": {"$ne": None}, "lng": {"$ne": None}},
+            {"_id": 0, "lat": 1, "lng": 1},
+        ).limit(400)
+    )
+    if len(points) < 5:
+        return None
+    lat = sum(float(p["lat"]) for p in points) / len(points)
+    lng = sum(float(p["lng"]) for p in points) / len(points)
+    return GeoResult(lat, lng, "commune", "places", town)
 
 
 def build_address_query(ev: dict) -> str:
@@ -151,6 +184,15 @@ def resolve(db, ev: dict, cache: Dict[str, Optional[dict]]) -> GeoResult:
                 time.sleep(REQUEST_PAUSE_S)
                 if hit:
                     return hit
+
+    # Before giving up on the canton: we usually hold hundreds of OSM places
+    # inside the commune this event names, each with a real coordinate. Their
+    # centre is a few hundred metres from the village — a canton centroid can
+    # be twenty kilometres out, and puts every commune in the canton on the
+    # same pin. It is still an approximation and is labelled as one.
+    centre = commune_centre(db, town)
+    if centre:
+        return centre
 
     lat, lng = CANTON_FALLBACK.get((ev.get("canton") or "").strip(), (49.61, 6.13))
     return GeoResult(lat, lng, "canton", "fallback")
