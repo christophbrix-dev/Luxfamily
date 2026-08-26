@@ -24,6 +24,7 @@ import json
 import os
 import re
 import time
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional, Tuple
 
 from dotenv import load_dotenv
@@ -34,6 +35,10 @@ from geocoders import DEFAULT_COUNTRY, GeoResult, geocoder_for
 load_dotenv()
 
 REQUEST_PAUSE_S = 0.5  # gentle spacing between calls to the address service
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 # Rough centroids per Luxembourg canton — last resort, so an event still lands
 # somewhere plausible rather than at (0, 0) in the Gulf of Guinea.
@@ -210,13 +215,40 @@ def resolve(db, ev: dict, cache: Dict[str, Optional[dict]]) -> GeoResult:
 # geocode_precision records how a coordinate was arrived at. "exact" and "place"
 # are real; the rest are stand-ins worth retrying, since a venue may since have
 # been added to our own OSM places.
-PENDING_QUERY = {
-    "$or": [
-        {"lat": 0}, {"lat": {"$exists": False}}, {"lat": None},
-        {"geocode_precision": {"$exists": False}},
-        {"geocode_precision": {"$in": [None, "", "canton", "commune", "fallback", "source_default"]}},
-    ],
-}
+# How long an imprecise result is left alone before it is tried again.
+#
+# "canton" and "commune" stay in the pending set on purpose: they are
+# approximations, and a later run may do better once the town spelling is
+# fixed or new places are ingested. Without a cooldown, though, "later" meant
+# "every single run" — four consecutive passes each re-resolved the same 69
+# events and each re-asked the geoportal the same questions that had never
+# worked. Nothing improved and a public service was queried for it repeatedly.
+RETRY_IMPRECISE_AFTER = timedelta(days=7)
+
+
+def _retry_cutoff() -> str:
+    return (datetime.now(timezone.utc) - RETRY_IMPRECISE_AFTER).isoformat()
+
+
+def pending_query() -> dict:
+    """Events worth (re)resolving right now."""
+    return {
+        "$and": [
+            {"$or": [
+                {"lat": 0}, {"lat": {"$exists": False}}, {"lat": None},
+                {"geocode_precision": {"$exists": False}},
+                {"geocode_precision": {"$in": [
+                    None, "", "canton", "commune", "fallback", "source_default",
+                ]}},
+            ]},
+            # Never attempted, or attempted long enough ago to be worth redoing.
+            {"$or": [
+                {"geocoded_at": {"$exists": False}},
+                {"geocoded_at": None},
+                {"geocoded_at": {"$lt": _retry_cutoff()}},
+            ]},
+        ],
+    }
 
 # How many to resolve in one scheduled pass. Each unresolved event may cost a
 # request to the geoportal, and that is somebody else's service: three passes a
@@ -239,7 +271,7 @@ def geocode_pending(limit: int = SCHEDULED_BATCH) -> Dict[str, int]:
     client = MongoClient(os.environ["MONGO_URL"])
     try:
         db = client[os.environ["DB_NAME"]]
-        todo = list(db.events.find(PENDING_QUERY).limit(max(1, limit)))
+        todo = list(db.events.find(pending_query()).limit(max(1, limit)))
         if not todo:
             return {}
 
@@ -262,6 +294,7 @@ def geocode_pending(limit: int = SCHEDULED_BATCH) -> Dict[str, int]:
                     "country": (ev.get("country") or DEFAULT_COUNTRY).upper(),
                     "geocode_precision": result.precision,
                     "geocode_source": result.source,
+                    "geocoded_at": _now_iso(),
                 }},
             )
         return counts
@@ -286,7 +319,7 @@ def main() -> None:
     # geocode_precision records how a coordinate was arrived at. "exact" and
     # "place" are real; "canton" and "commune" are stand-ins worth retrying,
     # since a venue may since have been added to our own OSM places.
-    todo = list(db.events.find(PENDING_QUERY))
+    todo = list(db.events.find(pending_query()))
     print(f"[geocode] {len(todo)} events to geocode")
 
     cache_path = "/tmp/geocode_cache.json"
@@ -309,6 +342,7 @@ def main() -> None:
                 "country": (ev.get("country") or DEFAULT_COUNTRY).upper(),
                 "geocode_precision": result.precision,
                 "geocode_source": result.source,
+                "geocoded_at": _now_iso(),
             }},
         )
 
