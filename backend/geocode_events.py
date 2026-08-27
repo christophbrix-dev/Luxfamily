@@ -31,6 +31,7 @@ from dotenv import load_dotenv
 from pymongo import MongoClient
 
 from geocoders import DEFAULT_COUNTRY, GeoResult, geocoder_for
+from town_names import is_commune
 
 load_dotenv()
 
@@ -150,6 +151,31 @@ def build_address_query(ev: dict) -> str:
     return clean_town(ev)
 
 
+def narrowed_address_query(ev: dict) -> str:
+    """A second query for places the service does not know by name alone.
+
+    "Kirchberg" returns nothing; "Kirchberg, Luxembourg" returns the right
+    district. Same for a venue: "Théâtre des Capucins" is unknown, with the
+    town appended it resolves to its street.
+
+    Appending the canton is exactly what build_address_query stopped doing,
+    and for good reason — so this is deliberately restricted to towns that are
+    not communes. The old damage was that every commune collapsed onto its
+    cantonal seat, and that can only happen to a commune. Re-measured today
+    against the live service: "Bech" alone gives 49.75255, its own village,
+    while "Bech, Echternach" gives 49.80967, which is Echternach. Bech is a
+    commune, so it never reaches this function.
+
+    What does reach it are city quarters and venue names, which the service
+    cannot place without a town — and which no commune list will ever contain.
+    """
+    town = clean_town(ev)
+    if not town or is_commune(town):
+        return ""
+    canton = (ev.get("canton") or "").strip()
+    return f"{town}, {canton}" if canton else ""
+
+
 def resolve(db, ev: dict, cache: Dict[str, Optional[dict]]) -> GeoResult:
     """Coordinates for one event, best available source first."""
     name, town = clean_title(ev), clean_town(ev)
@@ -177,18 +203,22 @@ def resolve(db, ev: dict, cache: Dict[str, Optional[dict]]) -> GeoResult:
     country = (ev.get("country") or DEFAULT_COUNTRY).upper()
     geocoder = geocoder_for(country)
     if geocoder:
-        query = build_address_query(ev)
-        if query:
+        # The bare town first. The narrowed form is only tried when that finds
+        # nothing, so a commune — which always answers on its own — never sees
+        # it and cannot collapse onto its cantonal seat again.
+        for query in (build_address_query(ev), narrowed_address_query(ev)):
+            if not query:
+                continue
             if query in cache:
                 cached = cache[query]
                 if cached:
                     return GeoResult(**cached)
-            else:
-                hit = geocoder.geocode(query)
-                cache[query] = hit._asdict() if hit else None
-                time.sleep(REQUEST_PAUSE_S)
-                if hit:
-                    return hit
+                continue
+            hit = geocoder.geocode(query)
+            cache[query] = hit._asdict() if hit else None
+            time.sleep(REQUEST_PAUSE_S)
+            if hit:
+                return hit
 
     # Before giving up on the canton: we usually hold hundreds of OSM places
     # inside the commune this event names, each with a real coordinate. Their

@@ -120,3 +120,13 @@ def canonical_town(town: Optional[str], canton: Optional[str] = None) -> str:
             return hit
 
     return raw
+
+
+def is_commune(name: Optional[str]) -> bool:
+    """True when this names one of Luxembourg's communes, in any spelling.
+
+    Callers use it to tell a commune from a city quarter or a venue. The
+    distinction matters to the geocoder: the address service knows every
+    commune by name alone, and knows no quarter that way.
+    """
+    return bool(name and _fold(name) in _index())
