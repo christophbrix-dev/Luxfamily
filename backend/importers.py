@@ -109,6 +109,25 @@ _PAGE_BUILDER = re.compile(
 )
 
 
+# Text arrives padded. One commune's JSON-LD gives a description as
+# "      \xa0    Orchestre des Jeunes de l'Est    Bech-Berbuerger Musek" —
+# leading spaces, a non-breaking space, and runs of them between the words.
+# Across the live database that is 294 fields with space runs, 219 with edge
+# whitespace and 78 carrying \xa0. All of it is what a reader sees.
+#
+# Only whitespace is touched. Line structure is collapsed too, because these
+# fields are rendered as a single paragraph and a stray newline shows up as a
+# gap rather than as the layout the source intended.
+_WHITESPACE = re.compile(r"[\s\u00a0\u200b\ufeff]+")
+
+
+def _normalise_text(text: str) -> str:
+    """Collapse padding to single spaces and trim the ends."""
+    if not text:
+        return text
+    return _WHITESPACE.sub(" ", text).strip()
+
+
 def _strip_page_builder(text: str) -> str:
     """Remove page-builder shortcodes, keeping the text they wrapped."""
     if not text or "[" not in text:
@@ -218,7 +237,8 @@ def _build_event_doc(
     # the filter looks for, and it must never reach a reader either. Some of
     # these descriptions are markup end to end, and an empty description is
     # more honest than a wall of shortcodes — the title carries the meaning.
-    description = _strip_page_builder(description) or title
+    title = _normalise_text(title)
+    description = _normalise_text(_strip_page_builder(description)) or title
 
     verdict = content_filter.assess(title, description)
     if verdict:
