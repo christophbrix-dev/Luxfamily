@@ -31,7 +31,16 @@ function withLb(s: ApiLocalizedString): LocalizedString {
 }
 
 /** "2-10", or "Alle Altersgruppen" when the range covers everything. */
-function ageLabel(min: number, max: number): string {
+/**
+ * The age range to print, or "" when the event never stated one.
+ *
+ * "0-99" used to be printed for both cases. In a family app that reads as
+ * "newborns welcome", and 400 of 528 events were showing it because nobody
+ * had told us anything — a Trivium concert among them. An empty string lets
+ * the components say so instead, and leaves the judgement with the parent.
+ */
+function ageLabel(min: number, max: number, stated: boolean): string {
+  if (!stated) return "";
   if (min <= 0 && max >= 99) return "0-99";
   return `${min}-${max}`;
 }
@@ -56,7 +65,8 @@ export function toPlace(ev: ApiEventSummary): Place {
     title: withLb(ev.title),
     short: withLb(ev.short),
     type: ev.type,
-    age: ageLabel(ev.age_min, ev.age_max),
+    age: ageLabel(ev.age_min, ev.age_max, ev.age_source !== "unknown"),
+    ageStated: ev.age_source !== "unknown",
     ageMin: ev.age_min,
     ageMax: ev.age_max,
     town: ev.town,

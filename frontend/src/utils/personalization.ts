@@ -105,9 +105,17 @@ export function eventMatchScore(event: ApiEventSummary, profile: UserProfile): n
   if (profile.budget) {
     const budget = BUDGET_LIMITS[profile.budget];
     if (budget !== undefined) {
-      if (budget === null || event.price_adult <= budget) {
+      // An unknown price is not a free one. Every imported event used to
+      // carry price_adult = 0, so this branch called all 528 of them free and
+      // handed the "free only" bonus to concerts costing 30 €. Unknown now
+      // scores neutrally: the event still appears, it just stops pretending
+      // to satisfy a budget nobody checked it against.
+      const price = event.price_adult;
+      if (price === null || price === undefined) {
+        // no adjustment either way
+      } else if (budget === null || price <= budget) {
         // free events get a bigger boost when user asked "free only"
-        if (profile.budget === "free" && event.price_adult === 0) score += 1;
+        if (profile.budget === "free" && price === 0) score += 1;
         else score += 0.3;
       } else {
         // outside the user's comfort zone

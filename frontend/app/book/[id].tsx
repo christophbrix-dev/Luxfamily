@@ -62,7 +62,13 @@ export default function Book() {
     );
   }
 
-  const total = adults * place.priceAdult + children * place.priceChild;
+  // A total can only be computed from prices we were actually given. An
+  // unknown price used to arrive here as 0, so the screen quietly presented a
+  // booking for "0.00 €" on events whose price nobody had ever read.
+  const priceKnown = place.priceAdult !== null && place.priceChild !== null;
+  const total = priceKnown
+    ? adults * (place.priceAdult ?? 0) + children * (place.priceChild ?? 0)
+    : null;
 
   const onConfirm = () => {
     addBooking({
@@ -70,7 +76,7 @@ export default function Book() {
       date: DATE_OPTS[dateIdx].iso,
       adults,
       children,
-      total,
+      total: total ?? 0,
     });
     setConfirmed(true);
   };
@@ -98,7 +104,9 @@ export default function Book() {
             <Text style={styles.confirmCardMeta}>
               {adults} {t("numAdults", lang)} · {children} {t("numChildren", lang)}
             </Text>
-            <Text style={styles.confirmTotal}>EUR {total.toFixed(2)}</Text>
+            <Text style={styles.confirmTotal}>
+              {total === null ? t("priceNotStated", lang) : `EUR ${total.toFixed(2)}`}
+            </Text>
           </View>
         </View>
 
@@ -192,7 +200,7 @@ export default function Book() {
         <View style={styles.totalCard}>
           <Text style={styles.totalLabel}>{t("total", lang)}</Text>
           <Text style={styles.totalValue} testID="book-total">
-            EUR {total.toFixed(2)}
+            {total === null ? t("priceNotStated", lang) : `EUR ${total.toFixed(2)}`}
           </Text>
         </View>
       </ScrollView>

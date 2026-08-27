@@ -42,6 +42,26 @@ export const STRINGS: Dict = {
   filter: { en: "Filter", de: "Filter", fr: "Filtres" },
   reset: { en: "Reset", de: "Zurücksetzen", fr: "Réinitialiser" },
   age: { en: "Age", de: "Alter", fr: "Âge" },
+  ageNotStated: {
+    en: "No age given",
+    de: "Keine Altersangabe",
+    fr: "Âge non indiqué",
+  },
+  // Shown wherever an event carries no age. The organiser did not say, and
+  // the app used to fill the silence with "0-99" — which in a family app
+  // reads as "newborns welcome". Saying nothing was known, and leaving the
+  // judgement to the parent, is the honest version.
+  ageNotStatedHint: {
+    en: "The organiser gives no age. Please check for yourself whether it suits your children.",
+    de: "Der Veranstalter macht keine Altersangabe. Bitte selbst prüfen, ob es für eure Kinder passt.",
+    fr: "L'organisateur n'indique pas d'âge. À vérifier vous-même selon vos enfants.",
+  },
+  priceNotStated: {
+    en: "Price not stated",
+    de: "Kein Preis angegeben",
+    fr: "Prix non indiqué",
+  },
+  freeEntry: { en: "Free entry", de: "Eintritt frei", fr: "Entrée libre" },
   indoorOutdoor: {
     en: "Indoor / Outdoor",
     de: "Drinnen / Draußen",
@@ -392,6 +412,10 @@ const LB_OVERRIDES: Record<string, string> = {
   filter:                "Filter",
   reset:                 "Zerécksetzen",
   age:                   "Alter",
+  ageNotStated:          "Keng Altersangab",
+  ageNotStatedHint:      "Den Organisateur mécht keng Altersangab. Kuckt w.e.g. selwer no, ob et fir är Kanner passt.",
+  priceNotStated:        "Kee Präis uginn",
+  freeEntry:             "Fräien Entrée",
   category:              "Kategorie",
   date:                  "Datum",
   indoorOutdoor:         "Bannen / Baussen",

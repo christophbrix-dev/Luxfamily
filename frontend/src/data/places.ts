@@ -59,6 +59,8 @@ export type Place = {
   short: LocalizedString;
   type: "Outdoor" | "Indoor" | "Event" | "Educational";
   age: string;
+  /** False when the source gave no age at all — the card says so. */
+  ageStated?: boolean;
   ageMin: number;
   ageMax: number;
   /**
@@ -77,8 +79,10 @@ export type Place = {
   image: string;
   date: LocalizedString;
   time: string;
-  priceAdult: number;
-  priceChild: number;
+  // null when the source never stated a price. Zero means free — the two were
+  // the same value until 528 imported events all claimed to cost nothing.
+  priceAdult: number | null;
+  priceChild: number | null;
   priceLabel: LocalizedString;
   accessibility: LocalizedString;
   description: LocalizedString;
