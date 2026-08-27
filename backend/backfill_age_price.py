@@ -35,7 +35,12 @@ from price_hints import read_price
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger("backfill_age_price")
 
-LANGS = ("de", "en", "fr", "lb")
+# The backend's LocalizedString accepts en/de/fr only — unlike the frontend,
+# where `lb` is required. Writing a fourth key here made every event detail
+# fail validation with a 500; the localized *content* fields follow the
+# backend's contract, and Lëtzebuergesch for the interface comes from the
+# frontend's own strings.
+LANGS = ("en", "de", "fr")
 
 
 def _text(doc: dict) -> str:

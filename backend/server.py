@@ -168,8 +168,18 @@ class EventBase(BaseModel):
     start_date: str  # ISO date (YYYY-MM-DD)
     end_date: Optional[str] = None
     time: str = ""
-    price_adult: float = 0.0
-    price_child: float = 0.0
+    # None when the source never stated a price. Declared as float with a 0.0
+    # default, these two turned "we were not told" into "free" — and once the
+    # database actually held None, the response model rejected every row and
+    # /api/events returned 500. Both halves of that were one wrong type.
+    price_adult: Optional[float] = None
+    price_child: Optional[float] = None
+    price_free: bool = False
+    price_source: str = "unknown"
+    # "event" when the page stated an age, "source" when only the feed's
+    # default applied, "unknown" when nobody said. The app shows a note for
+    # the last one instead of printing 0–99 as if it were a fact.
+    age_source: str = "unknown"
     price_label: LocalizedString
     accessibility: LocalizedString
     weather_fit: LocalizedString
@@ -284,8 +294,18 @@ class EventSummary(BaseModel):
     start_date: str
     end_date: Optional[str] = None
     time: str = ""
-    price_adult: float = 0.0
-    price_child: float = 0.0
+    # None when the source never stated a price. Declared as float with a 0.0
+    # default, these two turned "we were not told" into "free" — and once the
+    # database actually held None, the response model rejected every row and
+    # /api/events returned 500. Both halves of that were one wrong type.
+    price_adult: Optional[float] = None
+    price_child: Optional[float] = None
+    price_free: bool = False
+    price_source: str = "unknown"
+    # "event" when the page stated an age, "source" when only the feed's
+    # default applied, "unknown" when nobody said. The app shows a note for
+    # the last one instead of printing 0–99 as if it were a fact.
+    age_source: str = "unknown"
     image: str = ""
     lat: float
     lng: float
@@ -322,8 +342,13 @@ def _event_to_response(doc: Dict[str, Any]) -> EventResponse:
         start_date=doc["start_date"],
         end_date=doc.get("end_date"),
         time=doc.get("time", ""),
-        price_adult=doc.get("price_adult", 0.0),
-        price_child=doc.get("price_child", 0.0),
+        # No 0.0 default: a missing price is unknown, and defaulting it here
+        # would put the "free" claim back after the model stopped allowing it.
+        price_adult=doc.get("price_adult"),
+        price_child=doc.get("price_child"),
+        price_free=bool(doc.get("price_free", False)),
+        price_source=doc.get("price_source", "unknown"),
+        age_source=doc.get("age_source", "unknown"),
         price_label=doc["price_label"],
         accessibility=doc["accessibility"],
         weather_fit=doc["weather_fit"],
