@@ -1,22 +1,33 @@
 #!/usr/bin/env python3
-"""Strip page-builder markup out of already-stored event descriptions.
+"""Tidy the text of already-stored events: markup, then padding.
 
 The importers clean from now on, but events imported before that keep what
-their source wrote. In the live database 51 of 354 descriptions read like
+their source wrote, and re-crawling does not fix them — dedup matches on
+external_id, so an event already stored is never rewritten.
+
+Two things are removed. Page-builder markup: 51 of 354 descriptions read like
 
     [et_pb_section fb_built="1" _builder_version="4.24.2"][et_pb_row …]
 
-with the real text buried inside, or with no text at all — every one of them
-from a commune running Divi. Re-crawling does not fix them: dedup matches on
-external_id, so an event already stored is never rewritten.
+with the real text buried inside or absent, all from communes running Divi.
+And padding, which arrives with no markup at all — one commune's feed sends
+
+    "      \xa0    Orchestre des Jeunes de l'Est    Bech-Berbuerger Musek"
+
+Across the live database that was 294 fields with runs of spaces, 219 with
+edge whitespace and 78 carrying a non-breaking space.
 
     python3 clean_descriptions.py            # show what would change
     python3 clean_descriptions.py --write    # change it
 
-Where the description is markup end to end, the title takes its place: an
-empty field is more honest than a wall of shortcodes. `short` is rebuilt from
-the cleaned text so the list view matches the detail view. Safe to run twice —
-the second run reports nothing to do.
+All three text fields are handled — title, short and description. Two earlier
+versions of this script each covered fewer: one bailed out when the
+description was already clean and left 27 padded titles behind, and the next
+rebuilt `short` only as a by-product of a changed description, leaving 42.
+Both reported success. Where a description is markup end to end, the title
+takes its place: an empty field is more honest than a wall of shortcodes.
+
+Safe to run twice — the second run reports nothing to do.
 """
 from __future__ import annotations
 
@@ -28,7 +39,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import UpdateOne
 
 from db_config import mongo_settings
-from importers import _strip_page_builder
+from importers import _normalise_text, _strip_page_builder
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger("clean_descriptions")
@@ -46,7 +57,10 @@ def _clean_localized(field: dict | None, fallback: dict | None) -> dict | None:
         value = field.get(lang)
         if not isinstance(value, str):
             continue
-        cleaned = _strip_page_builder(value)
+        # Shortcodes first, then the padding they leave behind — and the
+        # padding that arrives without any markup at all: one commune's feed
+        # sends "      \xa0    Orchestre des Jeunes    Bech-Berbuerger Musek".
+        cleaned = _normalise_text(_strip_page_builder(value))
         if cleaned == value:
             continue
         if not cleaned and isinstance(fallback, dict):
@@ -62,32 +76,50 @@ async def run(write: bool) -> int:
     ops, samples = [], []
     async for ev in db.events.find({}, {"title": 1, "short": 1, "description": 1}):
         title = ev.get("title")
-        desc = _clean_localized(ev.get("description"), title)
-        if desc is None:
+        # The title is cleaned too. An earlier version only looked at the
+        # description and bailed out when that was already clean, so 27 padded
+        # titles survived a run that reported success — the field a reader
+        # sees first was the one field never checked.
+        new_title = _clean_localized(title, None)
+        desc = _clean_localized(ev.get("description"), new_title or title)
+
+        update: dict = {}
+        if new_title is not None:
+            update["title"] = new_title
+        if desc is not None:
+            update["description"] = desc
+            # Rebuild `short` from the cleaned description rather than cleaning
+            # it separately: it is a truncation of that text and should stay one.
+            short = {
+                lang: (desc.get(lang) or "")[:SHORT_LEN]
+                for lang in LANGS
+                if isinstance((ev.get("short") or {}).get(lang), str)
+            }
+            if short:
+                update["short"] = short
+
+        if "short" not in update:
+            # `short` is normally a truncation of the description and gets
+            # rebuilt above. When the description was already clean it was
+            # never looked at, and 42 of them kept their own padding — the
+            # text the list screen shows, cleaned nowhere.
+            own_short = _clean_localized(ev.get("short"), None)
+            if own_short is not None:
+                update["short"] = own_short
+
+        if not update:
             continue
-
-        # Rebuild `short` from the cleaned description rather than cleaning it
-        # separately: it is a truncation of that text and should stay one.
-        short = {
-            lang: (desc.get(lang) or "")[:SHORT_LEN]
-            for lang in LANGS
-            if isinstance((ev.get("short") or {}).get(lang), str)
-        }
-
-        update = {"description": desc}
-        if short:
-            update["short"] = short
         ops.append(UpdateOne({"_id": ev["_id"]}, {"$set": update}))
 
         if len(samples) < 5:
-            de = (title or {}).get("de", "")[:36]
-            samples.append((de, len(desc.get("de") or "")))
+            de = ((new_title or title) or {}).get("de", "")[:36]
+            samples.append((de, len((desc or {}).get("de") or "")))
 
     if not ops:
-        log.info("Nothing to clean — no description carries builder markup.")
+        log.info("Nothing to clean — no description carries markup or padding.")
         return 0
 
-    log.info("%d event(s) carry page-builder markup:", len(ops))
+    log.info("%d event(s) carry builder markup or padding:", len(ops))
     for name, length in samples:
         log.info("    %-38s → %d characters of text", name, length)
 
