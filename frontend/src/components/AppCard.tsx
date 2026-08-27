@@ -5,6 +5,7 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { useApp } from "@/src/contexts/AppContext";
 import { pickLang } from "@/src/i18n/pickLang";
+import { t } from "@/src/i18n/strings";
 import type { Place } from "@/src/data/places";
 import { palette, radii, shadow, spacing } from "@/src/theme";
 import { categoryIcon, hasOwnPhoto } from "@/src/utils/photo";
@@ -87,9 +88,17 @@ export function AppCard({ item, large = false, onPress, testID }: Props) {
                   </Text>
                 </View>
               ) : null}
+              {/* An event with no stated age says so, rather than borrowing
+                  the "0-99" that used to be printed for both cases. */}
               <View style={styles.metaPill}>
-                <Ionicons name="people-outline" size={12} color="#fff" />
-                <Text style={styles.metaPillText}>{item.age}</Text>
+                <Ionicons
+                  name={item.ageStated === false ? "help-circle-outline" : "people-outline"}
+                  size={12}
+                  color="#fff"
+                />
+                <Text style={styles.metaPillText}>
+                  {item.ageStated === false ? t("ageNotStated", lang) : item.age}
+                </Text>
               </View>
               <View style={styles.metaPill}>
                 <Ionicons name="star" size={12} color="#FBBF24" />

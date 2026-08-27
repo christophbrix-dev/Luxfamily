@@ -93,8 +93,16 @@ export default function Detail() {
             </Text>
           </View>
 
+          {place.ageStated === false ? (
+            <Text style={styles.ageHint}>{t("ageNotStatedHint", lang)}</Text>
+          ) : null}
+
           <View style={styles.statsGrid}>
-            <StatCard icon="people-outline" label={t("age", lang)} value={place.age} />
+            <StatCard
+              icon="people-outline"
+              label={t("age", lang)}
+              value={place.ageStated === false ? t("ageNotStated", lang) : place.age}
+            />
             <StatCard icon="time-outline" label={t("date", lang)} value={place.time} />
             <StatCard icon="pricetag-outline" label="Price" value={pickLang(place.priceLabel, lang)} />
             <StatCard
@@ -260,6 +268,16 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
+  },
+  ageHint: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: palette.textSecondary,
+    backgroundColor: palette.surfaceMuted,
+    borderRadius: radii.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
   },
   statCard: {
     width: "47.5%",

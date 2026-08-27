@@ -32,6 +32,8 @@ from dateutil import parser as dateutil_parser
 from icalendar import Calendar
 
 import content_filter
+from age_hints import read_age
+from price_hints import read_price
 from town_names import canonical_town
 from crawler_utils import RobotsBlocked, polite_get
 
@@ -229,6 +231,9 @@ def _build_event_doc(
         )
         return None
 
+    age = read_age(title, description)
+    price = read_price(title, description)
+
     now = _now_iso()
     return {
         "id": str(uuid.uuid4()),
@@ -246,14 +251,30 @@ def _build_event_doc(
             source.get("canton_default"),
         ),
         "category": source.get("category_default") or ["Culture"],
-        "age_min": source.get("age_min_default", 0),
-        "age_max": source.get("age_max_default", 99),
+        # Age and price were constants: every event claimed 0–99 and 0.00 €.
+        # Neither is an absence — in a family app "0–99" reads as "newborns
+        # welcome", and a zero in a price field reads as "free". A Trivium
+        # concert carried both. Only 14 of 528 events state an age and 44 a
+        # price, so most of these stay unknown, which is the whole point:
+        # the app can say so instead of implying something it was never told.
+        "age_min": age.minimum if age.source == "event" else source.get("age_min_default", 0),
+        "age_max": age.maximum if age.source == "event" else source.get("age_max_default", 99),
+        "age_source": age.source if age.source == "event" else (
+            "source" if source.get("age_min_default") or source.get("age_max_default")
+            else "unknown"
+        ),
         "start_date": start_date,
         "end_date": end_date,
         "time": time_str,
-        "price_adult": 0.0,
-        "price_child": 0.0,
-        "price_label": _default_localized("See details"),
+        "price_adult": price.adult,
+        "price_child": price.adult if price.is_free else None,
+        "price_free": price.is_free,
+        "price_source": price.source,
+        "price_label": _default_localized(
+            "Free entry" if price.is_free
+            else f"{price.adult:.2f} €" if price.adult is not None
+            else "Price not stated"
+        ),
         "accessibility": _default_localized("See venue"),
         "weather_fit": _default_localized("Any weather"),
         "image": image,

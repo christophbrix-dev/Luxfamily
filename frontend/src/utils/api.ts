@@ -79,8 +79,13 @@ export type ApiEvent = {
   start_date: string;
   end_date?: string | null;
   time: string;
-  price_adult: number;
-  price_child: number;
+  // null when the page never said. A zero here reads as "free", which is what
+  // every imported event used to claim — 528 of them, some costing 30 €.
+  price_adult: number | null;
+  price_child: number | null;
+  price_free?: boolean;
+  price_source?: "event" | "unknown";
+  age_source?: "event" | "source" | "unknown";
   price_label: LocalizedString;
   accessibility: LocalizedString;
   weather_fit: LocalizedString;
@@ -123,7 +128,8 @@ export type ApiEventSummary = Pick<
   ApiEvent,
   | "id" | "title" | "short" | "type" | "canton" | "town" | "category"
   | "age_min" | "age_max" | "start_date" | "end_date" | "time"
-  | "price_adult" | "price_child" | "image" | "lat" | "lng"
+  | "price_adult" | "price_child" | "price_free" | "price_source"
+  | "age_source" | "image" | "lat" | "lng"
   | "featured" | "published" | "rating" | "view_count"
   | "accessibility_wheelchair" | "sensory_friendly" | "free_parking"
 > & { source_name?: string | null };
