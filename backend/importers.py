@@ -1423,12 +1423,14 @@ async def _import_kids_in_lux(source: Dict[str, Any], db) -> tuple[int, int, int
         # question never came up; now that it runs, it has to know when to stop.
         deadline = _fetch_deadline()
         seen_pages = 0
+        listed = 0        # detail URLs the index pages gave us
         try:
             with httpx.Client() as hx:
                 for index_url, cats, ev_type in k.INDEX_URLS:
                     if _out_of_time(deadline, source.get("name", "kids-in-lux"), seen_pages):
                         break
                     details = k.list_detail_urls(index_url, hx)
+                    listed += len(details)
                     for url in details:
                         if _out_of_time(
                             deadline, source.get("name", "kids-in-lux"), seen_pages
@@ -1464,7 +1466,25 @@ async def _import_kids_in_lux(source: Dict[str, Any], db) -> tuple[int, int, int
                         # constant this line used to read was deleted with it.
         finally:
             client.close()
-        return inserted, failed, blocked
+
+        if not listed:
+            # None of the three index pages gave us a single link. That is a
+            # different thing from "crawled it, found nothing", and until now
+            # both came out as `no_events` with three zeroes — the same record
+            # for a working crawl of an empty site and for an index page that
+            # cannot be read at all. Raising says which one it was.
+            raise RuntimeError(
+                "no detail links found on any index page: "
+                + ", ".join(u for u, _, _ in k.INDEX_URLS)
+            )
+
+        # `updated` goes in the skipped slot, the same place the sitemap
+        # importer puts an event it already has. Leaving it out of the return
+        # value entirely meant a refresh of known venues reported (0, 0, 0),
+        # and `run_source` reads three zeroes as "this site has died". These
+        # are always-open venues: after the first run every pass is an update,
+        # so the source was on course to report itself dead forever.
+        return inserted, failed + updated, blocked
 
     return await asyncio.to_thread(_run_sync)
 
@@ -1484,9 +1504,11 @@ async def _import_visit_luxembourg(source: Dict[str, Any], db) -> tuple[int, int
         sdb    = client[os.environ["DB_NAME"]]
         inserted = updated = failed = blocked = 0
         deadline = _fetch_deadline()
+        listed = 0
         try:
             with httpx.Client() as hx:
                 urls = list(v.list_detail_urls(hx))
+                listed = len(urls)
                 for position, url in enumerate(urls):
                     if _out_of_time(
                         deadline, source.get("name", "visit-luxembourg"), position
@@ -1518,7 +1540,13 @@ async def _import_visit_luxembourg(source: Dict[str, Any], db) -> tuple[int, int
                     # owns the pacing now.
         finally:
             client.close()
-        return inserted, failed, blocked
+
+        # Both as in the kids-in-lux importer above: an unreadable index page
+        # says so instead of passing for an empty one, and `updated` is part
+        # of the count rather than being dropped on the floor.
+        if not listed:
+            raise RuntimeError("no detail links found in the pages sitemap")
+        return inserted, failed + updated, blocked
 
     return await asyncio.to_thread(_run_sync)
 

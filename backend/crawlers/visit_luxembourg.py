@@ -33,6 +33,9 @@ from crawler_utils import RobotsBlocked, polite_get_sync
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from age_hints import read_age     # noqa: E402
+from price_hints import read_price # noqa: E402
+
 load_dotenv()
 
 BASE       = "https://www.visitluxembourg.com"
@@ -195,6 +198,12 @@ def upsert_event(db, parsed: dict, source_id) -> str:
     now_iso = datetime.now(timezone.utc).isoformat()
     empty_i18n = {"en": "", "de": "", "fr": ""}
 
+    # See the same note in kids_in_lux.upsert_event. The claim here was even
+    # narrower than "0–99": every Discovery Tour was stored as being for ages
+    # 4 to 12, whatever it actually is, and free.
+    age = read_age(parsed["title"], parsed["desc"])
+    price = read_price(parsed["title"], parsed["desc"])
+
     doc = {
         "external_id": external_id,
         "title":       {"en": parsed["title"], "de": parsed["title"], "fr": parsed["title"]},
@@ -204,14 +213,22 @@ def upsert_event(db, parsed: dict, source_id) -> str:
         "canton":      parsed["canton"],
         "town":        parsed["commune"],
         "category":    ["Nature", "Culture", "Workshops"],
-        "age_min":     4,
-        "age_max":     12,
-        "start_date":  datetime.utcnow().date().isoformat(),
+        "age_min":     age.minimum if age.source == "event" else 0,
+        "age_max":     age.maximum if age.source == "event" else 99,
+        "age_source":  age.source,
+        "start_date":  datetime.now(timezone.utc).date().isoformat(),
         "end_date":    None,
         "time":        "",
-        "price_adult": 0.0,
-        "price_child": 0.0,
-        "price_label": {"en": "Free", "de": "Gratis", "fr": "Gratuit"},
+        "price_adult": price.adult,
+        "price_child": price.adult if price.is_free else None,
+        "price_free":  price.is_free,
+        "price_source": price.source,
+        "price_label": {
+            lang: ("Free entry" if price.is_free
+                   else f"{price.adult:.2f} €" if price.adult is not None
+                   else "Price not stated")
+            for lang in ("en", "de", "fr")
+        },
         "accessibility":         dict(empty_i18n),
         "weather_fit":           dict(empty_i18n),
         "image":                 parsed["image"],
