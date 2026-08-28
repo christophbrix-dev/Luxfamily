@@ -61,6 +61,35 @@ SOURCE_TIMEOUT_SECONDS = 180
 SOURCE_FETCH_BUDGET_SECONDS = SOURCE_TIMEOUT_SECONDS - 20
 
 
+# Named here so a test can hand these two functions a clock without patching
+# `time.monotonic` itself. That patch reaches the asyncio event loop, which
+# reads the same clock to decide when its own callbacks are due — a test that
+# freezes it hangs the loop rather than the crawler.
+_monotonic = time.monotonic
+
+
+def _fetch_deadline() -> float:
+    """Monotonic time at which an importer should stop asking for more pages.
+
+    For the two custom crawlers this is not a nicety but the only thing that
+    actually stops them. They are sync code in a worker thread, and cancelling
+    an `asyncio.to_thread` future does not stop the thread — the watchdog marks
+    the source failed while the crawl carries on in the background, writing to
+    the database through its own pymongo client.
+    """
+    return _monotonic() + SOURCE_FETCH_BUDGET_SECONDS
+
+
+def _out_of_time(deadline: float, name: str, done: int) -> bool:
+    if _monotonic() <= deadline:
+        return False
+    logger.info(
+        "%s: stopped after %d page(s), %ds budget spent",
+        name, done, SOURCE_FETCH_BUDGET_SECONDS,
+    )
+    return True
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -1111,17 +1140,12 @@ async def _import_sitemap(source: Dict[str, Any], db) -> Tuple[int, int]:
     skipped = 0
     blocked = 0   # refused by content_filter, never stored
     today = datetime.now(timezone.utc).date()
-    deadline = time.monotonic() + SOURCE_FETCH_BUDGET_SECONDS
+    deadline = _fetch_deadline()
 
     for position, page_url in enumerate(candidates):
-        if time.monotonic() > deadline:
-            # Out of time, not out of pages. Everything so far is already in
-            # the database; returning normally means the source record says so.
-            logger.info(
-                "[sitemap] %s → stopped after %d of %d pages, %ds budget spent",
-                source["name"], position, len(candidates),
-                SOURCE_FETCH_BUDGET_SECONDS,
-            )
+        # Out of time, not out of pages. Everything so far is already in the
+        # database; returning normally means the source record says so.
+        if _out_of_time(deadline, f"[sitemap] {source['name']}", position):
             break
         try:
             html = await _fetch_text(page_url)
@@ -1393,11 +1417,24 @@ async def _import_kids_in_lux(source: Dict[str, Any], db) -> tuple[int, int, int
         sdb    = client[os.environ["DB_NAME"]]
 
         inserted = updated = failed = blocked = 0
+        # This site asks for a 5s Crawl-delay and the three sources between
+        # them walk about a hundred detail pages, so a full pass needs several
+        # times the watchdog. Before, the crawl died on its first event and the
+        # question never came up; now that it runs, it has to know when to stop.
+        deadline = _fetch_deadline()
+        seen_pages = 0
         try:
             with httpx.Client() as hx:
                 for index_url, cats, ev_type in k.INDEX_URLS:
+                    if _out_of_time(deadline, source.get("name", "kids-in-lux"), seen_pages):
+                        break
                     details = k.list_detail_urls(index_url, hx)
                     for url in details:
+                        if _out_of_time(
+                            deadline, source.get("name", "kids-in-lux"), seen_pages
+                        ):
+                            break
+                        seen_pages += 1
                         html = k.fetch(url, hx)
                         if not html:
                             failed += 1
@@ -1446,10 +1483,15 @@ async def _import_visit_luxembourg(source: Dict[str, Any], db) -> tuple[int, int
         client = MongoClient(os.environ["MONGO_URL"])
         sdb    = client[os.environ["DB_NAME"]]
         inserted = updated = failed = blocked = 0
+        deadline = _fetch_deadline()
         try:
             with httpx.Client() as hx:
                 urls = list(v.list_detail_urls(hx))
-                for url in urls:
+                for position, url in enumerate(urls):
+                    if _out_of_time(
+                        deadline, source.get("name", "visit-luxembourg"), position
+                    ):
+                        break
                     html = v.fetch(url, hx)
                     if not html:
                         failed += 1
