@@ -93,6 +93,44 @@ def _cached(host: str) -> Optional[_RobotsEntry]:
     return None
 
 
+MAX_CAUSE_DEPTH = 4
+
+
+def describe_exception(exc: BaseException) -> str:
+    """The exception and what actually caused it, as one readable line.
+
+    httpx wraps everything below the HTTP layer in ConnectError, and that
+    wrapper is usually created with an empty message. `str(exc)` on it returns
+    "", so the old code fell back to the class name and reported the single
+    word "ConnectError" — which is not a diagnosis, it is a category.
+
+    That cost a whole round. Four sources failed in Emergent's environment and
+    worked from here, and all anyone had to go on was "ConnectError": no way to
+    tell a refused connection from an expired certificate from a DNS failure,
+    which have nothing to do with each other and three different fixes.
+
+    The real reason sits one or two links down the __cause__ chain, put there
+    by `raise ... from`. This walks it:
+
+        ConnectError → SSLCertVerificationError: certificate verify failed
+        ConnectError → ConnectionResetError: [Errno 104] Connection reset
+
+    Bounded, because a chain can be long and this ends up in a log line and in
+    `last_error` on the source record.
+    """
+    parts, seen, current, depth = [], set(), exc, 0
+    while current is not None and depth < MAX_CAUSE_DEPTH:
+        if id(current) in seen:      # chains can loop
+            break
+        seen.add(id(current))
+        message = str(current).strip()
+        parts.append(f"{type(current).__name__}: {message}" if message
+                     else type(current).__name__)
+        current = current.__cause__ or current.__context__
+        depth += 1
+    return " → ".join(parts) or "unknown"
+
+
 def _build_entry(host: str, status: Optional[int], text: Optional[str],
                  error: Optional[BaseException]) -> _RobotsEntry:
     """Turn one robots.txt fetch result into a cache entry.
@@ -114,9 +152,7 @@ def _build_entry(host: str, status: Optional[int], text: Optional[str],
     if error is not None or (status is not None and status >= 500):
         parser.disallow_all = True
         ttl = ROBOTS_ERROR_TTL_SECONDS
-        unreadable = str(error) if error is not None else f"HTTP {status}"
-        if not unreadable.strip():
-            unreadable = type(error).__name__ if error is not None else "unknown"
+        unreadable = describe_exception(error) if error is not None else f"HTTP {status}"
         logger.warning(
             "robots.txt unreadable for %s (%s) — treating host as disallowed until retry",
             host, unreadable,

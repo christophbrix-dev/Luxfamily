@@ -37,7 +37,7 @@ from categorise import categorise
 from age_hints import read_age
 from price_hints import read_price
 from town_names import canonical_town
-from crawler_utils import RobotsBlocked, polite_get
+from crawler_utils import RobotsBlocked, describe_exception, polite_get
 
 logger = logging.getLogger("lux-backend.importers")
 
@@ -88,6 +88,21 @@ def _out_of_time(deadline: float, name: str, done: int) -> bool:
         name, done, SOURCE_FETCH_BUDGET_SECONDS,
     )
     return True
+
+
+def _log_breakdown(source: Dict[str, Any], listed: int, visited: int,
+                   inserted: int, updated: int, failed: int, blocked: int) -> None:
+    """What a custom crawler actually did, in one line.
+
+    `run_source` keeps three numbers, and `updated` and `failed` have to share
+    the middle one. They mean opposite things — a refresh of a venue we already
+    have, versus a page that could not be read — and a source reporting 37 seen
+    and 6 stored is healthy in one reading and broken in the other.
+    """
+    logger.info(
+        "%s: %d listed, %d visited → %d new, %d refreshed, %d unreadable, %d refused",
+        source.get("name", "?"), listed, visited, inserted, updated, failed, blocked,
+    )
 
 
 def _now_iso() -> str:
@@ -1484,6 +1499,13 @@ async def _import_kids_in_lux(source: Dict[str, Any], db) -> tuple[int, int, int
         # and `run_source` reads three zeroes as "this site has died". These
         # are always-open venues: after the first run every pass is an update,
         # so the source was on course to report itself dead forever.
+        #
+        # But the two are not the same thing, and the three-number return has
+        # nowhere to keep them apart: 37 pages seen and 6 events stored can
+        # mean 31 healthy refreshes or 31 pages that would not parse, and those
+        # need opposite responses. So the split goes in the log, where a run
+        # that looks wrong can be taken apart afterwards.
+        _log_breakdown(source, listed, seen_pages, inserted, updated, failed, blocked)
         return inserted, failed + updated, blocked
 
     return await asyncio.to_thread(_run_sync)
@@ -1546,6 +1568,7 @@ async def _import_visit_luxembourg(source: Dict[str, Any], db) -> tuple[int, int
         # of the count rather than being dropped on the floor.
         if not listed:
             raise RuntimeError("no detail links found in the pages sitemap")
+        _log_breakdown(source, listed, len(urls), inserted, updated, failed, blocked)
         return inserted, failed + updated, blocked
 
     return await asyncio.to_thread(_run_sync)
@@ -1621,7 +1644,10 @@ async def run_source(source: Dict[str, Any], db) -> Dict[str, Any]:
             result = {
                 "last_run_at": started,
                 "last_status": "error",
-                "last_error": str(exc)[:300],
+                # The chain, not just the wrapper. `last_error` is usually the
+                # only thing anyone sees about a failed source, and a line
+                # reading "ConnectError" says nothing about what to fix.
+                "last_error": describe_exception(exc)[:300],
                 "last_imported_count": 0,
             }
 

@@ -29,7 +29,7 @@ import httpx
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
-from crawler_utils import RobotsBlocked, polite_get_sync
+from crawler_utils import RobotsBlocked, describe_exception, polite_get_sync
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -135,7 +135,7 @@ def fetch(url: str, client: httpx.Client) -> str | None:
         print(f"  [robots] skipping {url}: {e}")
         return None
     except Exception as e:
-        print(f"  [fetch] {url}: {type(e).__name__}: {e}")
+        print(f"  [fetch] {url}: {describe_exception(e)}")
         return None
 
 
