@@ -188,7 +188,7 @@ class TestTheFetchBudget:
 
     def _run_with_clock(self, importers, db, run, monkeypatch, *, pages, seconds_each):
         clock = {"t": 0.0}
-        monkeypatch.setattr(importers.time, "monotonic", lambda: clock["t"])
+        monkeypatch.setattr(importers, "_monotonic", lambda: clock["t"])
 
         urls = "".join(
             f"<url><loc>https://example.invalid/event/{i}</loc>"
@@ -254,3 +254,76 @@ class TestTheFetchBudget:
 
     def test_the_budget_leaves_the_watchdog_room_to_never_fire(self, importers):
         assert importers.SOURCE_FETCH_BUDGET_SECONDS < importers.SOURCE_TIMEOUT_SECONDS
+
+
+class TestTheCustomCrawlersStopThemselves:
+    """The same budget, where it matters more than anywhere else.
+
+    These two crawlers are sync code in a worker thread. Cancelling an
+    `asyncio.to_thread` future does not stop the thread: the watchdog stamps
+    the source "error, imported 0" and the crawl keeps going in the background,
+    still fetching, still writing through its own pymongo client. Stopping
+    voluntarily is the only stop there is.
+
+    kids-in-lux asks for a 5s Crawl-delay and the three sources walk about a
+    hundred detail pages between them. Until the PAUSE_S fix they crashed on
+    their first event, so this never came up; the first run that actually
+    crawled hit the watchdog on all three.
+    """
+
+    def _fake_crawler(self, monkeypatch, clock, *, seconds_each, pages):
+        import sys
+        import types
+
+        import crawlers
+
+        module = types.ModuleType("crawlers.kids_in_lux")
+        module.INDEX_URLS = [("https://example.invalid/i", ["Playgrounds"], "venue")]
+        module.list_detail_urls = lambda index_url, hx: [
+            f"https://example.invalid/p/{i}" for i in range(pages)
+        ]
+        fetched = []
+
+        def fetch(url, hx):
+            fetched.append(url)
+            clock["t"] += seconds_each
+            return "<html></html>"
+
+        module.fetch = fetch
+        module.parse_detail = lambda url, html: {"title": "Spillplaz", "desc": "fir Kanner"}
+        module.upsert_event = lambda sdb, parsed, cats, ev_type, sid: "inserted"
+
+        # Both, and the second one is the one that matters. `from crawlers
+        # import kids_in_lux` reads the attribute off the already-imported
+        # package, so replacing only the sys.modules entry leaves the real
+        # crawler in place — and the first version of this test went out and
+        # fetched kids-in-lux.com for real, at the 5s Crawl-delay the site
+        # asks for, until it was killed.
+        monkeypatch.setitem(sys.modules, "crawlers.kids_in_lux", module)
+        monkeypatch.setattr(crawlers, "kids_in_lux", module, raising=False)
+        return fetched
+
+    def test_it_stops_instead_of_running_past_the_watchdog(
+        self, importers, db, run, monkeypatch
+    ):
+        clock = {"t": 0.0}
+        monkeypatch.setattr(importers, "_monotonic", lambda: clock["t"])
+        fetched = self._fake_crawler(monkeypatch, clock, seconds_each=5.0, pages=200)
+
+        source = {"id": "kil", "name": "Kids in Lux – Spielplätze", "kind": "kids_in_lux"}
+        inserted, failed, blocked = run(importers._import_kids_in_lux(source, db))
+
+        budget = importers.SOURCE_FETCH_BUDGET_SECONDS
+        assert len(fetched) < 200, "it must not walk the whole list"
+        assert len(fetched) == int(budget // 5) + 1
+        assert inserted == len(fetched)
+
+    def test_a_short_list_is_finished_normally(self, importers, db, run, monkeypatch):
+        clock = {"t": 0.0}
+        monkeypatch.setattr(importers, "_monotonic", lambda: clock["t"])
+        fetched = self._fake_crawler(monkeypatch, clock, seconds_each=5.0, pages=6)
+
+        source = {"id": "kil", "name": "Kids in Lux – Ausflüge", "kind": "kids_in_lux"}
+        inserted, _, _ = run(importers._import_kids_in_lux(source, db))
+        assert len(fetched) == 6
+        assert inserted == 6
