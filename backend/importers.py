@@ -22,6 +22,7 @@ import json
 import logging
 import os
 import re
+import time
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -45,6 +46,20 @@ logger = logging.getLogger("lux-backend.importers")
 MAX_CONCURRENT_SOURCES = 4
 SOURCE_TIMEOUT_SECONDS = 180
 
+# When a page-by-page importer should stop asking for more and return what it
+# has. The watchdog above cancels a source outright: everything already written
+# survives, but the source record is stamped "error, imported 0", which is
+# false, and the run is never marked done, so it starts from the front again
+# next time.
+#
+# Rockhal made that concrete. Its budget is 200 pages, the site asks for a 2s
+# Crawl-delay, so a full pass needs about 400s against a 180s watchdog — it
+# could not finish, by arithmetic, on every single run. Stopping voluntarily
+# with 20s to spare turns that into a short pass that reports honestly. The
+# candidates are sorted newest-first, so what gets dropped is the oldest end of
+# the list, and the next run picks up whatever changed since.
+SOURCE_FETCH_BUDGET_SECONDS = SOURCE_TIMEOUT_SECONDS - 20
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -54,33 +69,63 @@ def _default_localized(value: str) -> Dict[str, str]:
     return {"en": value, "de": value, "fr": value}
 
 
+# How far from today a date may sit and still be a date somebody meant. A
+# village fête is announced a year ahead, a theatre season maybe two; nothing
+# real is announced in the year 2926. One event arrived with exactly that —
+# "Kreative Schreifatelier", start_date 2926-09-26, a single mistyped digit at
+# the source — and every check downstream waved it through, because it is a
+# perfectly well-formed date. It then sat at the far end of every list sorted
+# by date, forever.
+#
+# Deliberately generous: this is a typo filter, not an editorial policy. Which
+# events are too far out to show is a decision for the importer that knows the
+# feed (the ICS one keeps a 365-day horizon); this only refuses dates that
+# nobody could have meant.
+YEARS_BACK = 1
+YEARS_AHEAD = 5
+
+
+def _plausible_year(iso: str) -> bool:
+    this_year = datetime.now(timezone.utc).year
+    return this_year - YEARS_BACK <= int(iso[:4]) <= this_year + YEARS_AHEAD
+
+
 def _to_iso_date(value: Any) -> Optional[str]:
     """Coerce various date formats to a YYYY-MM-DD string. Understands ISO,
     German (24. Juni 2026 / 24.06.2026), French (24 juin 2026 / 24/06/2026),
-    plain timestamps and `datetime` objects."""
+    plain timestamps and `datetime` objects.
+
+    Returns None for a date whose year is implausible — see YEARS_AHEAD. The
+    caller counts that as a skip, so a source full of unreadable dates still
+    reports as "seen something" rather than looking like a dead website.
+    """
     if value is None:
         return None
     if isinstance(value, datetime):
-        return value.date().isoformat()
-    if isinstance(value, date):
-        return value.isoformat()
-    if not isinstance(value, str):
+        iso = value.date().isoformat()
+    elif isinstance(value, date):
+        iso = value.isoformat()
+    elif not isinstance(value, str):
         return None
-    s = value.strip()
-    if not s:
+    else:
+        s = value.strip()
+        if not s:
+            return None
+        try:
+            # Fast path: already ISO.
+            iso = datetime.fromisoformat(s.replace("Z", "+00:00")).date().isoformat()
+        except ValueError:
+            # dateutil handles FR/DE month names and slash/dot separators.
+            try:
+                # dayfirst=True so 06/07/2026 is 6 July (LU/FR/DE convention).
+                iso = dateutil_parser.parse(s, dayfirst=True, fuzzy=True).date().isoformat()
+            except (ValueError, dateutil_parser.ParserError, OverflowError):
+                return None
+
+    if not _plausible_year(iso):
+        logger.info("Ignoring implausible date %s (from %r)", iso, value)
         return None
-    # Fast path: already ISO.
-    try:
-        return datetime.fromisoformat(s.replace("Z", "+00:00")).date().isoformat()
-    except ValueError:
-        pass
-    # dateutil handles FR/DE month names and slash/dot separators.
-    try:
-        # dayfirst=True so 06/07/2026 is 6 July (LU/FR/DE convention).
-        parsed = dateutil_parser.parse(s, dayfirst=True, fuzzy=True)
-        return parsed.date().isoformat()
-    except (ValueError, dateutil_parser.ParserError, OverflowError):
-        return None
+    return iso
 
 
 def _extract_time_range(value: str) -> str:
@@ -1066,8 +1111,18 @@ async def _import_sitemap(source: Dict[str, Any], db) -> Tuple[int, int]:
     skipped = 0
     blocked = 0   # refused by content_filter, never stored
     today = datetime.now(timezone.utc).date()
+    deadline = time.monotonic() + SOURCE_FETCH_BUDGET_SECONDS
 
-    for page_url in candidates:
+    for position, page_url in enumerate(candidates):
+        if time.monotonic() > deadline:
+            # Out of time, not out of pages. Everything so far is already in
+            # the database; returning normally means the source record says so.
+            logger.info(
+                "[sitemap] %s → stopped after %d of %d pages, %ds budget spent",
+                source["name"], position, len(candidates),
+                SOURCE_FETCH_BUDGET_SECONDS,
+            )
+            break
         try:
             html = await _fetch_text(page_url)
         except RobotsBlocked:
@@ -1323,16 +1378,14 @@ IMPORTERS["sitemap"] = _import_sitemap
 
 
 # --- kids-in-lux.com custom crawler --------------------------------------
-# Runs the sync crawler in a worker thread and returns (inserted, skipped) so
-# it plugs into the same `run_source` / cron flow as the JSON-LD / sitemap
-# importers.
-async def _import_kids_in_lux(source: Dict[str, Any], db) -> tuple[int, int]:
+# Runs the sync crawler in a worker thread and returns (inserted, skipped,
+# blocked) so it plugs into the same `run_source` / cron flow as the JSON-LD /
+# sitemap importers.
+async def _import_kids_in_lux(source: Dict[str, Any], db) -> tuple[int, int, int]:
     import asyncio
 
-    def _run_sync() -> tuple[int, int]:
+    def _run_sync() -> tuple[int, int, int]:
         # Late-import to keep the module boot fast when the source isn't used.
-        import time as _t
-
         from crawlers import kids_in_lux as k
         from pymongo import MongoClient
 
@@ -1368,7 +1421,10 @@ async def _import_kids_in_lux(source: Dict[str, Any], db) -> tuple[int, int]:
                             inserted += 1
                         else:
                             updated += 1
-                        _t.sleep(k.PAUSE_S)
+                        # No sleep here. The pacing moved into
+                        # crawler_utils.polite_get_sync, which waits the longer
+                        # of our baseline and the site's own Crawl-delay; the
+                        # constant this line used to read was deleted with it.
         finally:
             client.close()
         return inserted, failed, blocked
@@ -1380,12 +1436,10 @@ IMPORTERS["kids_in_lux"] = _import_kids_in_lux
 
 
 # --- visitluxembourg.com Discovery-Tours crawler -------------------------
-async def _import_visit_luxembourg(source: Dict[str, Any], db) -> tuple[int, int]:
+async def _import_visit_luxembourg(source: Dict[str, Any], db) -> tuple[int, int, int]:
     import asyncio
 
-    def _run_sync() -> tuple[int, int]:
-        import time as _t
-
+    def _run_sync() -> tuple[int, int, int]:
         from crawlers import visit_luxembourg as v
         from pymongo import MongoClient
 
@@ -1418,7 +1472,8 @@ async def _import_visit_luxembourg(source: Dict[str, Any], db) -> tuple[int, int
                         inserted += 1
                     else:
                         updated += 1
-                    _t.sleep(v.PAUSE_S)
+                    # See the note in the kids-in-lux importer: polite_get_sync
+                    # owns the pacing now.
         finally:
             client.close()
         return inserted, failed, blocked
