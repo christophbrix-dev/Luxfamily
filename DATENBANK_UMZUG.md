@@ -59,6 +59,28 @@ aus, mit deinem Passwort an der Stelle von `<password>`:
 mongodb+srv://luxfamily-app:<password>@luxfamily.xxxxx.mongodb.net/
 ```
 
+## 2b — Einmal selbst prüfen, bevor Emergent anfängt (machst du)
+
+Das kostet dich zwei Minuten und erspart womöglich einen bezahlten Lauf. Bei
+dir im Terminal:
+
+```bash
+cd ~/Documents/GitHub/Luxfamily/backend
+export TARGET_MONGO_URL='mongodb+srv://...'
+export TARGET_DB_NAME='luxfamily'
+python3 check_atlas.py
+```
+
+Es beantwortet die vier Fragen, die sich vorher beantworten lassen: Ist der
+Cluster erreichbar? Kommen wir mit Benutzer und Passwort hinein? Dürfen wir
+schreiben? Ist die Zieldatenbank leer? Bei jedem Nein steht dabei, welcher
+Schalter in Atlas fehlt.
+
+Es schreibt ein einzelnes Testdokument in eine Wegwerf-Sammlung und löscht sie
+wieder — `events`, `places` und `sources` fasst es nicht an.
+
+Wenn dort dreimal ein Haken steht, kann Emergent loslegen.
+
 ## 3 — Kopieren und prüfen (macht Emergent)
 
 Emergents Datenbank ist die Wahrheit, nicht meine lokale: Dort laufen die
