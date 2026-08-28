@@ -32,6 +32,7 @@ from dateutil import parser as dateutil_parser
 from icalendar import Calendar
 
 import content_filter
+from categorise import categorise
 from age_hints import read_age
 from price_hints import read_price
 from town_names import canonical_town
@@ -270,7 +271,13 @@ def _build_event_doc(
             town or source.get("town_default") or "Luxembourg",
             source.get("canton_default"),
         ),
-        "category": source.get("category_default") or ["Culture"],
+        # The source default is a starting point, not an answer: 52 commune
+        # feeds all say "Culture, Festivals", which made "Festivals" match
+        # nearly every event and the filter useless. An event's own text
+        # overrides it where it says something.
+        "category": categorise(
+            title, description, default=source.get("category_default") or ["Culture"]
+        ),
         # Age and price were constants: every event claimed 0–99 and 0.00 €.
         # Neither is an absence — in a family app "0–99" reads as "newborns
         # welcome", and a zero in a price field reads as "free". A Trivium
