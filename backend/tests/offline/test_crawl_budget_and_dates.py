@@ -278,6 +278,7 @@ class TestTheCustomCrawlersStopThemselves:
         import types
 
         import crawlers
+        import importers as importers_mod
 
         module = types.ModuleType("crawlers.kids_in_lux")
         module.INDEX_URLS = [("https://example.invalid/i", ["Playgrounds"], "venue")]
@@ -303,6 +304,10 @@ class TestTheCustomCrawlersStopThemselves:
         # asks for, until it was killed.
         monkeypatch.setitem(sys.modules, "crawlers.kids_in_lux", module)
         monkeypatch.setattr(crawlers, "kids_in_lux", module, raising=False)
+        # These tests are about the fetch budget. The cursor writes to the real
+        # MongoDB, which the offline guard refuses, and pymongo then spends its
+        # server-selection timeout finding that out — 30 seconds per test.
+        monkeypatch.setattr(importers_mod, "_save_cursor", lambda *a: None)
         return fetched
 
     def test_it_stops_instead_of_running_past_the_watchdog(
@@ -347,6 +352,7 @@ class TestASourceThatIsWorkingDoesNotReportItselfDead:
         import types
 
         import crawlers
+        import importers as importers_mod
 
         module = types.ModuleType("crawlers.kids_in_lux")
         module.INDEX_URLS = [("https://example.invalid/i", ["Playgrounds"], "venue")]
@@ -358,6 +364,7 @@ class TestASourceThatIsWorkingDoesNotReportItselfDead:
         module.upsert_event = lambda *a: upsert_returns
         monkeypatch.setitem(sys.modules, "crawlers.kids_in_lux", module)
         monkeypatch.setattr(crawlers, "kids_in_lux", module, raising=False)
+        monkeypatch.setattr(importers_mod, "_save_cursor", lambda *a: None)
 
     def _source(self):
         return {"id": "kil", "name": "Kids in Lux – Spielplätze", "kind": "kids_in_lux"}
