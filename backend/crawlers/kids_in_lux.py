@@ -49,6 +49,8 @@ BASE       = "https://www.kids-in-lux.com"
 # Falls back to Luxembourg canton if we can't determine it (many entries are
 # in Luxembourg City anyway).
 from geocode_lookup import COMMUNE_COORDS, CANTON_FALLBACK   # noqa: E402
+from age_hints import read_age                               # noqa: E402
+from price_hints import read_price                           # noqa: E402
 
 COMMUNE_CANTON: dict[str, str] = {
     "Bambesch": "Luxembourg", "Belair": "Luxembourg", "Bofferdange": "Mersch",
@@ -194,6 +196,14 @@ def upsert_event(db, parsed: dict, categories: list[str], ev_type: str, source_i
 
     now_iso = datetime.now(timezone.utc).isoformat()
     empty_i18n = {"en": "", "de": "", "fr": ""}
+
+    # This crawler writes its own document instead of going through
+    # _build_event_doc, so the cleanup that removed "0–99" and "0.00 €" from
+    # every other importer went past it. It claimed both, plus "Gratis" — and
+    # that last one is not merely unknown but wrong for a third of what it
+    # imports: the indoor playgrounds charge admission.
+    age = read_age(parsed["title"], parsed["desc"])
+    price = read_price(parsed["title"], parsed["desc"])
     doc = {
         "external_id": external_id,
         "title":       {"en": parsed["title"], "de": parsed["title"], "fr": parsed["title"]},
@@ -203,14 +213,22 @@ def upsert_event(db, parsed: dict, categories: list[str], ev_type: str, source_i
         "canton":      parsed["canton"],
         "town":        parsed["commune"] or parsed["canton"],
         "category":    categories,
-        "age_min":     0,
-        "age_max":     99,
-        "start_date":  datetime.utcnow().date().isoformat(),
+        "age_min":     age.minimum if age.source == "event" else 0,
+        "age_max":     age.maximum if age.source == "event" else 99,
+        "age_source":  age.source,
+        "start_date":  datetime.now(timezone.utc).date().isoformat(),
         "end_date":    None,
         "time":        "",
-        "price_adult": 0.0,
-        "price_child": 0.0,
-        "price_label": {"en": "Free", "de": "Gratis", "fr": "Gratuit"},
+        "price_adult": price.adult,
+        "price_child": price.adult if price.is_free else None,
+        "price_free":  price.is_free,
+        "price_source": price.source,
+        "price_label": {
+            lang: ("Free entry" if price.is_free
+                   else f"{price.adult:.2f} €" if price.adult is not None
+                   else "Price not stated")
+            for lang in ("en", "de", "fr")
+        },
         "accessibility": dict(empty_i18n),
         "weather_fit":   dict(empty_i18n),
         "image":         parsed["image"],

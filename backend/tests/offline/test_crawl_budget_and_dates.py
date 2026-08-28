@@ -271,7 +271,9 @@ class TestTheCustomCrawlersStopThemselves:
     crawled hit the watchdog on all three.
     """
 
-    def _fake_crawler(self, monkeypatch, clock, *, seconds_each, pages):
+    def _fake_crawler(
+        self, monkeypatch, clock, *, seconds_each, pages, upsert_returns="inserted"
+    ):
         import sys
         import types
 
@@ -291,7 +293,7 @@ class TestTheCustomCrawlersStopThemselves:
 
         module.fetch = fetch
         module.parse_detail = lambda url, html: {"title": "Spillplaz", "desc": "fir Kanner"}
-        module.upsert_event = lambda sdb, parsed, cats, ev_type, sid: "inserted"
+        module.upsert_event = lambda sdb, parsed, cats, ev_type, sid: upsert_returns
 
         # Both, and the second one is the one that matters. `from crawlers
         # import kids_in_lux` reads the attribute off the already-imported
@@ -327,3 +329,75 @@ class TestTheCustomCrawlersStopThemselves:
         inserted, _, _ = run(importers._import_kids_in_lux(source, db))
         assert len(fetched) == 6
         assert inserted == 6
+
+
+class TestASourceThatIsWorkingDoesNotReportItselfDead:
+    """`run_source` reads three zeroes as "this website has died".
+
+    These are always-open venues, keyed on a stable external_id, so after the
+    first successful run every later pass is an update and nothing is ever
+    inserted again. `updated` was counted in a local variable and then left out
+    of the return value, so a healthy refresh of thirty venues returned
+    (0, 0, 0) — the source was on course to report itself dead forever, and
+    `empty_runs` would have kept climbing while it worked perfectly.
+    """
+
+    def _wire(self, monkeypatch, *, upsert_returns, links=4):
+        import sys
+        import types
+
+        import crawlers
+
+        module = types.ModuleType("crawlers.kids_in_lux")
+        module.INDEX_URLS = [("https://example.invalid/i", ["Playgrounds"], "venue")]
+        module.list_detail_urls = lambda index_url, hx: [
+            f"https://example.invalid/p/{i}" for i in range(links)
+        ]
+        module.fetch = lambda url, hx: "<html></html>"
+        module.parse_detail = lambda url, html: {"title": "Spillplaz", "desc": ""}
+        module.upsert_event = lambda *a: upsert_returns
+        monkeypatch.setitem(sys.modules, "crawlers.kids_in_lux", module)
+        monkeypatch.setattr(crawlers, "kids_in_lux", module, raising=False)
+
+    def _source(self):
+        return {"id": "kil", "name": "Kids in Lux – Spielplätze", "kind": "kids_in_lux"}
+
+    def test_a_refresh_of_known_venues_counts_as_seen(
+        self, importers, db, run, monkeypatch
+    ):
+        self._wire(monkeypatch, upsert_returns="updated")
+        inserted, skipped, blocked = run(
+            importers._import_kids_in_lux(self._source(), db)
+        )
+        assert inserted == 0, "nothing new, which is correct"
+        assert skipped == 4, "but four were seen — not a dead site"
+        assert inserted + skipped + blocked > 0
+
+    def test_run_source_calls_that_ok_and_not_no_events(
+        self, importers, app_module, run, monkeypatch
+    ):
+        """The end the counting exists for."""
+        self._wire(monkeypatch, upsert_returns="updated")
+        db = app_module.db
+        run(db.sources.insert_one({**self._source(), "active": True}))
+
+        result = run(importers.run_source(self._source(), db))
+        assert result["last_status"] == "ok"
+        assert result["empty_runs"] == 0
+
+    def test_an_unreadable_index_page_is_an_error_not_a_quiet_week(
+        self, importers, app_module, run, monkeypatch
+    ):
+        """Two different things had one answer.
+
+        A crawl that read the index and found nothing, and an index page that
+        could not be read at all, both came out as `no_events` with three
+        zeroes. Only one of them is a site going quiet.
+        """
+        self._wire(monkeypatch, upsert_returns="inserted", links=0)
+        db = app_module.db
+        run(db.sources.insert_one({**self._source(), "active": True}))
+
+        result = run(importers.run_source(self._source(), db))
+        assert result["last_status"] == "error"
+        assert "index page" in (result["last_error"] or "")
