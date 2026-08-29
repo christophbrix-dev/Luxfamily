@@ -196,6 +196,75 @@ YEARS_BACK = 1
 YEARS_AHEAD = 5
 
 
+class _LuxParserInfo(dateutil_parser.parserinfo):
+    """Month names in the four languages Luxembourg writes dates in.
+
+    dateutil ships English only, and its `fuzzy` mode does not complain about
+    words it cannot place — it simply drops them. "24. Juni 2026" therefore
+    parsed as day 24, year 2026, and *this month*, silently, for as long as
+    this importer has existed. The docstring above has been claiming German
+    support the whole time.
+
+    Adding the names is the difference between reading a date and guessing one.
+    """
+
+    MONTHS = [
+        ("Jan", "January", "Januar", "janvier", "Januar"),
+        ("Feb", "February", "Februar", "février", "fevrier", "Februar"),
+        ("Mar", "March", "März", "Maerz", "Marz", "mars", "Mäerz", "Maerz"),
+        ("Apr", "April", "avril", "Abrëll", "Abrell"),
+        ("May", "Mai", "mai", "Mee"),
+        ("Jun", "June", "Juni", "juin"),
+        ("Jul", "July", "Juli", "juillet"),
+        ("Aug", "August", "août", "aout"),
+        ("Sep", "Sept", "September", "septembre"),
+        ("Oct", "October", "Oktober", "octobre", "Okt"),
+        ("Nov", "November", "novembre"),
+        ("Dec", "December", "Dezember", "décembre", "decembre", "Dez"),
+    ]
+
+
+# One instance, because building it parses the whole table.
+_LUX_PARSER = _LuxParserInfo(dayfirst=True)
+
+# Two dates far apart and sharing no field. dateutil fills whatever the text
+# does not say from a default, so parsing twice and comparing tells the two
+# apart exactly.
+_PROBE_A = datetime(1970, 1, 1)
+_PROBE_B = datetime(1971, 2, 2)
+
+
+def _parse_if_it_really_says_a_date(text: str) -> Optional[date]:
+    """The date `text` states, or None when it states only a time.
+
+    `dateutil.parse("13:15")` returns *today* at 13:15 — it fills the missing
+    half from a default without saying so. Every check downstream then sees a
+    well-formed date beginning with "20" and waves it through.
+
+    That is how the Philharmonie's events came to sit on the day they were
+    crawled. Their pages carry `<time>` tags in this order:
+
+        ['13:15', '24/10/2026', '10/24/2026 12:00:00 AM', ...]
+
+    The first one is the start time. We took it, dateutil quietly added
+    today's date, and a concert in October was filed under an August morning —
+    three times over, in the app, on the wrong day. The right date was sitting
+    in the very next tag.
+
+    Parsing twice with defaults that share no field settles it: what the text
+    actually contains comes out the same both times, and what came from the
+    default differs.
+    """
+    try:
+        first = dateutil_parser.parse(
+            text, dayfirst=True, fuzzy=True, default=_PROBE_A, parserinfo=_LUX_PARSER)
+        second = dateutil_parser.parse(
+            text, dayfirst=True, fuzzy=True, default=_PROBE_B, parserinfo=_LUX_PARSER)
+    except (ValueError, TypeError, dateutil_parser.ParserError, OverflowError):
+        return None
+    return first.date() if first.date() == second.date() else None
+
+
 def _plausible_year(iso: str) -> bool:
     this_year = datetime.now(timezone.utc).year
     return this_year - YEARS_BACK <= int(iso[:4]) <= this_year + YEARS_AHEAD
@@ -227,11 +296,11 @@ def _to_iso_date(value: Any) -> Optional[str]:
             iso = datetime.fromisoformat(s.replace("Z", "+00:00")).date().isoformat()
         except ValueError:
             # dateutil handles FR/DE month names and slash/dot separators.
-            try:
-                # dayfirst=True so 06/07/2026 is 6 July (LU/FR/DE convention).
-                iso = dateutil_parser.parse(s, dayfirst=True, fuzzy=True).date().isoformat()
-            except (ValueError, dateutil_parser.ParserError, OverflowError):
+            # dayfirst=True so 06/07/2026 is 6 July (LU/FR/DE convention).
+            parsed = _parse_if_it_really_says_a_date(s)
+            if parsed is None:
                 return None
+            iso = parsed.isoformat()
 
     if not _plausible_year(iso):
         logger.info("Ignoring implausible date %s (from %r)", iso, value)
