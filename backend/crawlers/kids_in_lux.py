@@ -25,6 +25,7 @@ Run:
 import os
 import re
 import sys
+import html as html_lib
 import urllib.parse as up
 import uuid
 from datetime import datetime, timezone
@@ -145,6 +146,39 @@ def list_detail_urls(index_url: str, client: httpx.Client) -> Iterable[str]:
     return sorted(out)
 
 
+# Luxembourg's bounding box, generously drawn. Coordinates lifted from a page
+# have to land inside the country: an embedded map can point anywhere, and a
+# pin in Belgium is worse than no pin at all.
+LU_BOUNDS = (49.40, 50.20, 5.70, 6.55)   # lat_min, lat_max, lng_min, lng_max
+
+
+def coords_from_map_embed(html: str) -> tuple[float, float] | None:
+    """The pin a page puts on its own embedded map.
+
+    kids-in-lux builds every entry around a Google Maps iframe:
+
+        .../maps/embed/v1/place?key=…&q=49.8995%2C5.8670&center=49.9059%2C5.8994
+
+    `q` is the marker, `center` only the viewport, so `q` comes first. This is
+    the page telling us where the place is, to the metre — far better than the
+    commune name we were guessing at, and it needs no lookup.
+
+    The key in that URL is Google's business and theirs; nothing here reads or
+    keeps it. Only the two numbers.
+    """
+    for match in re.finditer(r"google\.com/maps/embed[^\"'\s>]*", html, re.I):
+        url = up.unquote(html_lib.unescape(match.group(0)))
+        for field in ("q", "center"):
+            pair = re.search(rf"[?&]{field}=(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)", url)
+            if not pair:
+                continue
+            lat, lng = float(pair.group(1)), float(pair.group(2))
+            lo_lat, hi_lat, lo_lng, hi_lng = LU_BOUNDS
+            if lo_lat <= lat <= hi_lat and lo_lng <= lng <= hi_lng:
+                return lat, lng
+    return None
+
+
 def parse_detail(url: str, html: str) -> dict | None:
     ex = Extractor()
     ex.feed(html[:200_000])
@@ -180,15 +214,27 @@ def parse_detail(url: str, html: str) -> dict | None:
         commune = find_town_in_text(title_raw)
 
     canton = COMMUNE_CANTON.get(commune, "")
-    coord = COMMUNE_COORDS.get(commune)
-    located = coord is not None
+
+    # The page's own map pin, first and best. Every entry checked carries one,
+    # and it is exact — the lake at Esch-sur-Sûre comes back as 49.8996 /
+    # 5.8671 rather than as the centre of a commune, let alone of a canton.
+    # Guessing a commune from the title was yesterday's improvement on guessing
+    # the capital; this is the page simply telling us.
+    coord = coords_from_map_embed(html)
+    precision = "address" if coord else ""
+
+    if coord is None:
+        coord = COMMUNE_COORDS.get(commune)
+        precision = "commune" if coord else ""
     if coord is None and canton:
         coord = CANTON_FALLBACK.get(canton)
+        precision = "fallback"
     if coord is None:
-        # Nothing recognised. The centre of the country is a placeholder, not
-        # an answer, and `located` says so — upsert_event marks the record for
-        # the geocoder rather than letting a wrong pin pass for a resolved one.
+        # Nothing recognised at all. The centre of the country is a
+        # placeholder, not an answer, and the precision says so — the geocoder
+        # picks the record up instead of taking a wrong pin for a resolved one.
         coord = (49.8153, 6.1296)
+        precision = "fallback"
 
     return {
         "title":    title,
@@ -196,7 +242,8 @@ def parse_detail(url: str, html: str) -> dict | None:
         "image":    image,
         "commune":  commune,
         "canton":   canton,
-        "located":  located,
+        "located":  precision in ("address", "commune"),
+        "precision": precision,
         "url":      url,
         "lat":      coord[0],
         "lng":      coord[1],
@@ -229,9 +276,9 @@ def upsert_event(db, parsed: dict, categories: list[str], ev_type: str, source_i
         # still work from the title; "Luxembourg" would be a wrong answer
         # that looks like a right one.
         "town":        parsed["commune"] or parsed["canton"] or "",
-        # Unset would also make the geocoder pick this up, but saying
-        # "fallback" out loud means the healthcheck can count it.
-        "geocode_precision": "commune" if parsed.get("located") else "fallback",
+        # Said out loud rather than left unset, so the healthcheck can count
+        # what is exact and what is still a placeholder.
+        "geocode_precision": parsed.get("precision") or "fallback",
         "category":    categories,
         # See the note in importers._build_event_doc: a one-sided age such
         # as "bis 12 Joer" has a None on the open end, and storing that None
