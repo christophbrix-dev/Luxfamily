@@ -317,7 +317,8 @@ class TestTheCustomCrawlersStopThemselves:
         monkeypatch.setattr(importers, "_monotonic", lambda: clock["t"])
         fetched = self._fake_crawler(monkeypatch, clock, seconds_each=5.0, pages=200)
 
-        source = {"id": "kil", "name": "Kids in Lux – Spielplätze", "kind": "kids_in_lux"}
+        source = {"id": "kil", "name": "Kids in Lux – Spielplätze",
+                  "kind": "kids_in_lux", "url": "https://example.invalid/i"}
         inserted, failed, blocked = run(importers._import_kids_in_lux(source, db))
 
         budget = importers.SOURCE_FETCH_BUDGET_SECONDS
@@ -330,7 +331,8 @@ class TestTheCustomCrawlersStopThemselves:
         monkeypatch.setattr(importers, "_monotonic", lambda: clock["t"])
         fetched = self._fake_crawler(monkeypatch, clock, seconds_each=5.0, pages=6)
 
-        source = {"id": "kil", "name": "Kids in Lux – Ausflüge", "kind": "kids_in_lux"}
+        source = {"id": "kil", "name": "Kids in Lux – Ausflüge",
+                  "kind": "kids_in_lux", "url": "https://example.invalid/i"}
         inserted, _, _ = run(importers._import_kids_in_lux(source, db))
         assert len(fetched) == 6
         assert inserted == 6
@@ -367,7 +369,10 @@ class TestASourceThatIsWorkingDoesNotReportItselfDead:
         monkeypatch.setattr(importers_mod, "_save_cursor", lambda *a: None)
 
     def _source(self):
-        return {"id": "kil", "name": "Kids in Lux – Spielplätze", "kind": "kids_in_lux"}
+        # The url matters now: each source crawls its own index page, so a
+        # source without one is an error rather than a crawl of everything.
+        return {"id": "kil", "name": "Kids in Lux – Spielplätze",
+                "kind": "kids_in_lux", "url": "https://example.invalid/i"}
 
     def test_a_refresh_of_known_venues_counts_as_seen(
         self, importers, db, run, monkeypatch

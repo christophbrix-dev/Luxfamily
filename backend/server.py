@@ -12,6 +12,7 @@ import asyncio
 import hashlib
 import logging
 import os
+import re
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
@@ -625,6 +626,14 @@ async def lifespan(_: FastAPI):
         [("published", 1), ("canton", 1), ("featured", -1), ("start_date", 1)],
         name="pub_canton_featured_start",
     )
+    # Category became a real server-side filter rather than something the app
+    # did to whatever it had downloaded, so it is now a first-class query.
+    # Multikey on the array, then the same sort as the other two.
+    await _ensure_index(
+        db.events,
+        [("published", 1), ("category", 1), ("featured", -1), ("start_date", 1)],
+        name="pub_category_featured_start",
+    )
     # Backs the analytics top-events sort.
     await _ensure_index(db.events, [("published", 1), ("view_count", -1)], name="pub_viewcount")
     await db.events.create_index([("source_id", 1), ("external_id", 1)], sparse=True)
@@ -1072,26 +1081,126 @@ async def delete_my_account(current: Dict[str, Any] = Depends(get_current_user))
 
 
 # ---- Public events ----
-@app.get("/api/events", response_model=List[EventSummary])
-async def list_events(
-    response: Response,
-    canton: Optional[str] = None,
-    upcoming: bool = True,
-    limit: int = Query(100, ge=1, le=200),
-    skip: int = Query(0, ge=0),
-):
-    """Paginated event list in the trimmed EventSummary shape.
+def _events_query(
+    *,
+    canton: Optional[str],
+    category: Optional[List[str]],
+    type_: Optional[str],
+    age_min: Optional[int],
+    age_max: Optional[int],
+    wheelchair: bool,
+    sensory: bool,
+    free_parking: bool,
+    date_from: Optional[str],
+    date_to: Optional[str],
+    q: Optional[str],
+    upcoming: bool,
+) -> Dict[str, Any]:
+    """The filter the list screens were applying by hand, in Mongo's language.
 
-    `limit` is capped: it used to be an unbounded caller-supplied number, so a
-    single `?limit=1000000` could force a full-collection scan and serialize the
-    lot. The total goes out in X-Total-Count so clients can page.
+    All of this used to happen in the app, on whatever had been downloaded —
+    which was 200 events out of 479. Choosing "Playgrounds" searched 200 rows
+    and returned what happened to be among them; the endpoint did not even
+    accept the parameter, so `?category=Playgrounds` was silently dropped and
+    answered with everything.
+
+    Two of these are easy to get backwards, so they are spelled out:
+
+    * The three family-needs switches only ever *narrow*. `wheelchair=false`
+      means "do not care", never "only events without wheelchair access" — the
+      app's toggles are off by default, and reading them as an exclusion would
+      hide most of the calendar the moment somebody left one alone.
+    * Ages *overlap*, they are not contained. An event for 4-to-10-year-olds
+      belongs in a search for "0-3"'s siblings only if the ranges actually
+      meet, which is `age_min <= wanted_max and age_max >= wanted_min`.
     """
     query: Dict[str, Any] = {"published": True}
     if canton:
         query["canton"] = canton
+    if category:
+        query["category"] = {"$in": category}
+    if type_:
+        query["type"] = type_
+
+    if age_min is not None or age_max is not None:
+        # Overlap, both directions. See the note above.
+        if age_max is not None:
+            query["age_min"] = {"$lte": age_max}
+        if age_min is not None:
+            query["age_max"] = {"$gte": age_min}
+
+    # Only ever narrowing — never "show me the inaccessible ones".
+    for flag, field in (
+        (wheelchair, "accessibility_wheelchair"),
+        (sensory, "sensory_friendly"),
+        (free_parking, "free_parking"),
+    ):
+        if flag:
+            query[field] = True
+
+    start: Dict[str, str] = {}
     if upcoming:
-        today = datetime.now(timezone.utc).date().isoformat()
-        query["start_date"] = {"$gte": today}
+        start["$gte"] = datetime.now(timezone.utc).date().isoformat()
+    if date_from:
+        # An explicit window wins over the general "not in the past".
+        start["$gte"] = date_from
+    if date_to:
+        start["$lte"] = date_to
+    if start:
+        query["start_date"] = start
+
+    if q:
+        # Substring, case-insensitive, over the same fields the app searched:
+        # the title and teaser in every language, plus the town. re.escape
+        # matters — this is caller-supplied text going into a regex, and
+        # without it a stray "(" is a 500 and ".*.*.*" is a way to make the
+        # database work very hard.
+        needle = re.escape(q.strip())
+        if needle:
+            # en/de/fr and not lb: the backend's LocalizedString has three
+            # languages, and no stored event carries a Luxembourgish title —
+            # checked against all 528. The app translates its own interface
+            # into Lëtzebuergesch, but event text arrives in the language the
+            # source wrote it in. Searching `title.lb` would be a branch that
+            # can never match.
+            fields = [f"{part}.{lang}" for part in ("title", "short")
+                      for lang in ("en", "de", "fr")] + ["town"]
+            query["$or"] = [{f: {"$regex": needle, "$options": "i"}} for f in fields]
+
+    return query
+
+
+@app.get("/api/events", response_model=List[EventSummary])
+async def list_events(
+    response: Response,
+    canton: Optional[str] = None,
+    category: Optional[List[str]] = Query(None),
+    type: Optional[str] = Query(None),
+    age_min: Optional[int] = Query(None, ge=0, le=99),
+    age_max: Optional[int] = Query(None, ge=0, le=99),
+    wheelchair: bool = False,
+    sensory: bool = False,
+    free_parking: bool = False,
+    date_from: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    date_to: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    q: Optional[str] = Query(None, max_length=80),
+    upcoming: bool = True,
+    limit: int = Query(100, ge=1, le=200),
+    skip: int = Query(0, ge=0),
+):
+    """Paginated, filtered event list in the trimmed EventSummary shape.
+
+    `limit` is capped: it used to be an unbounded caller-supplied number, so a
+    single `?limit=1000000` could force a full-collection scan and serialize the
+    lot. The total goes out in X-Total-Count so clients can page — and paging
+    is the point, because the cap is below the number of events we hold.
+    """
+    query = _events_query(
+        canton=canton, category=category, type_=type,
+        age_min=age_min, age_max=age_max,
+        wheelchair=wheelchair, sensory=sensory, free_parking=free_parking,
+        date_from=date_from, date_to=date_to, q=q, upcoming=upcoming,
+    )
 
     # Featured first, then by start date — matches pub_featured_start /
     # pub_canton_featured_start so Mongo walks the index instead of sorting.
