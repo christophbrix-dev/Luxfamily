@@ -130,3 +130,41 @@ def is_commune(name: Optional[str]) -> bool:
     commune by name alone, and knows no quarter that way.
     """
     return bool(name and _fold(name) in _index())
+
+
+# Length below which a name is not worth hunting for inside free text. "Bech"
+# and "Useldange" are both communes, but four letters turn up inside ordinary
+# words often enough to matter, and a wrong town is worse than none.
+_MIN_TITLE_MATCH = 5
+
+
+def find_town_in_text(text: Optional[str]) -> str:
+    """The commune named somewhere inside a free-form title, or "".
+
+    A crawler that cannot parse a location from the structured part of a page
+    used to invent one. kids-in-lux titles its outings like
+
+        "Esch sur Sure und Obersauerstausee"
+
+    and the crawler, finding no "(Commune - Locality)" parenthetical, fell back
+    to canton "Luxembourg" and dropped a pin on the capital — fifty kilometres
+    from the lake. The name was in the title all along.
+
+    Matching is on folded text (accents and punctuation removed), so "Esch sur
+    Sure" finds "Esch-sur-Sûre". The longest match wins: a title mentioning
+    Esch-sur-Sûre must not be resolved to Esch-sur-Alzette because "esch" also
+    appears. Returns "" rather than a guess, so the caller can leave the
+    location unknown and let the geocoder try.
+    """
+    if not text:
+        return ""
+    folded = _fold(text)
+    if not folded:
+        return ""
+    best = ""
+    for spelling, display in _index().items():
+        if len(spelling) < _MIN_TITLE_MATCH:
+            continue
+        if spelling in folded and len(spelling) > len(best):
+            best, found = spelling, display
+    return found if best else ""
