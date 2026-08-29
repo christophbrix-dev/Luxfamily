@@ -45,10 +45,12 @@ load_dotenv()
 BASE       = "https://www.kids-in-lux.com"
 
 # Kids-in-lux commune hints — the og:title usually follows the form
-# "Spielplatz X (Commune - Locality)". Try to extract a canton match.
-# Falls back to Luxembourg canton if we can't determine it (many entries are
-# in Luxembourg City anyway).
+# "Spielplatz X (Commune - Locality)". When there is no parenthetical, the
+# title is searched for a commune name instead. Nothing falls back to
+# "Luxembourg" any more: that used to put lakes in the north on the capital,
+# and a wrong location is worse than an admitted unknown one.
 from geocode_lookup import COMMUNE_COORDS, CANTON_FALLBACK   # noqa: E402
+from town_names import find_town_in_text                     # noqa: E402
 from age_hints import read_age                               # noqa: E402
 from price_hints import read_price                           # noqa: E402
 
@@ -169,13 +171,24 @@ def parse_detail(url: str, html: str) -> dict | None:
     # Clean title — strip parenthetical location.
     title = re.sub(r"\s*\([^)]*\)\s*$", "", title_raw).strip()
 
+    # The parenthetical is the reliable source, and the outings mostly have
+    # none — but the title still names the place: "Esch sur Sure und
+    # Obersauerstausee". That used to fall through to canton "Luxembourg" and a
+    # pin on the capital, fifty kilometres from the lake, and nothing
+    # downstream could tell that apart from a real answer.
+    if not commune:
+        commune = find_town_in_text(title_raw)
+
     canton = COMMUNE_CANTON.get(commune, "")
-    if not canton:
-        # try coord lookup as a heuristic
-        if commune in COMMUNE_COORDS:
-            canton = ""   # coords exist but canton unknown — leave for fallback
-        canton = canton or "Luxembourg"
-    coord = COMMUNE_COORDS.get(commune) or CANTON_FALLBACK.get(canton, (49.61, 6.13))
+    coord = COMMUNE_COORDS.get(commune)
+    located = coord is not None
+    if coord is None and canton:
+        coord = CANTON_FALLBACK.get(canton)
+    if coord is None:
+        # Nothing recognised. The centre of the country is a placeholder, not
+        # an answer, and `located` says so — upsert_event marks the record for
+        # the geocoder rather than letting a wrong pin pass for a resolved one.
+        coord = (49.8153, 6.1296)
 
     return {
         "title":    title,
@@ -183,6 +196,7 @@ def parse_detail(url: str, html: str) -> dict | None:
         "image":    image,
         "commune":  commune,
         "canton":   canton,
+        "located":  located,
         "url":      url,
         "lat":      coord[0],
         "lng":      coord[1],
@@ -211,7 +225,13 @@ def upsert_event(db, parsed: dict, categories: list[str], ev_type: str, source_i
         "description": {"en": parsed["desc"], "de": parsed["desc"], "fr": parsed["desc"]},
         "type":        ev_type,
         "canton":      parsed["canton"],
-        "town":        parsed["commune"] or parsed["canton"],
+        # No invented town. An empty one is honest and the geocoder can
+        # still work from the title; "Luxembourg" would be a wrong answer
+        # that looks like a right one.
+        "town":        parsed["commune"] or parsed["canton"] or "",
+        # Unset would also make the geocoder pick this up, but saying
+        # "fallback" out loud means the healthcheck can count it.
+        "geocode_precision": "commune" if parsed.get("located") else "fallback",
         "category":    categories,
         # See the note in importers._build_event_doc: a one-sided age such
         # as "bis 12 Joer" has a None on the open end, and storing that None
