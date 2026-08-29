@@ -265,6 +265,38 @@ def _parse_if_it_really_says_a_date(text: str) -> Optional[date]:
     return first.date() if first.date() == second.date() else None
 
 
+# A date at the very end of a title, after a separator, optionally followed by
+# a time. Venues name their event pages this way:
+#
+#     "Le coin des mini monstres | 24.10.2026 13:15"
+#     "Lunchtime at Mudam – 4 Sept 2026"
+#
+# The separator and the end of the string both matter. Parc Merveilleux writes
+# "…Sommersaison (21/03/2026 – 15/10/2026)", where a date that looks the same
+# opens a season range rather than naming a day; taking it would move the event
+# to the first day of summer. Requiring the date to be the last thing in the
+# title excludes that without having to understand it.
+_TITLE_TRAILING_DATE = re.compile(
+    r"[|\u2013\u2014-]\s*"
+    r"(\d{1,2}[./-]\d{1,2}[./-]\d{4}|\d{1,2}\.?\s+[A-Za-z\u00C0-\u00FF]{3,12}\.?\s+\d{4})"
+    r"(?:\s+\d{1,2}[:.]\d{2})?\s*$"
+)
+
+
+def date_from_title(title: Optional[str]) -> Optional[str]:
+    """The date a title names at its end, or None.
+
+    More trustworthy than the first `<time>` tag on a page: a venue that puts
+    the date in the page title means that date, whereas the first time tag was
+    "13:15" and cost us a whole October programme filed under an August
+    morning.
+    """
+    if not title:
+        return None
+    match = _TITLE_TRAILING_DATE.search(title.strip())
+    return _to_iso_date(match.group(1)) if match else None
+
+
 def _plausible_year(iso: str) -> bool:
     this_year = datetime.now(timezone.utc).year
     return this_year - YEARS_BACK <= int(iso[:4]) <= this_year + YEARS_AHEAD
@@ -1451,9 +1483,16 @@ def _extract_open_graph_event(html: str, *, page_url: str) -> Optional[Dict[str,
     desc = og("og:description")
     image = og("og:image")
 
+    # 0. A date the title states outright. Ahead of everything else, because a
+    #    venue naming its page "… | 24.10.2026 13:15" is telling us the date in
+    #    so many words, while that page's first <time> tag turned out to be the
+    #    start time and nothing more.
+    start = date_from_title(title)
+
     # 1. URL-slug date parsing (Mudam etc. embed date in slug — most reliable
     #    for our LU sources because <time> tags often only contain a time-of-day)
-    start = _extract_date_from_url(page_url)
+    if not start:
+        start = _extract_date_from_url(page_url)
 
     # 2. <time datetime="..."> tags (require a value that includes a year)
     if not start:
