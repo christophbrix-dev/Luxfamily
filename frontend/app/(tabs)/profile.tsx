@@ -11,10 +11,16 @@ import { t } from "@/src/i18n/strings";
 import { pickLang } from "@/src/i18n/pickLang";
 import { radii, type Palette } from "@/src/theme";
 
+// Lëtzebuergesch first, and present at all: this list had three entries while
+// the dictionary was complete in four, so somebody who chose Luxembourgish on
+// the welcome screen could never get back to it, and somebody who did not see
+// that screen never learned the app speaks it. The country's own language is
+// not the one to leave out of a Luxembourg family app.
 const LANGS: { code: Lang; label: string; flag: string }[] = [
-  { code: "en", label: "English", flag: "🇬🇧" },
+  { code: "lb", label: "Lëtzebuergesch", flag: "🇱🇺" },
   { code: "de", label: "Deutsch", flag: "🇩🇪" },
   { code: "fr", label: "Français", flag: "🇫🇷" },
+  { code: "en", label: "English", flag: "🇬🇧" },
 ];
 
 export default function Profile() {

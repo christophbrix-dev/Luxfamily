@@ -213,8 +213,11 @@ def upsert_event(db, parsed: dict, categories: list[str], ev_type: str, source_i
         "canton":      parsed["canton"],
         "town":        parsed["commune"] or parsed["canton"],
         "category":    categories,
-        "age_min":     age.minimum if age.source == "event" else 0,
-        "age_max":     age.maximum if age.source == "event" else 99,
+        # See the note in importers._build_event_doc: a one-sided age such
+        # as "bis 12 Joer" has a None on the open end, and storing that None
+        # made /api/events answer 500 for every event at once.
+        "age_min":     (age.minimum or 0) if age.source == "event" else 0,
+        "age_max":     (age.maximum or 99) if age.source == "event" else 99,
         "age_source":  age.source,
         "start_date":  datetime.now(timezone.utc).date().isoformat(),
         "end_date":    None,

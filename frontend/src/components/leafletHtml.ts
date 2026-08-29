@@ -97,6 +97,14 @@ export const LEAFLET_HTML = `<!doctype html>
     }
     /* Hide the default marker shadow that ghosts through our custom pin */
     .leaflet-marker-shadow { display: none; }
+
+    /* Dark mode without a second tile provider. Only the tile pane is
+       inverted: our pins, cluster bubbles and popups live in their own panes
+       and keep the colours they were given. The hue rotation puts water back
+       to blue after the inversion, which otherwise turns it orange. */
+    body.dark .leaflet-tile-pane {
+      filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.9);
+    }
   </style>
 </head>
 <body>
@@ -118,37 +126,30 @@ export const LEAFLET_HTML = `<!doctype html>
       preferCanvas: true,
     }).setView([49.7867, 6.0938], 9);
 
-    // "Positron" CartoDB tiles read nicer for family-facing UI than the
-    // stock OSM Mapnik style — but we fall back to OSM if unavailable.
-    // We keep references to both light + dark layers so we can hot-swap them
-    // when the host sends { type: "setTheme", theme: "dark" | "light" }.
-    const lightTiles = L.tileLayer(
-      "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-      {
-        attribution:
-          '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: "abcd",
-        maxZoom: 19,
-      },
-    );
-    const darkTiles = L.tileLayer(
-      "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-      {
-        attribution:
-          '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: "abcd",
-        maxZoom: 19,
-      },
-    );
-    let currentTiles = lightTiles;
-    currentTiles.addTo(map);
+    // OpenStreetMap's own tiles, which need no key.
+    //
+    // This used to load CARTO's "Positron" and "dark_all" styles, and they read
+    // better — but CARTO now requires an API key for them and serves an
+    // unauthenticated request as a tile with "API KEY REQUIRED" printed across
+    // it. The comment here promised a fallback to OSM if CARTO were
+    // "unavailable"; it never fired, because a watermarked tile arrives as a
+    // perfectly successful HTTP 200. Users saw the words stamped over
+    // Luxembourg.
+    //
+    // No subdomains: OSM asks clients to use the single hostname.
+    const tiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution:
+        '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19,
+    });
+    tiles.addTo(map);
 
     function applyTheme(theme) {
-      const next = theme === "dark" ? darkTiles : lightTiles;
-      if (next === currentTiles) return;
-      map.removeLayer(currentTiles);
-      currentTiles = next;
-      currentTiles.addTo(map);
+      // Dark mode is a filter over the same tiles rather than a second
+      // provider, so there is one source to keep working instead of two. Only
+      // the tile pane is inverted — markers and labels we draw ourselves sit in
+      // their own panes and must keep their colours.
+      document.body.classList.toggle("dark", theme === "dark");
       // Match body colour so the initial white flash disappears.
       document.body.style.background = theme === "dark" ? "#0B1120" : "#F0FDF4";
     }
