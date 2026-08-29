@@ -38,7 +38,7 @@ from fastapi import (
 )
 from fastapi.security import OAuth2PasswordBearer
 from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ValidationError, field_validator
 from pymongo.errors import DuplicateKeyError, OperationFailure
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -290,8 +290,22 @@ class EventSummary(BaseModel):
     canton: str
     town: str
     category: List[str] = Field(default_factory=list)
+    # A stored None here means a one-sided age — "bis 12 Joer" has a maximum
+    # and no minimum — and the open end is 0 or 99, not a hole. The importers
+    # fill it in now, but rows written before that sit in databases this code
+    # cannot reach, and an event missing its lower bound is still a perfectly
+    # good event: repairing it beats dropping it, and both beat what happened —
+    # a plain `int` rejected the None and every request for the whole list came
+    # back 500.
     age_min: int = 0
     age_max: int = 99
+
+    @field_validator("age_min", "age_max", mode="before")
+    @classmethod
+    def _open_end(cls, value, info):
+        if value is None:
+            return 0 if info.field_name == "age_min" else 99
+        return value
     start_date: str
     end_date: Optional[str] = None
     time: str = ""
@@ -323,6 +337,38 @@ class EventSummary(BaseModel):
 # Mongo projection matching EventSummary, so the trimming happens in the
 # database rather than after we've already paid to transfer the documents.
 SUMMARY_PROJECTION: Dict[str, Any] = {"_id": 0, **{f: 1 for f in EventSummary.model_fields}}
+
+
+def _summaries(docs: List[Dict[str, Any]]) -> List[EventSummary]:
+    """Build the list, and let one bad row cost one row.
+
+    `[EventSummary(**d) for d in docs]` fails the whole request when a single
+    stored document is malformed, and FastAPI answers 500. That is how a
+    database holding hundreds of good events produced "Server error (500)" and
+    "0 Aktivitäten" in the app: one row had `age_min: None`, written by an
+    importer that stored a half-stated age ("bis 12 Joer") without filling in
+    the open end.
+
+    The importers are fixed too — this is the second layer, not the fix. It
+    exists because those rows are already sitting in a database this code
+    cannot reach, and because a list should lose one entry rather than
+    collapse. The warning names the id, so a skipped row is findable instead
+    of merely absent.
+    """
+    out: List[EventSummary] = []
+    for doc in docs:
+        try:
+            out.append(EventSummary(**doc))
+        except ValidationError as exc:
+            logger.warning(
+                "Skipping unusable event %s: %s",
+                doc.get("id", "?"),
+                "; ".join(
+                    f"{'.'.join(str(p) for p in e['loc'])} {e['msg']}"
+                    for e in exc.errors()[:3]
+                ),
+            )
+    return out
 
 
 TokenResponse.model_rebuild()
@@ -1215,7 +1261,7 @@ async def list_events(
         db.events.count_documents(query),
     )
     response.headers["X-Total-Count"] = str(total)
-    return [EventSummary(**d) for d in docs]
+    return _summaries(docs)
 
 
 @app.get("/api/events/{event_id}", response_model=EventResponse)
@@ -1281,7 +1327,7 @@ async def admin_list_events(
         db.events.count_documents({}),
     )
     response.headers["X-Total-Count"] = str(total)
-    return [EventSummary(**d) for d in docs]
+    return _summaries(docs)
 
 
 @app.get("/api/admin/events/{event_id}", response_model=EventResponse)

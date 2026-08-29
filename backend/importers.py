@@ -440,8 +440,14 @@ def _build_event_doc(
         # concert carried both. Only 14 of 528 events state an age and 44 a
         # price, so most of these stay unknown, which is the whole point:
         # the app can say so instead of implying something it was never told.
-        "age_min": age.minimum if age.source == "event" else source.get("age_min_default", 0),
-        "age_max": age.maximum if age.source == "event" else source.get("age_max_default", 99),
+# A stated age is often one-sided — "bis 12 Joer" gives a maximum and
+        # no minimum. `read_age` reports that faithfully as None, and storing
+        # the None was enough to make the list endpoint answer 500 for every
+        # event at once. The open end is 0 or 99, not a hole.
+        "age_min": (age.minimum if age.minimum is not None else 0)
+        if age.source == "event" else source.get("age_min_default", 0),
+        "age_max": (age.maximum if age.maximum is not None else 99)
+        if age.source == "event" else source.get("age_max_default", 99),
         "age_source": age.source if age.source == "event" else (
             "source" if source.get("age_min_default") or source.get("age_max_default")
             else "unknown"
