@@ -24,7 +24,7 @@ import {
 } from "@/src/data/onboarding";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { pickLang } from "@/src/i18n/pickLang";
-import { confirm } from "@/src/utils/confirm";
+import { ConfirmDialog } from "@/src/components/ConfirmDialog";
 import { type Palette, shadowFor } from "@/src/theme";
 
 type Step = "welcome" | "persona" | "ages" | "interests" | "needs" | "cantons" | "budget" | "done";
@@ -86,19 +86,15 @@ export default function OnboardingScreen() {
     });
   }, [persona, childAges, interests, needs, preferredCantons, budget, persistAndExit]);
 
-  // Went through `confirm` rather than Alert.alert, which react-native-web
-  // ships as an empty function: in the browser this button opened nothing and
-  // did nothing, on a phone it worked. It sits on the path every new user
-  // takes who does not want to answer the questions.
-  const confirmSkip = useCallback(async () => {
-    const goAhead = await confirm({
-      title: pickLang(ONBOARDING_COPY.skipWarnTitle, lang),
-      message: pickLang(ONBOARDING_COPY.skipWarnBody, lang),
-      confirmLabel: pickLang(ONBOARDING_COPY.skipConfirm, lang),
-      cancelLabel: pickLang(ONBOARDING_COPY.cancel, lang),
-      destructive: true,
-    });
-    if (!goAhead) return;
+  // An in-app dialog, not Alert.alert and not the browser's confirm(). The
+  // first opened nothing on the web (react-native-web ships Alert as an empty
+  // function) and the second blocked the page behind a dialog that looks
+  // nothing like the app. This sits on the path every new user takes who does
+  // not want to answer the questions, so it has to work everywhere.
+  const [askingToSkip, setAskingToSkip] = useState(false);
+
+  const skipForReal = useCallback(() => {
+    setAskingToSkip(false);
     persistAndExit({
       persona: "skipped",
       childAgeGroups: [],
@@ -108,7 +104,7 @@ export default function OnboardingScreen() {
       budget: "",
       completedAt: null,
     });
-  }, [lang, persistAndExit]);
+  }, [persistAndExit]);
 
   // Prefill interests when persona changes (nice UX).
   const onPickPersona = useCallback((id: PersonaId) => {
@@ -181,7 +177,7 @@ export default function OnboardingScreen() {
         )}
 
         {step !== "done" ? (
-          <TouchableOpacity onPress={confirmSkip} hitSlop={12} testID="onb-skip">
+          <TouchableOpacity onPress={() => setAskingToSkip(true)} hitSlop={12} testID="onb-skip">
             <Text style={styles.skipTxt}>{pickLang(ONBOARDING_COPY.skip, lang)}</Text>
           </TouchableOpacity>
         ) : (
@@ -470,6 +466,17 @@ export default function OnboardingScreen() {
           <Ionicons name="arrow-forward" size={18} color="#fff" />
         </TouchableOpacity>
       </View>
+
+      <ConfirmDialog
+        open={askingToSkip}
+        title={pickLang(ONBOARDING_COPY.skipWarnTitle, lang)}
+        message={pickLang(ONBOARDING_COPY.skipWarnBody, lang)}
+        confirmLabel={pickLang(ONBOARDING_COPY.skipConfirm, lang)}
+        cancelLabel={pickLang(ONBOARDING_COPY.cancel, lang)}
+        destructive
+        onConfirm={skipForReal}
+        onCancel={() => setAskingToSkip(false)}
+      />
     </SafeAreaView>
   );
 }

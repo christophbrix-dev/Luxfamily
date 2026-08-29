@@ -1,11 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useApp } from "@/src/contexts/AppContext";
 import type { Lang } from "@/src/data/places";
+import { ConfirmDialog } from "@/src/components/ConfirmDialog";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { t } from "@/src/i18n/strings";
 import { pickLang } from "@/src/i18n/pickLang";
@@ -26,6 +27,29 @@ const LANGS: { code: Lang; label: string; flag: string }[] = [
 export default function Profile() {
   const router = useRouter();
   const { lang, setLang, user, signOutUser, bookings, saved, theme, setTheme, userProfile, resetOnboarding } = useApp();
+
+  // Deleting an account is the one irreversible thing this screen can do, and
+  // until now it asked with `window.confirm` — which does not exist on a
+  // phone. The expression fell through to `: true` there, so on iOS and
+  // Android a single tap deleted the account with no question at all. On the
+  // web it asked, in a browser dialog that looks nothing like the app.
+  const [askingToDelete, setAskingToDelete] = useState(false);
+
+  const deleteAccount = useCallback(async () => {
+    setAskingToDelete(false);
+    try {
+      const token = await (await import("@/src/utils/googleAuth")).sessionStorage.get();
+      if (token) {
+        await fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL ?? ""}/api/auth/me`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+    } catch {}
+    signOutUser();
+    resetOnboarding();
+    router.replace("/login");
+  }, [signOutUser, resetOnboarding, router]);
   const { palette, shadow } = useAppPalette();
   const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const initial = (user?.name?.[0] ?? "U").toUpperCase();
@@ -180,30 +204,7 @@ export default function Profile() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          onPress={async () => {
-            const confirmed =
-              typeof window !== "undefined" && typeof window.confirm === "function"
-                ? window.confirm(t("confirmDelete", lang))
-                : true;
-            if (!confirmed) return;
-            try {
-              const token = await (
-                await import("@/src/utils/googleAuth")
-              ).sessionStorage.get();
-              if (token) {
-                await fetch(
-                  `${process.env.EXPO_PUBLIC_BACKEND_URL ?? ""}/api/auth/me`,
-                  {
-                    method: "DELETE",
-                    headers: { Authorization: `Bearer ${token}` },
-                  },
-                );
-              }
-            } catch {}
-            signOutUser();
-            resetOnboarding();
-            router.replace("/login");
-          }}
+          onPress={() => setAskingToDelete(true)}
           style={styles.deleteAccountBtn}
           testID="delete-account-btn"
         >
@@ -213,6 +214,17 @@ export default function Profile() {
           </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <ConfirmDialog
+        open={askingToDelete}
+        title={t("deleteAccount", lang)}
+        message={t("confirmDelete", lang)}
+        confirmLabel={t("deleteAccount", lang)}
+        cancelLabel={t("cancel", lang)}
+        destructive
+        onConfirm={deleteAccount}
+        onCancel={() => setAskingToDelete(false)}
+      />
     </SafeAreaView>
   );
 }

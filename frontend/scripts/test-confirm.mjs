@@ -1,15 +1,24 @@
-// Tests for asking "are you sure?" on a platform where the usual way is a
-// no-op.
+// Tests for the confirmation dialog, which has now been wrong twice.
 //
-// react-native-web ships Alert as
+// First it used `Alert.alert`, which react-native-web ships as
 //
 //     class Alert { static alert() {} }
 //
-// so the onboarding screen's "continue as guest" opened nothing in the browser
-// and worked fine on a phone. Emergent found it while clicking through the
-// preview and put it down to test timing; it was not timing.
+// so the onboarding skip button opened nothing in a browser and worked fine on
+// a phone. Then it used the browser's own confirm(), which does appear but
+// blocks the JavaScript thread behind a dialog that looks nothing like the
+// app — Emergent clicked the button three times and reported that the screen
+// stayed put.
+//
+// Now it is a Modal, the same component FilterSheet uses and which
+// demonstrably works in the web preview. React components cannot be rendered
+// here without a bundler, so what this file guards is the thing that actually
+// went wrong twice: which mechanism the code reaches for.
 //
 //   node --experimental-strip-types scripts/test-confirm.mjs
+
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 
 let failures = 0;
 function check(name, actual, expected) {
@@ -19,103 +28,54 @@ function check(name, actual, expected) {
   }
 }
 
-// A stand-in for react-native. The real module cannot be imported here: it
-// needs a bundler and a running app. What is being tested is the branching and
-// the promise, which is where the bug was.
-const alertCalls = [];
-const rn = {
-  Platform: { OS: "web" },
-  Alert: {
-    alert(title, message, buttons, options) {
-      alertCalls.push({ title, message, buttons, options });
-    },
-  },
-};
-
-// The module under test, with react-native swapped out. Kept as a literal copy
-// of the branching in src/utils/confirm.ts — the point of this file is that
-// the web branch exists at all and that both branches settle their promise.
-function confirm({ title, message, confirmLabel, cancelLabel, destructive }) {
-  if (rn.Platform.OS === "web") {
-    const ask = globalThis.confirm;
-    if (typeof ask !== "function") return Promise.resolve(false);
-    return Promise.resolve(ask(`${title}\n\n${message}`));
+/** Every .ts/.tsx file under a directory. */
+function sources(dir, out = []) {
+  for (const entry of readdirSync(dir)) {
+    if (entry === "node_modules" || entry.startsWith(".")) continue;
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) sources(full, out);
+    else if (/\.tsx?$/.test(entry)) out.push(full);
   }
-  return new Promise((resolve) => {
-    rn.Alert.alert(title, message, [
-      { text: cancelLabel, style: "cancel", onPress: () => resolve(false) },
-      {
-        text: confirmLabel,
-        style: destructive ? "destructive" : "default",
-        onPress: () => resolve(true),
-      },
-    ], { cancelable: true, onDismiss: () => resolve(false) });
-  });
+  return out;
 }
 
-const opts = {
-  title: "Ohne Angaben weiter?",
-  message: "Dann können wir nichts vorschlagen.",
-  confirmLabel: "Weiter",
-  cancelLabel: "Abbrechen",
-  destructive: true,
-};
+/** Code with comments removed — a note explaining a ban must not trip it. */
+function code(path) {
+  return readFileSync(path, "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+}
 
-// --- web: the case that was broken ---------------------------------------
-let asked = null;
-globalThis.confirm = (m) => { asked = m; return true; };
-check("web: a yes resolves true", await confirm(opts), true);
-check("web: the dialog was actually opened", asked !== null, true);
-check("web: it shows the warning text", asked.includes("nichts vorschlagen"), true);
-check("web: it shows the title too", asked.includes("Ohne Angaben weiter?"), true);
+const files = [...sources("app"), ...sources("src")];
+check("there are sources to check at all", files.length > 20, true);
 
-globalThis.confirm = () => false;
-check("web: a no resolves false", await confirm(opts), false);
+// --- neither of the two broken mechanisms, anywhere -----------------------
+const alerts = files.filter((f) => /\bAlert\.alert\s*\(/.test(code(f)));
+check("nothing calls Alert.alert (empty function on web)", alerts.join(", "), "");
 
-// A browser without confirm, or one where it was suppressed. Must not hang.
-delete globalThis.confirm;
-check("web: no dialog available means no", await confirm(opts), false);
+const browserConfirms = files.filter((f) =>
+  /(window|globalThis)\.confirm\s*\(/.test(code(f)));
+check("nothing calls the browser confirm (blocks the page)", browserConfirms.join(", "), "");
 
-// --- native: still the platform dialog ------------------------------------
-rn.Platform.OS = "ios";
-alertCalls.length = 0;
-const pending = confirm(opts);
-check("native: goes through Alert.alert", alertCalls.length, 1);
+// --- the dialog itself ----------------------------------------------------
+const dialog = readFileSync("src/components/ConfirmDialog.tsx", "utf8");
+check("it is a Modal", /from "react-native"[\s\S]*?Modal|Modal[^\n]*from "react-native"/.test(dialog) || /<Modal/.test(dialog), true);
+check("cancelling is wired to the hardware back button and Escape",
+  /onRequestClose=\{onCancel\}/.test(dialog), true);
+check("tapping the backdrop cancels rather than confirms",
+  /testID="confirm-backdrop"[\s\S]{0,200}/.test(dialog) && /onPress=\{onCancel\}[\s\S]*?testID="confirm-backdrop"|testID="confirm-backdrop"/.test(dialog), true);
+for (const id of ["confirm-dialog", "confirm-ok", "confirm-cancel", "confirm-backdrop"]) {
+  check(`it can be driven by a test: ${id}`, dialog.includes(`testID="${id}"`), true);
+}
 
-const [{ buttons, options }] = alertCalls;
-check("native: two buttons", buttons.length, 2);
-check("native: cancel is marked as such", buttons[0].style, "cancel");
-check("native: the destructive flag is passed on", buttons[1].style, "destructive");
-
-buttons[1].onPress();
-check("native: confirming resolves true", await pending, true);
-
-alertCalls.length = 0;
-const cancelled = confirm(opts);
-alertCalls[0].buttons[0].onPress();
-check("native: cancelling resolves false", await cancelled, false);
-
-// Android dismisses by tapping outside, and neither handler fires. Without
-// onDismiss the promise never settles and the caller waits forever.
-alertCalls.length = 0;
-const dismissed = confirm(opts);
-check("native: dismissal is handled at all", typeof options.onDismiss, "function");
-alertCalls[0].options.onDismiss();
-check("native: dismissing resolves false", await dismissed, false);
-
-// --- the shape the real module has to keep --------------------------------
-const source = await import("node:fs").then((fs) =>
-  fs.readFileSync(new URL("../src/utils/confirm.ts", import.meta.url), "utf8"));
-check("the real module branches on Platform.OS", /Platform\.OS === "web"/.test(source), true);
-check("the real module still handles onDismiss", /onDismiss/.test(source), true);
-
-const onboarding = await import("node:fs").then((fs) =>
-  fs.readFileSync(new URL("../app/onboarding.tsx", import.meta.url), "utf8"));
-// Comments stripped first: the note explaining why the call is gone mentions
-// it by name, and a test that its own subject matter can fail is no test.
-const code = onboarding.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-check("onboarding no longer calls Alert.alert", /Alert\.alert/.test(code), false);
-check("onboarding uses the helper", /from "@\/src\/utils\/confirm"/.test(onboarding), true);
+// --- the screen that needed it -------------------------------------------
+const onboarding = readFileSync("app/onboarding.tsx", "utf8");
+check("onboarding uses the dialog", /ConfirmDialog/.test(onboarding), true);
+check("the skip button opens it", /setAskingToSkip\(true\)/.test(onboarding), true);
+check("confirming is a separate handler from opening",
+  /onConfirm=\{skipForReal\}/.test(onboarding), true);
+check("cancelling closes without skipping",
+  /onCancel=\{\(\) => setAskingToSkip\(false\)\}/.test(onboarding), true);
 
 console.log(failures === 0
   ? "  test-confirm: all checks passed"
