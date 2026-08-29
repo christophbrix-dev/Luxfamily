@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -25,6 +24,7 @@ import {
 } from "@/src/data/onboarding";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { pickLang } from "@/src/i18n/pickLang";
+import { confirm } from "@/src/utils/confirm";
 import { type Palette, shadowFor } from "@/src/theme";
 
 type Step = "welcome" | "persona" | "ages" | "interests" | "needs" | "cantons" | "budget" | "done";
@@ -86,28 +86,28 @@ export default function OnboardingScreen() {
     });
   }, [persona, childAges, interests, needs, preferredCantons, budget, persistAndExit]);
 
-  const confirmSkip = useCallback(() => {
-    Alert.alert(
-      pickLang(ONBOARDING_COPY.skipWarnTitle, lang),
-      pickLang(ONBOARDING_COPY.skipWarnBody, lang),
-      [
-        { text: pickLang(ONBOARDING_COPY.cancel, lang), style: "cancel" },
-        {
-          text: pickLang(ONBOARDING_COPY.skipConfirm, lang),
-          style: "destructive",
-          onPress: () =>
-            persistAndExit({
-              persona: "skipped",
-              childAgeGroups: [],
-              interests: [],
-              needs: [],
-              preferredCantons: [],
-              budget: "",
-              completedAt: null,
-            }),
-        },
-      ],
-    );
+  // Went through `confirm` rather than Alert.alert, which react-native-web
+  // ships as an empty function: in the browser this button opened nothing and
+  // did nothing, on a phone it worked. It sits on the path every new user
+  // takes who does not want to answer the questions.
+  const confirmSkip = useCallback(async () => {
+    const goAhead = await confirm({
+      title: pickLang(ONBOARDING_COPY.skipWarnTitle, lang),
+      message: pickLang(ONBOARDING_COPY.skipWarnBody, lang),
+      confirmLabel: pickLang(ONBOARDING_COPY.skipConfirm, lang),
+      cancelLabel: pickLang(ONBOARDING_COPY.cancel, lang),
+      destructive: true,
+    });
+    if (!goAhead) return;
+    persistAndExit({
+      persona: "skipped",
+      childAgeGroups: [],
+      interests: [],
+      needs: [],
+      preferredCantons: [],
+      budget: "",
+      completedAt: null,
+    });
   }, [lang, persistAndExit]);
 
   // Prefill interests when persona changes (nice UX).
