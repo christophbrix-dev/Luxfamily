@@ -93,6 +93,36 @@ def _out_of_time(deadline: float, name: str, done: int) -> bool:
     return True
 
 
+def _index_for_source(source: Dict[str, Any], index_urls: list) -> tuple:
+    """The one index page this source stands for.
+
+    Every kids-in-lux source used to walk *all three* index pages, because the
+    importer read the module's list and ignored the `url` on the source record
+    entirely. Three sources, one identical crawl each, on a site that asks for
+    five seconds between requests — 252 fetches a run where 84 would do. The
+    three then fought over the same events, each stamping its own `source_id`
+    on whatever it upserted last; the 81 : 1 : 0 split measured across them was
+    that fight, not three differently sized listings.
+
+    Matching is by exact URL first, then by prefix: one source points at
+    `/spielplätze/highlight-spielplätze/`, a page below the index rather than
+    the index itself, and the sensible reading of that is the playground index.
+    A source matching nothing raises, with both lists in the message — quietly
+    crawling everything is how this started.
+    """
+    url = (source.get("url") or "").rstrip("/")
+    for entry in index_urls:
+        if entry[0].rstrip("/") == url:
+            return entry
+    for entry in index_urls:
+        if url.startswith(entry[0].rstrip("/") + "/"):
+            return entry
+    raise RuntimeError(
+        f"source url {source.get('url')!r} matches no known index page: "
+        + ", ".join(e[0] for e in index_urls)
+    )
+
+
 def _rotate_to_cursor(sdb, source: Dict[str, Any], items: list) -> tuple[list, int]:
     """Start where the last run stopped, so the back of the list is reachable.
 
@@ -1486,14 +1516,16 @@ async def _import_kids_in_lux(source: Dict[str, Any], db) -> tuple[int, int, int
                 # interleaved them, which meant the budget always ran out
                 # inside the first index and the later ones were never opened
                 # at all.
-                todo: List[Tuple[str, Any, Any]] = []
-                for index_url, cats, ev_type in k.INDEX_URLS:
-                    if _out_of_time(deadline, name, seen_pages):
-                        break
-                    todo.extend(
-                        (url, cats, ev_type)
-                        for url in k.list_detail_urls(index_url, hx)
-                    )
+                # This source's own index page, not all three. See
+                # _index_for_source: reading the module's whole list meant
+                # every source ran the same crawl, three times over, on a site
+                # that asks for five seconds between requests.
+                index_url, cats, ev_type = _index_for_source(source, k.INDEX_URLS)
+                logger.info("%s: index %s", name, index_url)
+                todo: List[Tuple[str, Any, Any]] = [
+                    (url, cats, ev_type)
+                    for url in k.list_detail_urls(index_url, hx)
+                ]
                 listed = len(todo)
                 todo, next_cursor = _rotate_to_cursor(sdb, source, todo)
 
@@ -1533,15 +1565,12 @@ async def _import_kids_in_lux(source: Dict[str, Any], db) -> tuple[int, int, int
             client.close()
 
         if not listed:
-            # None of the three index pages gave us a single link. That is a
-            # different thing from "crawled it, found nothing", and until now
-            # both came out as `no_events` with three zeroes — the same record
-            # for a working crawl of an empty site and for an index page that
-            # cannot be read at all. Raising says which one it was.
-            raise RuntimeError(
-                "no detail links found on any index page: "
-                + ", ".join(u for u, _, _ in k.INDEX_URLS)
-            )
+            # The index page gave us no link at all. That is a different thing
+            # from "crawled it, found nothing", and both used to come out as
+            # `no_events` with three zeroes — the same record for a working
+            # crawl of an empty site and for an index page that cannot be read.
+            # Raising says which one it was, and names the page.
+            raise RuntimeError(f"no detail links found on the index page {index_url}")
 
         # `updated` goes in the skipped slot, the same place the sitemap
         # importer puts an event it already has. Leaving it out of the return
