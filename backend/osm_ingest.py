@@ -355,7 +355,13 @@ class _POIHandler(osmium.SimpleHandler):
                 rec = self._normalise(kind_key, "way", w.id, tags, c[0], c[1])
                 if rec:
                     self.records.append(rec)
-                break  # avoid double-counting one way in multiple categories
+                    # Only a category that actually took it stops the search.
+                    # Breaking on a bare tag match discarded whatever the
+                    # category then declined: an unnamed `leisure=water_park`
+                    # was claimed by `swimming`, refused for having no name,
+                    # and never offered to `water_playground`, where it
+                    # belongs. Declining is not the same as deciding.
+                    break
 
     def relation(self, r):
         tags = self._tags_to_dict(r.tags)
@@ -373,7 +379,7 @@ class _POIHandler(osmium.SimpleHandler):
                 rec = self._normalise(kind_key, "relation", r.id, tags, None, None)
                 if rec:
                     self.records.append(rec)
-                break
+                    break   # see the note in way(): declining is not deciding
 
     def area(self, a):
         """Categories that need a size, from osmium's assembled polygons.
@@ -421,7 +427,13 @@ class _POIHandler(osmium.SimpleHandler):
                    lon: Optional[float]) -> Optional[Dict[str, Any]]:
         cat = CATEGORIES[kind_key]
 
-        if tags.get("access") in {"private", "no", "customers"}:
+        # "customers" usually means a facility that belongs to a business and
+        # is not really open — a café's toilet, a hotel's garden. A category
+        # can opt out of that reading where it is wrong: a municipal pool that
+        # charges admission is also tagged `access=customers`, and paying at
+        # the gate is what a public pool is.
+        closed = {"private", "no"} if cat.get("allow_customers") else {"private", "no", "customers"}
+        if tags.get("access") in closed:
             return None
 
         # Require a real name for categories that opt in (e.g. swimming),

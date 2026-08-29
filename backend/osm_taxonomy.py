@@ -37,13 +37,49 @@ CATEGORIES = {
         "group": "play", "base_score": 90,
         "filters": ['["leisure"="playground"]'],
     },
+    # Position matters: this must come before `water_playground`, because
+    # both claim `leisure=water_park` and the first category that accepts
+    # an item wins. Named water parks are public pools and belong here;
+    # `require_name` below makes this category decline the unnamed ones,
+    # which then fall through to the paddling pools.
+    "swimming": {
+        "label_de": "Schwimmbad / Freibad", "label_fr": "Piscine",
+        "label_lb": "Schwämm",              "label_en": "Swimming pool",
+        "group": "sport", "base_score": 85,
+        # Require a name — OSM Luxembourg has ~1800 unnamed private backyard
+        # pools tagged `leisure=swimming_pool` that we do NOT want to expose.
+        "require_name": True,
+        # `access=customers` normally means "not really open to the public",
+        # and the ingest drops it everywhere else for good reason. A municipal
+        # outdoor pool that charges admission is tagged that way too, though,
+        # and dropping it is the wrong call: paying at the gate is what a
+        # public pool is. It cost us the Piscine ouverte d'Oberkorn, which is
+        # not a private garden but the town's open-air pool.
+        "allow_customers": True,
+        "filters": [
+            '["leisure"="swimming_pool"]',
+            '["amenity"="public_bath"]',
+            '["leisure"="water_park"]',
+        ],
+    },
     "water_playground": {
         "label_de": "Wasserspielplatz", "label_fr": "Aire de jeux d'eau",
         "label_lb": "Waasserspillplaz", "label_en": "Water playground",
         "group": "play", "base_score": 88,
+        # `leisure=water_park` appears here *and* under `swimming` above, and
+        # that is deliberate: it is the catch-all for the unnamed ones. Named
+        # ones are public pools and `swimming` takes them first; what is left
+        # is the paddling area in a village park, which is this.
+        #
+        # It used to be listed only here, and `water_playground` came first, so
+        # seven of Luxembourg's public pools were filed as splash pads —
+        # AquaNat'Our, Piscine Piko, Piscine Plein-Air Dudelange, Remich,
+        # Vianden, Freibad Troisvierges and the Réidener Schwämm. Anyone
+        # filtering for "Schwämm" found none of them.
         "filters": [
-            '["leisure"="water_park"]',
             '["playground"="splash_pad"]',
+            '["leisure"="splash_pad"]',
+            '["leisure"="water_park"]',
             '["amenity"="fountain"]["drinking_water"="yes"]',
         ],
     },
@@ -302,19 +338,6 @@ CATEGORIES = {
     },
 
     # ---------- Sport & Schwimmen ----------
-    "swimming": {
-        "label_de": "Schwimmbad / Freibad", "label_fr": "Piscine",
-        "label_lb": "Schwämm",              "label_en": "Swimming pool",
-        "group": "sport", "base_score": 85,
-        # Require a name — OSM Luxembourg has ~1800 unnamed private backyard
-        # pools tagged `leisure=swimming_pool` that we do NOT want to expose.
-        "require_name": True,
-        "filters": [
-            '["leisure"="swimming_pool"]',
-            '["amenity"="public_bath"]',
-            '["leisure"="water_park"]',
-        ],
-    },
     "ice_rink": {
         "label_de": "Eislaufbahn", "label_fr": "Patinoire",
         "label_lb": "Aisstadion",  "label_en": "Ice rink",
