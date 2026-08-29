@@ -60,6 +60,9 @@ SOURCE_TIMEOUT_SECONDS = 180
 # the list, and the next run picks up whatever changed since.
 SOURCE_FETCH_BUDGET_SECONDS = SOURCE_TIMEOUT_SECONDS - 20
 
+# How long the two thread-based crawlers wait for MongoDB before giving up.
+SYNC_DB_TIMEOUT_MS = 5000
+
 
 # Named here so a test can hand these two functions a clock without patching
 # `time.monotonic` itself. That patch reaches the asyncio event loop, which
@@ -88,6 +91,40 @@ def _out_of_time(deadline: float, name: str, done: int) -> bool:
         name, done, SOURCE_FETCH_BUDGET_SECONDS,
     )
     return True
+
+
+def _rotate_to_cursor(sdb, source: Dict[str, Any], items: list) -> tuple[list, int]:
+    """Start where the last run stopped, so the back of the list is reachable.
+
+    The fetch budget cuts a long list short, and the list arrives in the same
+    order every time. So the first N pages were crawled three times a day
+    forever and pages N+1 onwards were never crawled at all — the run reported
+    "42 listed, 15 visited, 15 refreshed, 0 unreadable", which reads as perfect
+    health and was a crawler walking in a circle.
+
+    Rotating by a stored offset turns the same budget into full coverage: 42
+    pages, 15 a run, three runs a day is everything inside a day. The offset is
+    kept on the source record, so a restart resumes rather than starting over.
+    """
+    if not items:
+        return items, 0
+    cursor = int(source.get("crawl_cursor") or 0) % len(items)
+    return items[cursor:] + items[:cursor], cursor
+
+
+def _save_cursor(sdb, source: Dict[str, Any], started_at: int,
+                 visited: int, listed: int) -> None:
+    """Move the cursor on by what this run actually managed."""
+    if not listed:
+        return
+    try:
+        sdb.sources.update_one(
+            {"id": source["id"]},
+            {"$set": {"crawl_cursor": (started_at + visited) % listed}},
+        )
+    except Exception as exc:      # a lost cursor is not worth failing a run
+        logger.info("could not store crawl cursor for %s: %s",
+                    source.get("name", "?"), exc)
 
 
 def _log_breakdown(source: Dict[str, Any], listed: int, visited: int,
@@ -1428,7 +1465,11 @@ async def _import_kids_in_lux(source: Dict[str, Any], db) -> tuple[int, int, int
         from crawlers import kids_in_lux as k
         from pymongo import MongoClient
 
-        client = MongoClient(os.environ["MONGO_URL"])
+        # A short selection timeout: this runs inside a crawl thread with
+        # a fetch budget, and pymongo's 30s default turns an unreachable
+        # database into a stalled crawl rather than a quick, clear error.
+        client = MongoClient(os.environ["MONGO_URL"],
+                             serverSelectionTimeoutMS=SYNC_DB_TIMEOUT_MS)
         sdb    = client[os.environ["DB_NAME"]]
 
         inserted = updated = failed = blocked = 0
@@ -1438,47 +1479,56 @@ async def _import_kids_in_lux(source: Dict[str, Any], db) -> tuple[int, int, int
         # question never came up; now that it runs, it has to know when to stop.
         deadline = _fetch_deadline()
         seen_pages = 0
-        listed = 0        # detail URLs the index pages gave us
+        name = source.get("name", "kids-in-lux")
         try:
             with httpx.Client() as hx:
+                # Every index page first, then the detail pages. The old shape
+                # interleaved them, which meant the budget always ran out
+                # inside the first index and the later ones were never opened
+                # at all.
+                todo: List[Tuple[str, Any, Any]] = []
                 for index_url, cats, ev_type in k.INDEX_URLS:
-                    if _out_of_time(deadline, source.get("name", "kids-in-lux"), seen_pages):
+                    if _out_of_time(deadline, name, seen_pages):
                         break
-                    details = k.list_detail_urls(index_url, hx)
-                    listed += len(details)
-                    for url in details:
-                        if _out_of_time(
-                            deadline, source.get("name", "kids-in-lux"), seen_pages
-                        ):
-                            break
-                        seen_pages += 1
-                        html = k.fetch(url, hx)
-                        if not html:
-                            failed += 1
-                            continue
-                        parsed = k.parse_detail(url, html)
-                        if not parsed:
-                            failed += 1
-                            continue
-                        verdict = content_filter.assess(
-                            parsed.get("title"), parsed.get("desc"))
-                        if verdict:
-                            logger.warning(
-                                "Refused %s event from %s (%r matched %s)",
-                                verdict[0], source.get("name", "?"),
-                                verdict[1], url[:120],
-                            )
-                            blocked += 1
-                            continue
-                        status = k.upsert_event(sdb, parsed, cats, ev_type, source["id"])
-                        if status == "inserted":
-                            inserted += 1
-                        else:
-                            updated += 1
-                        # No sleep here. The pacing moved into
-                        # crawler_utils.polite_get_sync, which waits the longer
-                        # of our baseline and the site's own Crawl-delay; the
-                        # constant this line used to read was deleted with it.
+                    todo.extend(
+                        (url, cats, ev_type)
+                        for url in k.list_detail_urls(index_url, hx)
+                    )
+                listed = len(todo)
+                todo, next_cursor = _rotate_to_cursor(sdb, source, todo)
+
+                for url, cats, ev_type in todo:
+                    if _out_of_time(deadline, name, seen_pages):
+                        break
+                    seen_pages += 1
+                    html = k.fetch(url, hx)
+                    if not html:
+                        failed += 1
+                        continue
+                    parsed = k.parse_detail(url, html)
+                    if not parsed:
+                        failed += 1
+                        continue
+                    verdict = content_filter.assess(
+                        parsed.get("title"), parsed.get("desc"))
+                    if verdict:
+                        logger.warning(
+                            "Refused %s event from %s (%r matched %s)",
+                            verdict[0], source.get("name", "?"),
+                            verdict[1], url[:120],
+                        )
+                        blocked += 1
+                        continue
+                    status = k.upsert_event(sdb, parsed, cats, ev_type, source["id"])
+                    if status == "inserted":
+                        inserted += 1
+                    else:
+                        updated += 1
+                    # No sleep here. The pacing moved into
+                    # crawler_utils.polite_get_sync, which waits the longer of
+                    # our baseline and the site's own Crawl-delay; the constant
+                    # this line used to read was deleted with it.
+                _save_cursor(sdb, source, next_cursor, seen_pages, listed)
         finally:
             client.close()
 
@@ -1522,7 +1572,11 @@ async def _import_visit_luxembourg(source: Dict[str, Any], db) -> tuple[int, int
         from crawlers import visit_luxembourg as v
         from pymongo import MongoClient
 
-        client = MongoClient(os.environ["MONGO_URL"])
+        # A short selection timeout: this runs inside a crawl thread with
+        # a fetch budget, and pymongo's 30s default turns an unreachable
+        # database into a stalled crawl rather than a quick, clear error.
+        client = MongoClient(os.environ["MONGO_URL"],
+                             serverSelectionTimeoutMS=SYNC_DB_TIMEOUT_MS)
         sdb    = client[os.environ["DB_NAME"]]
         inserted = updated = failed = blocked = 0
         deadline = _fetch_deadline()
