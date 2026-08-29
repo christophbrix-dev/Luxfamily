@@ -155,14 +155,11 @@ class TestTheShapeThatKeepsBiting:
         Optional is one bad row away from a 500 on the whole list, so the model
         has to say so.
         """
-        import typing
-
         model = app_module.EventSummary
-        offenders = []
-        for name, field in model.model_fields.items():
-            annotation = field.annotation
-            if annotation in (int, float):
-                offenders.append(name)
+        offenders = [
+            name for name, field in model.model_fields.items()
+            if field.annotation in (int, float)
+        ]
         # int/float without Optional is fine *if* nothing ever writes None —
         # which is what the writer tests above are for. This records which
         # fields carry that obligation.
