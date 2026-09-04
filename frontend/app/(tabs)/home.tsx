@@ -1,21 +1,26 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AppCard } from "@/src/components/AppCard";
 import { Chip } from "@/src/components/Chip";
 import { WeatherWidget } from "@/src/components/WeatherWidget";
 import { useApp } from "@/src/contexts/AppContext";
-import { PLACES } from "@/src/data/places";
+import type { Lang } from "@/src/data/places";
+import { usePlaces } from "@/src/hooks/useLivePlaces";
+import { useUserLocation } from "@/src/hooks/useUserLocation";
+import { detailHref } from "@/src/utils/toPlace";
+import { baseLang } from "@/src/i18n/pickLang";
 import { t } from "@/src/i18n/strings";
-import { type Palette, shadowFor } from "@/src/theme";
+import { type Palette, radii, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 
 const HOME_CHIPS = ["All", "Outdoor", "Indoor", "0-3", "4-6", "7-12"] as const;
 
-function chipLabel(c: string, lang: "en" | "de" | "fr"): string {
+function chipLabel(c: string, langIn: Lang): string {
+  const lang = baseLang(langIn);
   if (c === "All")     return lang === "de" ? "Alle" : lang === "fr" ? "Tout" : "All";
   if (c === "Indoor")  return lang === "de" ? "Drinnen" : lang === "fr" ? "Intérieur" : "Indoor";
   if (c === "Outdoor") return lang === "de" ? "Draußen" : lang === "fr" ? "Extérieur" : "Outdoor";
@@ -35,18 +40,34 @@ export default function Home() {
   const router = useRouter();
   const { lang, user } = useApp();
   const [chip, setChip] = useState<string>("All");
+  const { places, loading, error, hasLocation } = usePlaces();
+  const { status: locationStatus, request: requestLocation } = useUserLocation();
 
   const featured = useMemo(() => {
-    if (chip === "All") return PLACES.slice(0, 3);
+    const all = places ?? [];
+    if (chip === "All") return all.slice(0, 3);
     if (chip === "Indoor" || chip === "Outdoor") {
-      return PLACES.filter((p) => p.type === chip).slice(0, 3);
+      return all.filter((p) => p.type === chip).slice(0, 3);
     }
     // age chip
     const [min, max] = chip.split("-").map(Number);
-    return PLACES.filter((p) => p.ageMin <= max && p.ageMax >= min).slice(0, 3);
-  }, [chip]);
+    return all.filter((p) => p.ageMin <= max && p.ageMax >= min).slice(0, 3);
+  }, [chip, places]);
 
-  const nearYou = useMemo(() => PLACES.slice(3, 6), []);
+  /**
+   * The three closest entries, once we know where the user is.
+   *
+   * This used to be `places.slice(3, 6)` — entries four to six of the list,
+   * under a heading promising proximity. Without a position there is nothing
+   * to sort by, so the section is hidden rather than filled with an untruth.
+   */
+  const nearYou = useMemo(() => {
+    if (!hasLocation) return [];
+    return (places ?? [])
+      .filter((p) => p.distanceKm !== undefined)
+      .sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0))
+      .slice(0, 3);
+  }, [places, hasLocation]);
   const initial = (user?.name?.[0] ?? "U").toUpperCase();
 
   return (
@@ -88,16 +109,48 @@ export default function Home() {
           ))}
         </ScrollView>
 
+        {loading ? (
+          <ActivityIndicator color={palette.primary} style={{ marginTop: 32 }} />
+        ) : error && !places?.length ? (
+          <View style={styles.feed}>
+            <Text style={styles.sub}>{t("failedToLoad", lang)}</Text>
+          </View>
+        ) : null}
+
         <View style={styles.feed}>
           {featured.map((item) => (
             <AppCard
               key={item.id}
               item={item}
               large
-              onPress={() => router.push(`/detail/${item.id}`)}
+              onPress={() => router.push(detailHref(item))}
             />
           ))}
         </View>
+
+        <TouchableOpacity
+          style={styles.placesEntry}
+          onPress={() => router.push("/places" as never)}
+          testID="home-browse-places"
+        >
+          <Ionicons name="map-outline" size={18} color={palette.primaryDark} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.placesEntryTitle}>{t("places", lang)}</Text>
+            <Text style={styles.placesEntrySub}>{t("placesSub", lang)}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
+        </TouchableOpacity>
+
+        {!hasLocation && locationStatus !== "denied" ? (
+          <TouchableOpacity
+            style={styles.locationPrompt}
+            onPress={requestLocation}
+            testID="home-enable-location"
+          >
+            <Ionicons name="location-outline" size={16} color={palette.primaryDark} />
+            <Text style={styles.locationPromptTxt}>{t("enableLocation", lang)}</Text>
+          </TouchableOpacity>
+        ) : null}
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{t("nearYou", lang)}</Text>
@@ -111,7 +164,7 @@ export default function Home() {
             <AppCard
               key={item.id}
               item={item}
-              onPress={() => router.push(`/detail/${item.id}`)}
+              onPress={() => router.push(detailHref(item))}
             />
           ))}
         </View>
@@ -164,6 +217,36 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
   chipRowOuter: { marginTop: 18, marginBottom: 8, maxHeight: 56 },
   chipRow: { gap: 8, paddingHorizontal: 20, alignItems: "center", height: 56 },
   feed: { paddingHorizontal: 20, paddingTop: 8, gap: 16 },
+  placesEntry: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginHorizontal: 16,
+    marginTop: 20,
+    padding: 14,
+    borderRadius: radii.md,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.borderSoft,
+  },
+  placesEntryTitle: { fontSize: 14, fontWeight: "700", color: palette.textPrimary },
+  placesEntrySub: { fontSize: 12, color: palette.textSecondary, marginTop: 1 },
+  locationPrompt: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginHorizontal: 16,
+    marginTop: 20,
+    paddingVertical: 12,
+    borderRadius: radii.md,
+    backgroundColor: palette.primaryLight,
+  },
+  locationPromptTxt: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: palette.primaryDark,
+  },
   sectionHeader: {
     marginTop: 24,
     paddingHorizontal: 20,

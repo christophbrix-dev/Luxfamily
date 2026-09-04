@@ -35,6 +35,36 @@ jobs:
       - name: Lint
         run: yarn lint
 
+      # Decides whether the app tells someone a place is open. A wrong "open"
+      # sends a family to a locked door, which is the problem the app exists to
+      # solve — so this one fails the build rather than reporting a number.
+      - name: Opening hours
+        run: yarn test-hours
+
+      # A photo is the loudest claim on a card. This checks the app can tell a
+      # picture of the place from a stock library's idea of the category.
+      - name: Photos
+        run: yarn test-photo
+
+      # A failed request must reach the reader as a sentence, not as a parser
+      # complaint about a body that was never JSON.
+      - name: API errors
+        run: yarn test-api-errors
+
+      # react-native-web ships Alert.alert as an empty function, so a
+      # confirmation that works on a phone can do nothing whatsoever in a
+      # browser — silently, with the button looking perfectly fine. Added to
+      # `yarn check` first and not here, which would have made it a test that
+      # quietly stops being run.
+      - name: Confirm dialogs
+        run: yarn test-confirm
+
+      # Reports how much of the app speaks Luxembourgish. Never fails the
+      # build — a missing translation is work in progress, not a broken commit.
+      - name: Luxembourgish coverage
+        if: always()
+        run: yarn lb-coverage
+
   backend:
     name: Backend (lint + tests)
     runs-on: ubuntu-latest

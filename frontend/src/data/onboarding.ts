@@ -399,6 +399,16 @@ export const ONBOARDING_COPY = {
                     fr: "Modifiable à tout moment dans ton profil.",
                     lb: "Dat kanns du zu all Moment am Profil änneren." },
   skip:          { en: "Skip for now",          de: "Später einrichten",           fr: "Ignorer pour l'instant",     lb: "Méi spéit maachen" },
+
+  // Counters appended to a subtitle: "Wielt 3 oder méi. · 5 ausgewielt".
+  // These were written straight into the JSX in English, so a user who had
+  // just chosen Lëtzebuergesch met "5 selected" on the next screen.
+  selected:      { en: "selected",              de: "ausgewählt",                  fr: "sélectionnés",               lb: "ausgewielt" },
+  // The summary line on the final screen. Singular and plural are separate
+  // entries rather than an English-shaped "interest" + "s": the plural is not
+  // a suffix in German or Luxembourgish.
+  interestOne:   { en: "interest",              de: "Interesse",                   fr: "centre d'intérêt",           lb: "Interessi" },
+  interestMany:  { en: "interests",             de: "Interessen",                  fr: "centres d'intérêt",          lb: "Interessen" },
   skipWarnTitle: { en: "Show me everything?",   de: "Alles anzeigen?",             fr: "Tout afficher ?",            lb: "Alles weisen?" },
   skipWarnBody:  {
     en: "Without a profile we cannot personalise your feed. Suggested content may not match your interests.",

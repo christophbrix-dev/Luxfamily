@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 import re
 import time
@@ -33,7 +34,10 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import httpx
 import osmium
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import UpdateOne
+from pymongo.errors import BulkWriteError
 
+from db_config import mongo_settings
 from osm_taxonomy import (
     CATEGORIES,
     CATEGORY_ORDER,
@@ -48,7 +52,7 @@ GEOFABRIK_URL = "https://download.geofabrik.de/europe/luxembourg-latest.osm.pbf"
 PBF_CACHE = Path(os.environ.get("OSM_PBF_CACHE", "/tmp/luxembourg-latest.osm.pbf"))
 PBF_MAX_AGE_SECONDS = 24 * 3600  # refresh after 24 h
 
-USER_AGENT = "Wat-Elo-Ingest/1.0 (+https://waterelotool.lu)"
+from crawler_utils import USER_AGENT  # one identity for the whole project
 
 LU_BBOX = (49.44, 5.72, 50.19, 6.55)
 
@@ -122,15 +126,64 @@ def _compile_filter(filter_str: str) -> Callable[[Dict[str, Any]], bool]:
     return predicate
 
 
-def _compile_category(kind_key: str) -> Tuple[Callable[[Dict[str, Any]], bool], bool]:
+def _compile_category(kind_key: str) -> Tuple[Callable[[Dict[str, Any]], bool], bool, float]:
     cat = CATEGORIES[kind_key]
     preds = [_compile_filter(f) for f in cat["filters"]]
     relations_only = cat.get("relations_only", False)
+    # Categories that need a size: a lake worth driving to and a storm basin
+    # carry the same tags, and only the area tells them apart. These are read
+    # from osmium's assembled areas rather than from way()/relation(), because
+    # measuring one needs a closed polygon and a multipolygon relation has no
+    # geometry of its own.
+    min_area = float(cat.get("min_area_m2", 0) or 0)
 
     def match(tags: Dict[str, Any]) -> bool:
         return any(p(tags) for p in preds)
 
-    return match, relations_only
+    return match, relations_only, min_area
+
+
+Ring = List[Tuple[float, float]]
+
+
+def point_in_ring(lon: float, lat: float, ring: Ring) -> bool:
+    """Ray casting: does a horizontal ray from the point cross the ring oddly?
+
+    Standard even-odd test. A point exactly on an edge is undefined and may
+    fall either way — irrelevant for the two things this is used for, placing
+    a POI in its commune and a commune in its canton.
+    """
+    inside = False
+    n = len(ring)
+    for i in range(n):
+        x1, y1 = ring[i]
+        x2, y2 = ring[(i + 1) % n]
+        if (y1 > lat) != (y2 > lat):
+            x_at = x1 + (lat - y1) * (x2 - x1) / (y2 - y1)
+            if x_at > lon:
+                inside = not inside
+    return inside
+
+
+def polygon_area_m2(ring: List[Tuple[float, float]]) -> float:
+    """Area of a lon/lat ring in square metres.
+
+    The shoelace formula on coordinates projected to metres about the ring's
+    own latitude. Across a few kilometres of Luxembourg the error is far below
+    anything that changes a decision here — the threshold separates 0.4 ha from
+    30 ha, not 19,999 m² from 20,001.
+    """
+    if len(ring) < 3:
+        return 0.0
+    lat0 = sum(p[1] for p in ring) / len(ring)
+    k = math.cos(math.radians(lat0))
+    pts = [(lon * 111_320 * k, lat * 110_540) for lon, lat in ring]
+    total = 0.0
+    for i in range(len(pts)):
+        x1, y1 = pts[i]
+        x2, y2 = pts[(i + 1) % len(pts)]
+        total += x1 * y2 - x2 * y1
+    return abs(total) / 2
 
 
 # -------- Normalisation helpers ------------------------------------
@@ -206,6 +259,13 @@ class _POIHandler(osmium.SimpleHandler):
         self.matchers = matchers  # {kind_key: (predicate, relations_only)}
         self.records: List[Dict[str, Any]] = []
         self.raw_counts: Dict[str, int] = {k: 0 for k in matchers}
+        # Commune boundaries, collected in the same pass. 79% of the places
+        # here have no name in OSM and fall back to their category label, so a
+        # list reads "Spielplatz, Spielplatz, Spielplatz". The commune is what
+        # tells them apart, and almost none of them carry an address: of 3,689
+        # unnamed playgrounds, parks and picnic sites, exactly one has addr:*.
+        # The boundaries are in this file already.
+        self.communes: List[Tuple[str, Tuple[float, float, float, float], List[Ring]]] = []
 
     # -- helpers ------------------------------------------------------
     def _tags_to_dict(self, t) -> Dict[str, str]:
@@ -226,12 +286,51 @@ class _POIHandler(osmium.SimpleHandler):
             return None
         return sum(lats) / len(lats), sum(lons) / len(lons)
 
+    def _collect_commune(self, a, tags: Dict[str, str]) -> None:
+        """A Luxembourg commune boundary, kept with its bounding box.
+
+        ref:lau2 is what separates a Luxembourg commune from the German and
+        French ones the Geofabrik extract also carries.
+        """
+        if tags.get("boundary") != "administrative" or tags.get("admin_level") != "8":
+            return
+        if "ref:lau2" not in tags:
+            return
+        name = (tags.get("name") or "").strip()
+        if not name:
+            return
+        try:
+            rings = [[(n.lon, n.lat) for n in ring] for ring in a.outer_rings()]
+        except osmium.InvalidLocationError:
+            return
+        rings = [r for r in rings if len(r) >= 3]
+        if not rings:
+            return
+        pts = [p for r in rings for p in r]
+        box = (min(p[0] for p in pts), min(p[1] for p in pts),
+               max(p[0] for p in pts), max(p[1] for p in pts))
+        self.communes.append((name, box, rings))
+
+    def commune_at(self, lat: float, lon: float) -> str:
+        """Which commune contains this point, or "" if none does.
+
+        The bounding box is checked first. Without it this is 8,354 points
+        against 100 polygons of several thousand vertices each; with it almost
+        every pair is settled by four comparisons.
+        """
+        for name, (minx, miny, maxx, maxy), rings in self.communes:
+            if not (minx <= lon <= maxx and miny <= lat <= maxy):
+                continue
+            if any(point_in_ring(lon, lat, ring) for ring in rings):
+                return name
+        return ""
+
     # -- osmium callbacks --------------------------------------------
     def node(self, n):
         tags = self._tags_to_dict(n.tags)
         if not tags:
             return
-        for kind_key, (match, relations_only) in self.matchers.items():
+        for kind_key, (match, relations_only, min_area) in self.matchers.items():
             if relations_only:
                 continue
             if match(tags):
@@ -245,9 +344,9 @@ class _POIHandler(osmium.SimpleHandler):
         tags = self._tags_to_dict(w.tags)
         if not tags:
             return
-        for kind_key, (match, relations_only) in self.matchers.items():
-            if relations_only:
-                continue
+        for kind_key, (match, relations_only, min_area) in self.matchers.items():
+            if relations_only or min_area:
+                continue  # sized categories are handled in area()
             if match(tags):
                 self.raw_counts[kind_key] += 1
                 c = self._way_centroid(w)
@@ -256,13 +355,21 @@ class _POIHandler(osmium.SimpleHandler):
                 rec = self._normalise(kind_key, "way", w.id, tags, c[0], c[1])
                 if rec:
                     self.records.append(rec)
-                break  # avoid double-counting one way in multiple categories
+                    # Only a category that actually took it stops the search.
+                    # Breaking on a bare tag match discarded whatever the
+                    # category then declined: an unnamed `leisure=water_park`
+                    # was claimed by `swimming`, refused for having no name,
+                    # and never offered to `water_playground`, where it
+                    # belongs. Declining is not the same as deciding.
+                    break
 
     def relation(self, r):
         tags = self._tags_to_dict(r.tags)
         if not tags:
             return
-        for kind_key, (match, _relations_only) in self.matchers.items():
+        for kind_key, (match, _relations_only, min_area) in self.matchers.items():
+            if min_area:
+                continue  # handled in area(), which has the geometry
             if match(tags):
                 self.raw_counts[kind_key] += 1
                 # Coordinates for relations are hard w/o multipolygon build.
@@ -272,7 +379,47 @@ class _POIHandler(osmium.SimpleHandler):
                 rec = self._normalise(kind_key, "relation", r.id, tags, None, None)
                 if rec:
                     self.records.append(rec)
-                break
+                    break   # see the note in way(): declining is not deciding
+
+    def area(self, a):
+        """Categories that need a size, from osmium's assembled polygons.
+
+        Only these come through here, and way()/relation() skip them, so
+        nothing is counted twice. osmium hands closed ways and multipolygon
+        relations to the same callback — which is what makes this work at all:
+        the Lac d'Echternach is a relation and has no geometry of its own,
+        while the Lac de Weiswampach is a plain closed way.
+        """
+        tags = self._tags_to_dict(a.tags)
+        if not tags:
+            return
+        self._collect_commune(a, tags)
+        for kind_key, (match, _relations_only, min_area) in self.matchers.items():
+            if not min_area or not match(tags):
+                continue
+            try:
+                rings = [[(n.lon, n.lat) for n in ring] for ring in a.outer_rings()]
+            except osmium.InvalidLocationError:
+                return
+            rings = [r for r in rings if len(r) >= 3]
+            if not rings:
+                return
+
+            self.raw_counts[kind_key] += 1
+            if max(polygon_area_m2(r) for r in rings) < min_area:
+                return
+
+            pts = [p for r in rings for p in r]
+            lon = sum(p[0] for p in pts) / len(pts)
+            lat = sum(p[1] for p in pts) / len(pts)
+            # from_way tells the two apart: osmium reports an area id derived
+            # from the source object, and the same lake reached twice must land
+            # on one record rather than two.
+            osm_type = "way" if a.from_way() else "relation"
+            rec = self._normalise(kind_key, osm_type, a.orig_id(), tags, lat, lon)
+            if rec:
+                self.records.append(rec)
+            return
 
     # -- normalise ---------------------------------------------------
     def _normalise(self, kind_key: str, osm_type: str, osm_id: int,
@@ -280,7 +427,13 @@ class _POIHandler(osmium.SimpleHandler):
                    lon: Optional[float]) -> Optional[Dict[str, Any]]:
         cat = CATEGORIES[kind_key]
 
-        if tags.get("access") in {"private", "no", "customers"}:
+        # "customers" usually means a facility that belongs to a business and
+        # is not really open — a café's toilet, a hotel's garden. A category
+        # can opt out of that reading where it is wrong: a municipal pool that
+        # charges admission is also tagged `access=customers`, and paying at
+        # the gate is what a public pool is.
+        closed = {"private", "no"} if cat.get("allow_customers") else {"private", "no", "customers"}
+        if tags.get("access") in closed:
             return None
 
         # Require a real name for categories that opt in (e.g. swimming),
@@ -297,6 +450,7 @@ class _POIHandler(osmium.SimpleHandler):
                 return None
 
         name = pick_name(tags, cat["label_de"])
+        named = any(tags.get(k) for k in NAME_KEYS)
         score = compute_family_score(tags, cat["base_score"])
         a_min, a_max = age_range(tags, kind_key)
 
@@ -333,19 +487,28 @@ class _POIHandler(osmium.SimpleHandler):
             "phone": tags.get("phone") or tags.get("contact:phone") or "",
             "opening_hours": tags.get("opening_hours") or "",
             "wheelchair": tags.get("wheelchair") in {"yes", "designated"},
-            "toilets": tags.get("toilets") == "yes" or "amenity:toilets" in tags,
+            # Either the place has toilets, or the place is one.  The second
+            # test used to look for a key "amenity:toilets", which OSM has no
+            # such thing as, so only the first half ever worked.
+            "toilets": tags.get("toilets") == "yes" or tags.get("amenity") == "toilets",
             "drinking_water": tags.get("drinking_water") == "yes",
             "shade": tags.get("shade") in {"yes", "partial"},
             "fee": tags.get("fee"),
             "wikidata": tags.get("wikidata") or "",
+            # Filled in after the pass, once every boundary has been seen.
+            "commune": "",
+            "named": named,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
 
 
 # -------- Mongo upsert ---------------------------------------------
 async def _get_db():
-    mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-    db_name = os.environ.get("DB_NAME", "familyluxembourg")
+    # One place decides this, and it refuses rather than guessing: the old
+    # fallback was "familyluxembourg", so running this from a shell without
+    # DB_NAME wrote 7,856 places into a database nothing serves and reported
+    # success.
+    mongo_url, db_name = mongo_settings()
     client = AsyncIOMotorClient(mongo_url)
     return client[db_name], client
 
@@ -358,23 +521,56 @@ async def ensure_indexes(db):
     await db.places.create_index("family_score")
 
 
+BULK_CHUNK = 500
+
+
 async def upsert_places(db, records: List[Dict[str, Any]]) -> Tuple[int, int]:
+    """Write a batch of places, in chunks rather than one round trip each.
+
+    The ingest produces around 8,000 records. Sent individually that is 8,000
+    sequential round trips to MongoDB, each waiting for the last — the same
+    N+1 shape the event importers had. bulk_write sends a chunk in one go.
+
+    `ordered=False` lets the server continue past a rejected document instead
+    of abandoning the rest of the chunk, which matters because one malformed
+    record should not cost the other 499. Failures are counted and logged, not
+    raised: a partial import is worth keeping.
+
+    Chunked rather than one enormous batch because MongoDB caps a command at
+    16 MB, and a whole ingest of tag-laden documents can exceed that.
+    """
     upserted = 0
     skipped = 0
-    for rec in records:
-        try:
-            res = await db.places.update_one(
+
+    for start in range(0, len(records), BULK_CHUNK):
+        chunk = records[start:start + BULK_CHUNK]
+        ops = [
+            UpdateOne(
                 {"id": rec["id"]},
                 {"$set": rec, "$setOnInsert": {"created_at": rec["updated_at"]}},
                 upsert=True,
             )
-            if res.upserted_id is not None or res.modified_count:
-                upserted += 1
-            else:
-                skipped += 1
+            for rec in chunk
+        ]
+        try:
+            res = await db.places.bulk_write(ops, ordered=False)
+            # A record already stored unchanged is neither upserted nor
+            # modified — it counts as skipped, as it did before.
+            written = len(res.upserted_ids) + res.modified_count
+            upserted += written
+            skipped += len(chunk) - written
+        except BulkWriteError as bwe:
+            # Everything the server did accept still counted.
+            details = bwe.details or {}
+            written = len(details.get("upserted", [])) + details.get("nModified", 0)
+            upserted += written
+            skipped += len(chunk) - written
+            for err in details.get("writeErrors", [])[:5]:
+                logger.error("upsert rejected: %s", err.get("errmsg", err))
         except Exception as e:
-            logger.error("upsert failed for %s: %s", rec.get("id"), e)
-            skipped += 1
+            logger.error("bulk upsert failed for %d records: %s", len(chunk), e)
+            skipped += len(chunk)
+
     return upserted, skipped
 
 
@@ -384,7 +580,37 @@ def _parse_pbf(kinds: List[str]) -> Tuple[Dict[str, int], List[Dict[str, Any]]]:
     matchers = {k: _compile_category(k) for k in kinds}
     handler = _POIHandler(matchers)
     handler.apply_file(str(PBF_CACHE), locations=True, idx="flex_mem")
+    _assign_communes(handler)
     return handler.raw_counts, handler.records
+
+
+def _assign_communes(handler: "_POIHandler") -> None:
+    """Give every record its commune, and a name that tells it from the rest.
+
+    Four in five places here have no name in OSM, so pick_name falls back to
+    the category label and a list reads "Spielplatz" forty times over. They
+    are all real playgrounds; what is missing is which one. Appending the
+    commune is enough to tell them apart, and it is the answer a family wants
+    anyway — "Spillplaz, Beetebuerg" rather than a marker on a map.
+
+    Records that do have a name keep it untouched. "Parc Merveilleux" does not
+    become "Parc Merveilleux, Beetebuerg".
+    """
+    if not handler.communes:
+        logger.warning("no commune boundaries in the extract — names left as they are")
+        return
+    placed = 0
+    for rec in handler.records:
+        if rec["lat"] is None or rec["lng"] is None:
+            continue
+        commune = handler.commune_at(rec["lat"], rec["lng"])
+        if not commune:
+            continue
+        rec["commune"] = commune
+        placed += 1
+        if not rec.get("named"):
+            rec["name"] = f"{rec['name']}, {commune}"
+    logger.info("  placed %d/%d records in a commune", placed, len(handler.records))
 
 
 async def ingest_category(kind_key: str, db=None, dry_run: bool = False) -> Dict[str, Any]:

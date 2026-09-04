@@ -17,10 +17,12 @@ sensible defaults; rows are deduplicated via (source_id, external_id).
 """
 
 import asyncio
+import html as html_lib
 import json
 import logging
 import os
 import re
+import time
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -30,7 +32,12 @@ from bs4 import BeautifulSoup
 from dateutil import parser as dateutil_parser
 from icalendar import Calendar
 
-from crawler_utils import RobotsBlocked, polite_get
+import content_filter
+from categorise import categorise
+from age_hints import read_age
+from price_hints import read_price
+from town_names import canonical_town
+from crawler_utils import RobotsBlocked, describe_exception, polite_get
 
 logger = logging.getLogger("lux-backend.importers")
 
@@ -38,6 +45,131 @@ logger = logging.getLogger("lux-backend.importers")
 # before we give up on it and move on to the next.
 MAX_CONCURRENT_SOURCES = 4
 SOURCE_TIMEOUT_SECONDS = 180
+
+# When a page-by-page importer should stop asking for more and return what it
+# has. The watchdog above cancels a source outright: everything already written
+# survives, but the source record is stamped "error, imported 0", which is
+# false, and the run is never marked done, so it starts from the front again
+# next time.
+#
+# Rockhal made that concrete. Its budget is 200 pages, the site asks for a 2s
+# Crawl-delay, so a full pass needs about 400s against a 180s watchdog — it
+# could not finish, by arithmetic, on every single run. Stopping voluntarily
+# with 20s to spare turns that into a short pass that reports honestly. The
+# candidates are sorted newest-first, so what gets dropped is the oldest end of
+# the list, and the next run picks up whatever changed since.
+SOURCE_FETCH_BUDGET_SECONDS = SOURCE_TIMEOUT_SECONDS - 20
+
+# How long the two thread-based crawlers wait for MongoDB before giving up.
+SYNC_DB_TIMEOUT_MS = 5000
+
+
+# Named here so a test can hand these two functions a clock without patching
+# `time.monotonic` itself. That patch reaches the asyncio event loop, which
+# reads the same clock to decide when its own callbacks are due — a test that
+# freezes it hangs the loop rather than the crawler.
+_monotonic = time.monotonic
+
+
+def _fetch_deadline() -> float:
+    """Monotonic time at which an importer should stop asking for more pages.
+
+    For the two custom crawlers this is not a nicety but the only thing that
+    actually stops them. They are sync code in a worker thread, and cancelling
+    an `asyncio.to_thread` future does not stop the thread — the watchdog marks
+    the source failed while the crawl carries on in the background, writing to
+    the database through its own pymongo client.
+    """
+    return _monotonic() + SOURCE_FETCH_BUDGET_SECONDS
+
+
+def _out_of_time(deadline: float, name: str, done: int) -> bool:
+    if _monotonic() <= deadline:
+        return False
+    logger.info(
+        "%s: stopped after %d page(s), %ds budget spent",
+        name, done, SOURCE_FETCH_BUDGET_SECONDS,
+    )
+    return True
+
+
+def _index_for_source(source: Dict[str, Any], index_urls: list) -> tuple:
+    """The one index page this source stands for.
+
+    Every kids-in-lux source used to walk *all three* index pages, because the
+    importer read the module's list and ignored the `url` on the source record
+    entirely. Three sources, one identical crawl each, on a site that asks for
+    five seconds between requests — 252 fetches a run where 84 would do. The
+    three then fought over the same events, each stamping its own `source_id`
+    on whatever it upserted last; the 81 : 1 : 0 split measured across them was
+    that fight, not three differently sized listings.
+
+    Matching is by exact URL first, then by prefix: one source points at
+    `/spielplätze/highlight-spielplätze/`, a page below the index rather than
+    the index itself, and the sensible reading of that is the playground index.
+    A source matching nothing raises, with both lists in the message — quietly
+    crawling everything is how this started.
+    """
+    url = (source.get("url") or "").rstrip("/")
+    for entry in index_urls:
+        if entry[0].rstrip("/") == url:
+            return entry
+    for entry in index_urls:
+        if url.startswith(entry[0].rstrip("/") + "/"):
+            return entry
+    raise RuntimeError(
+        f"source url {source.get('url')!r} matches no known index page: "
+        + ", ".join(e[0] for e in index_urls)
+    )
+
+
+def _rotate_to_cursor(sdb, source: Dict[str, Any], items: list) -> tuple[list, int]:
+    """Start where the last run stopped, so the back of the list is reachable.
+
+    The fetch budget cuts a long list short, and the list arrives in the same
+    order every time. So the first N pages were crawled three times a day
+    forever and pages N+1 onwards were never crawled at all — the run reported
+    "42 listed, 15 visited, 15 refreshed, 0 unreadable", which reads as perfect
+    health and was a crawler walking in a circle.
+
+    Rotating by a stored offset turns the same budget into full coverage: 42
+    pages, 15 a run, three runs a day is everything inside a day. The offset is
+    kept on the source record, so a restart resumes rather than starting over.
+    """
+    if not items:
+        return items, 0
+    cursor = int(source.get("crawl_cursor") or 0) % len(items)
+    return items[cursor:] + items[:cursor], cursor
+
+
+def _save_cursor(sdb, source: Dict[str, Any], started_at: int,
+                 visited: int, listed: int) -> None:
+    """Move the cursor on by what this run actually managed."""
+    if not listed:
+        return
+    try:
+        sdb.sources.update_one(
+            {"id": source["id"]},
+            {"$set": {"crawl_cursor": (started_at + visited) % listed}},
+        )
+    except Exception as exc:      # a lost cursor is not worth failing a run
+        logger.info("could not store crawl cursor for %s: %s",
+                    source.get("name", "?"), exc)
+
+
+def _log_breakdown(source: Dict[str, Any], listed: int, visited: int,
+                   inserted: int, updated: int, failed: int, blocked: int) -> None:
+    """What a custom crawler actually did, in one line.
+
+    `run_source` keeps three numbers, and `updated` and `failed` have to share
+    the middle one. They mean opposite things — a refresh of a venue we already
+    have, versus a page that could not be read — and a source reporting 37 seen
+    and 6 stored is healthy in one reading and broken in the other.
+    """
+    logger.info(
+        "%s: %d listed, %d visited → %d new, %d refreshed, %d unreadable, %d refused",
+        source.get("name", "?"), listed, visited, inserted, updated, failed, blocked,
+    )
 
 
 def _now_iso() -> str:
@@ -48,33 +180,164 @@ def _default_localized(value: str) -> Dict[str, str]:
     return {"en": value, "de": value, "fr": value}
 
 
+# How far from today a date may sit and still be a date somebody meant. A
+# village fête is announced a year ahead, a theatre season maybe two; nothing
+# real is announced in the year 2926. One event arrived with exactly that —
+# "Kreative Schreifatelier", start_date 2926-09-26, a single mistyped digit at
+# the source — and every check downstream waved it through, because it is a
+# perfectly well-formed date. It then sat at the far end of every list sorted
+# by date, forever.
+#
+# Deliberately generous: this is a typo filter, not an editorial policy. Which
+# events are too far out to show is a decision for the importer that knows the
+# feed (the ICS one keeps a 365-day horizon); this only refuses dates that
+# nobody could have meant.
+YEARS_BACK = 1
+YEARS_AHEAD = 5
+
+
+class _LuxParserInfo(dateutil_parser.parserinfo):
+    """Month names in the four languages Luxembourg writes dates in.
+
+    dateutil ships English only, and its `fuzzy` mode does not complain about
+    words it cannot place — it simply drops them. "24. Juni 2026" therefore
+    parsed as day 24, year 2026, and *this month*, silently, for as long as
+    this importer has existed. The docstring above has been claiming German
+    support the whole time.
+
+    Adding the names is the difference between reading a date and guessing one.
+    """
+
+    MONTHS = [
+        ("Jan", "January", "Januar", "janvier", "Januar"),
+        ("Feb", "February", "Februar", "février", "fevrier", "Februar"),
+        ("Mar", "March", "März", "Maerz", "Marz", "mars", "Mäerz", "Maerz"),
+        ("Apr", "April", "avril", "Abrëll", "Abrell"),
+        ("May", "Mai", "mai", "Mee"),
+        ("Jun", "June", "Juni", "juin"),
+        ("Jul", "July", "Juli", "juillet"),
+        ("Aug", "August", "août", "aout"),
+        ("Sep", "Sept", "September", "septembre"),
+        ("Oct", "October", "Oktober", "octobre", "Okt"),
+        ("Nov", "November", "novembre"),
+        ("Dec", "December", "Dezember", "décembre", "decembre", "Dez"),
+    ]
+
+
+# One instance, because building it parses the whole table.
+_LUX_PARSER = _LuxParserInfo(dayfirst=True)
+
+# Two dates far apart and sharing no field. dateutil fills whatever the text
+# does not say from a default, so parsing twice and comparing tells the two
+# apart exactly.
+_PROBE_A = datetime(1970, 1, 1)
+_PROBE_B = datetime(1971, 2, 2)
+
+
+def _parse_if_it_really_says_a_date(text: str) -> Optional[date]:
+    """The date `text` states, or None when it states only a time.
+
+    `dateutil.parse("13:15")` returns *today* at 13:15 — it fills the missing
+    half from a default without saying so. Every check downstream then sees a
+    well-formed date beginning with "20" and waves it through.
+
+    That is how the Philharmonie's events came to sit on the day they were
+    crawled. Their pages carry `<time>` tags in this order:
+
+        ['13:15', '24/10/2026', '10/24/2026 12:00:00 AM', ...]
+
+    The first one is the start time. We took it, dateutil quietly added
+    today's date, and a concert in October was filed under an August morning —
+    three times over, in the app, on the wrong day. The right date was sitting
+    in the very next tag.
+
+    Parsing twice with defaults that share no field settles it: what the text
+    actually contains comes out the same both times, and what came from the
+    default differs.
+    """
+    try:
+        first = dateutil_parser.parse(
+            text, dayfirst=True, fuzzy=True, default=_PROBE_A, parserinfo=_LUX_PARSER)
+        second = dateutil_parser.parse(
+            text, dayfirst=True, fuzzy=True, default=_PROBE_B, parserinfo=_LUX_PARSER)
+    except (ValueError, TypeError, dateutil_parser.ParserError, OverflowError):
+        return None
+    return first.date() if first.date() == second.date() else None
+
+
+# A date at the very end of a title, after a separator, optionally followed by
+# a time. Venues name their event pages this way:
+#
+#     "Le coin des mini monstres | 24.10.2026 13:15"
+#     "Lunchtime at Mudam – 4 Sept 2026"
+#
+# The separator and the end of the string both matter. Parc Merveilleux writes
+# "…Sommersaison (21/03/2026 – 15/10/2026)", where a date that looks the same
+# opens a season range rather than naming a day; taking it would move the event
+# to the first day of summer. Requiring the date to be the last thing in the
+# title excludes that without having to understand it.
+_TITLE_TRAILING_DATE = re.compile(
+    r"[|\u2013\u2014-]\s*"
+    r"(\d{1,2}[./-]\d{1,2}[./-]\d{4}|\d{1,2}\.?\s+[A-Za-z\u00C0-\u00FF]{3,12}\.?\s+\d{4})"
+    r"(?:\s+\d{1,2}[:.]\d{2})?\s*$"
+)
+
+
+def date_from_title(title: Optional[str]) -> Optional[str]:
+    """The date a title names at its end, or None.
+
+    More trustworthy than the first `<time>` tag on a page: a venue that puts
+    the date in the page title means that date, whereas the first time tag was
+    "13:15" and cost us a whole October programme filed under an August
+    morning.
+    """
+    if not title:
+        return None
+    match = _TITLE_TRAILING_DATE.search(title.strip())
+    return _to_iso_date(match.group(1)) if match else None
+
+
+def _plausible_year(iso: str) -> bool:
+    this_year = datetime.now(timezone.utc).year
+    return this_year - YEARS_BACK <= int(iso[:4]) <= this_year + YEARS_AHEAD
+
+
 def _to_iso_date(value: Any) -> Optional[str]:
     """Coerce various date formats to a YYYY-MM-DD string. Understands ISO,
     German (24. Juni 2026 / 24.06.2026), French (24 juin 2026 / 24/06/2026),
-    plain timestamps and `datetime` objects."""
+    plain timestamps and `datetime` objects.
+
+    Returns None for a date whose year is implausible — see YEARS_AHEAD. The
+    caller counts that as a skip, so a source full of unreadable dates still
+    reports as "seen something" rather than looking like a dead website.
+    """
     if value is None:
         return None
     if isinstance(value, datetime):
-        return value.date().isoformat()
-    if isinstance(value, date):
-        return value.isoformat()
-    if not isinstance(value, str):
+        iso = value.date().isoformat()
+    elif isinstance(value, date):
+        iso = value.isoformat()
+    elif not isinstance(value, str):
         return None
-    s = value.strip()
-    if not s:
+    else:
+        s = value.strip()
+        if not s:
+            return None
+        try:
+            # Fast path: already ISO.
+            iso = datetime.fromisoformat(s.replace("Z", "+00:00")).date().isoformat()
+        except ValueError:
+            # dateutil handles FR/DE month names and slash/dot separators.
+            # dayfirst=True so 06/07/2026 is 6 July (LU/FR/DE convention).
+            parsed = _parse_if_it_really_says_a_date(s)
+            if parsed is None:
+                return None
+            iso = parsed.isoformat()
+
+    if not _plausible_year(iso):
+        logger.info("Ignoring implausible date %s (from %r)", iso, value)
         return None
-    # Fast path: already ISO.
-    try:
-        return datetime.fromisoformat(s.replace("Z", "+00:00")).date().isoformat()
-    except ValueError:
-        pass
-    # dateutil handles FR/DE month names and slash/dot separators.
-    try:
-        # dayfirst=True so 06/07/2026 is 6 July (LU/FR/DE convention).
-        parsed = dateutil_parser.parse(s, dayfirst=True, fuzzy=True)
-        return parsed.date().isoformat()
-    except (ValueError, dateutil_parser.ParserError, OverflowError):
-        return None
+    return iso
 
 
 def _extract_time_range(value: str) -> str:
@@ -86,6 +349,120 @@ def _extract_time_range(value: str) -> str:
         return ""
     times = [f"{int(h):02d}:{m}" for h, m in hits[:2]]
     return " - ".join(times) if len(times) == 2 else times[0]
+
+
+# WordPress page builders leave their layout markup in the fields a feed
+# exposes, so a description arrives as 700 characters of
+# `[et_pb_section fb_built="1" _builder_version="4.24.2" …]` wrapped around two
+# sentences of actual text. 51 of 354 events in the live database read that way
+# — every one of them from a commune running Divi.
+#
+# Only the known builder prefixes are removed, not every bracketed word:
+# "[Sold out]" and "[FR]" are things a human wrote and has to survive.
+_PAGE_BUILDER = re.compile(
+    r"\[/?(?:et_pb_|vc_|fusion_|av_|dt_|mk_)[a-z0-9_]*(?:\s[^\]]*)?\]"
+    r"|\[/?(?:caption|gallery|embed|audio|video|playlist|vc_row|vc_column)"
+    r"(?:\s[^\]]*)?\]",
+    re.I,
+)
+
+
+# Text arrives padded. One commune's JSON-LD gives a description as
+# "      \xa0    Orchestre des Jeunes de l'Est    Bech-Berbuerger Musek" —
+# leading spaces, a non-breaking space, and runs of them between the words.
+# Across the live database that is 294 fields with space runs, 219 with edge
+# whitespace and 78 carrying \xa0. All of it is what a reader sees.
+#
+# Only whitespace is touched. Line structure is collapsed too, because these
+# fields are rendered as a single paragraph and a stray newline shows up as a
+# gap rather than as the layout the source intended.
+_WHITESPACE = re.compile(r"[\s\u00a0\u200b\ufeff]+")
+
+
+def _normalise_text(text: str) -> str:
+    """Collapse padding to single spaces and trim the ends."""
+    if not text:
+        return text
+    return _WHITESPACE.sub(" ", text).strip()
+
+
+def _strip_page_builder(text: str) -> str:
+    """Remove page-builder shortcodes, keeping the text they wrapped."""
+    if not text or "[" not in text:
+        return text
+    return re.sub(r"\s{2,}", " ", _PAGE_BUILDER.sub(" ", text)).strip()
+
+
+# Where a sitemap lives when it is not at /sitemap.xml. Yoast SEO — which most
+# Luxembourg commune sites run — publishes /sitemap_index.xml, and WordPress
+# 5.5 and later serves /wp-sitemap.xml.
+SITEMAP_FALLBACKS = ("/sitemap_index.xml", "/wp-sitemap.xml", "/sitemap.xml")
+
+
+def _sitemaps_from_robots(robots_txt: str) -> List[str]:
+    """The Sitemap: lines of a robots.txt, in the order they appear."""
+    found = []
+    for line in robots_txt.splitlines():
+        if line.lower().lstrip().startswith("sitemap:"):
+            value = line.split(":", 1)[1].strip()
+            if value:
+                found.append(value)
+    return found
+
+
+async def _find_sitemap(source_url: str, origin: str) -> Tuple[str, str]:
+    """(url, xml) of the first sitemap that answers. Raises when none does.
+
+    A configured URL is tried first and usually wins. It is not trusted to be
+    right, though, and that is the point of this function: every one of these
+    sources was seeded with `<domain>/sitemap.xml` appended, so the configured
+    URL always ended in .xml, which satisfied the old "is it already a sitemap"
+    check — and skipped the robots.txt lookup underneath it. The discovery code
+    existed and was unreachable for exactly the sources that needed it. 22 of
+    45 inactive sources failed with 404, and robots.txt named the real address
+    on several of them.
+
+    robots.txt comes next because a site declaring its own sitemap there is
+    telling us the answer, and we already fetch that file for politeness. The
+    guessed paths come last.
+    """
+    tried: List[str] = []
+    errors: List[str] = []
+
+    async def attempt(url: str):
+        """The sitemap at `url`, or None. Never asks the same host twice."""
+        if not url or url in tried:
+            return None
+        tried.append(url)
+        try:
+            return await _fetch_text(url)
+        except Exception as exc:
+            errors.append(f"{url} ({type(exc).__name__})")
+            return None
+
+    # The configured URL first, and nothing else when it works. Building the
+    # whole candidate list up front would fetch robots.txt from every site on
+    # every run, including the ones already pointing at the right file — an
+    # extra request per source, and under a crawl delay an extra wait too.
+    if source_url.endswith(".xml"):
+        xml = await attempt(source_url)
+        if xml is not None:
+            return source_url, xml
+
+    try:
+        declared = _sitemaps_from_robots(await _fetch_text(origin + "/robots.txt"))
+    except Exception:
+        # No robots.txt, or the host is unreachable. polite_get already refuses
+        # the host in the second case, so the guesses below fail too and the
+        # error the caller sees will say so.
+        declared = []
+
+    for url in [*declared, *(origin + path for path in SITEMAP_FALLBACKS)]:
+        xml = await attempt(url)
+        if xml is not None:
+            return url, xml
+
+    raise RuntimeError("No sitemap found. Tried: " + "; ".join(errors))
 
 
 def _build_event_doc(
@@ -101,7 +478,40 @@ def _build_event_doc(
     lat: float,
     lng: float,
     image: str = "",
-) -> Dict[str, Any]:
+) -> Optional[Dict[str, Any]]:
+    """Build the stored event, or None when it does not belong in a family app.
+
+    The check sits here because this is the one place all five feed importers
+    pass through, so nothing explicit can reach the database by way of an
+    importer that forgot to ask. Refusal happens before the document exists:
+    Christoph asked that this content never be "eingespielt", and the cheapest
+    way to keep that promise is to never write it down.
+
+    What is refused is only NSFW material — see content_filter for why an
+    over-18 marker is deliberately not enough. Bars, wine tastings and the
+    Schueberfouer stay.
+    """
+    # Clean before filtering and before storing: markup must not hide a word
+    # the filter looks for, and it must never reach a reader either. Some of
+    # these descriptions are markup end to end, and an empty description is
+    # more honest than a wall of shortcodes — the title carries the meaning.
+    title = _normalise_text(title)
+    description = _normalise_text(_strip_page_builder(description)) or title
+
+    verdict = content_filter.assess(title, description)
+    if verdict:
+        reason, matched = verdict
+        # The matched term and the id, not the text: enough to audit the rule
+        # and find the page again, without copying the content into the log.
+        logger.warning(
+            "Refused %s event from %s (%r matched %s)",
+            reason, source.get("name", "?"), matched, external_id[:120],
+        )
+        return None
+
+    age = read_age(title, description)
+    price = read_price(title, description)
+
     now = _now_iso()
     return {
         "id": str(uuid.uuid4()),
@@ -110,21 +520,63 @@ def _build_event_doc(
         "description": _default_localized(description),
         "type": "Event",
         "canton": source.get("canton_default") or "Luxembourg",
-        "town": town or source.get("town_default") or "Luxembourg",
-        "category": source.get("category_default") or ["Culture"],
-        "age_min": source.get("age_min_default", 0),
-        "age_max": source.get("age_max_default", 99),
+        # The canton is passed because some short forms name two communes:
+        # "Esch" is Esch-sur-Alzette or Esch-sur-Sûre, and only the canton
+        # says which. Without it the name is left as written rather than
+        # guessed at.
+        "town": canonical_town(
+            town or source.get("town_default") or "Luxembourg",
+            source.get("canton_default"),
+        ),
+        # The source default is a starting point, not an answer: 52 commune
+        # feeds all say "Culture, Festivals", which made "Festivals" match
+        # nearly every event and the filter useless. An event's own text
+        # overrides it where it says something.
+        "category": categorise(
+            title, description, default=source.get("category_default") or ["Culture"]
+        ),
+        # Age and price were constants: every event claimed 0–99 and 0.00 €.
+        # Neither is an absence — in a family app "0–99" reads as "newborns
+        # welcome", and a zero in a price field reads as "free". A Trivium
+        # concert carried both. Only 14 of 528 events state an age and 44 a
+        # price, so most of these stay unknown, which is the whole point:
+        # the app can say so instead of implying something it was never told.
+# A stated age is often one-sided — "bis 12 Joer" gives a maximum and
+        # no minimum. `read_age` reports that faithfully as None, and storing
+        # the None was enough to make the list endpoint answer 500 for every
+        # event at once. The open end is 0 or 99, not a hole.
+        "age_min": (age.minimum if age.minimum is not None else 0)
+        if age.source == "event" else source.get("age_min_default", 0),
+        "age_max": (age.maximum if age.maximum is not None else 99)
+        if age.source == "event" else source.get("age_max_default", 99),
+        "age_source": age.source if age.source == "event" else (
+            "source" if source.get("age_min_default") or source.get("age_max_default")
+            else "unknown"
+        ),
         "start_date": start_date,
         "end_date": end_date,
         "time": time_str,
-        "price_adult": 0.0,
-        "price_child": 0.0,
-        "price_label": _default_localized("See details"),
+        "price_adult": price.adult,
+        "price_child": price.adult if price.is_free else None,
+        "price_free": price.is_free,
+        "price_source": price.source,
+        "price_label": _default_localized(
+            "Free entry" if price.is_free
+            else f"{price.adult:.2f} €" if price.adult is not None
+            else "Price not stated"
+        ),
         "accessibility": _default_localized("See venue"),
         "weather_fit": _default_localized("Any weather"),
         "image": image,
         "lat": lat,
         "lng": lng,
+        # Where this coordinate came from. Every importer falls back to the
+        # source's lat_default, which is a commune centroid or a venue's front
+        # door — never the event's own address. Saying so lets geocode_events
+        # find these again; inferring it from a missing field is how they were
+        # missed, since lat is always set to something.
+        "geocode_precision": "source_default",
+        "geocode_source": "source",
         "bookable": False,
         "published": True,   # crawler results auto-publish per user request
         "rating": 4.5,
@@ -175,6 +627,7 @@ async def _import_ical(source: Dict[str, Any], db) -> Tuple[int, int]:
     known_ids = await _known_external_ids(source, db)
     inserted = 0
     skipped = 0
+    blocked = 0   # refused by content_filter, never stored
     today = datetime.now(timezone.utc).date()
     horizon = today + timedelta(days=365)
 
@@ -229,16 +682,19 @@ async def _import_ical(source: Dict[str, Any], db) -> Tuple[int, int]:
             start_date=start_iso,
             end_date=end_iso,
             time_str=time_str,
-            town=location or source.get("town_default") or "Luxembourg",
+            town=canonical_town(location or source.get("town_default") or "Luxembourg"),
             lat=lat,
             lng=lng,
             image=source.get("image_default", ""),
         )
+        if doc is None:
+            blocked += 1
+            continue
         await db.events.insert_one(doc)
         known_ids.add(doc["external_id"])
         inserted += 1
 
-    return inserted, skipped
+    return inserted, skipped, blocked
 
 
 # ---------------------------------------------------------------------------
@@ -265,6 +721,7 @@ async def _import_data_public_lu(source: Dict[str, Any], db) -> Tuple[int, int]:
     known_ids = await _known_external_ids(source, db)
     inserted = 0
     skipped = 0
+    blocked = 0   # refused by content_filter, never stored
     today = datetime.now(timezone.utc).date()
 
     for row in rows:
@@ -310,16 +767,19 @@ async def _import_data_public_lu(source: Dict[str, Any], db) -> Tuple[int, int]:
             start_date=start_iso,
             end_date=end_iso,
             time_str=str(time_str),
-            town=str(town),
+            town=canonical_town(str(town)),
             lat=lat,
             lng=lng,
             image=str(image) if image else "",
         )
+        if doc is None:
+            blocked += 1
+            continue
         await db.events.insert_one(doc)
         known_ids.add(doc["external_id"])
         inserted += 1
 
-    return inserted, skipped
+    return inserted, skipped, blocked
 
 
 # ---------------------------------------------------------------------------
@@ -360,6 +820,23 @@ def _abs_url(base: str, href: str) -> str:
     return href
 
 
+def _clean_location(text: str) -> str:
+    """The venue out of a labelled field.
+
+    Sites label these in the markup rather than around it: vdl.lu writes
+    "Lieu | Théâtre des Capucins" inside one element. Stored whole, the label
+    travels with the value into the town field and into the geocoder, which
+    then has to make sense of the word "Lieu".
+
+    Only a labelled separator is trimmed. A venue that legitimately contains a
+    dash or a comma keeps it.
+    """
+    value = (text or "").strip()
+    if "|" in value:
+        value = value.rsplit("|", 1)[-1].strip()
+    return value
+
+
 async def _import_html_scraper(source: Dict[str, Any], db) -> Tuple[int, int]:
     """Generic HTML scraper. Source.selectors must be a dict, e.g.:
 
@@ -392,6 +869,7 @@ async def _import_html_scraper(source: Dict[str, Any], db) -> Tuple[int, int]:
     known_ids = await _known_external_ids(source, db)
     inserted = 0
     skipped = 0
+    blocked = 0   # refused by content_filter, never stored
     today = datetime.now(timezone.utc).date()
 
     for el in items:
@@ -417,7 +895,8 @@ async def _import_html_scraper(source: Dict[str, Any], db) -> Tuple[int, int]:
             continue
 
         description = _pick(el, selectors.get("description")) or title
-        town = _pick(el, selectors.get("location")) or source.get("town_default", "Luxembourg")
+        town = _clean_location(_pick(el, selectors.get("location"))) \
+            or source.get("town_default", "Luxembourg")
         image_src = _pick(el, selectors.get("image"), attr="src")
         link = _pick(el, selectors.get("link"), attr="href")
         image = _abs_url(source["url"], image_src) if image_src else source.get("image_default", "")
@@ -435,16 +914,19 @@ async def _import_html_scraper(source: Dict[str, Any], db) -> Tuple[int, int]:
             start_date=start_iso,
             end_date=None,
             time_str="",
-            town=town,
+            town=canonical_town(town),
             lat=float(source.get("lat_default", 49.6116)),
             lng=float(source.get("lng_default", 6.1319)),
             image=image,
         )
+        if doc is None:
+            blocked += 1
+            continue
         await db.events.insert_one(doc)
         known_ids.add(doc["external_id"])
         inserted += 1
 
-    return inserted, skipped
+    return inserted, skipped, blocked
 
 
 IMPORTERS["html_scraper"] = _import_html_scraper
@@ -481,9 +963,29 @@ async def _import_json_ld(source: Dict[str, Any], db) -> Tuple[int, int]:
             except Exception as exc:
                 logger.warning("Sub-page %s failed: %s", link, exc)
 
+    if not events:
+        # The listing holds nothing and links to nothing we can follow, which
+        # is what a page that builds its list in the browser looks like from
+        # here: echternach.lu loads its events through admin-ajax, so the HTML
+        # arrives with a heading and no events at all. Switched on for the
+        # first time, it came back "no_events".
+        #
+        # Its sitemap does list them and the individual pages do carry
+        # JSON-LD — that is how the site cleared discovery. So walk it.
+        #
+        # Decided here rather than when the source is registered, because
+        # registration cannot tell: whether a listing works is a property of
+        # the page, and reading it is the only way to know. Guessing from the
+        # discovered URL sent Mamer down this path too, and Mamer's listing
+        # works perfectly well.
+        logger.info("%s: listing carried no events, trying its sitemap",
+                    source.get("name"))
+        return await _import_sitemap(source, db)
+
     known_ids = await _known_external_ids(source, db)
     inserted = 0
     skipped = 0
+    blocked = 0   # refused by content_filter, never stored
     today = datetime.now(timezone.utc).date()
 
     for ev in events:
@@ -560,16 +1062,40 @@ async def _import_json_ld(source: Dict[str, Any], db) -> Tuple[int, int]:
             start_date=start_iso,
             end_date=end_iso,
             time_str=time_str,
-            town=str(town),
+            town=canonical_town(str(town)),
             lat=lat,
             lng=lng,
             image=image,
         )
+        if doc is None:
+            blocked += 1
+            continue
         await db.events.insert_one(doc)
         known_ids.add(doc["external_id"])
         inserted += 1
 
-    return inserted, skipped
+    return inserted, skipped, blocked
+
+
+def _unescape_deep(node: Any) -> Any:
+    """Decode HTML entities in every string of a parsed JSON-LD node.
+
+    WordPress — which is what the Luxembourg commune sites run — leaves the
+    entities in place inside its JSON-LD, so a title arrives as
+    "Fit &#038; Fun &#8211; Zumba". JSON parsing does not touch those: they are
+    HTML escapes, not JSON ones. Left alone they reach the database and the
+    card in that state.
+
+    The scraped importers never needed this because BeautifulSoup decodes text
+    on the way out. Only the JSON-LD path hands us raw markup entities.
+    """
+    if isinstance(node, str):
+        return html_lib.unescape(node)
+    if isinstance(node, list):
+        return [_unescape_deep(v) for v in node]
+    if isinstance(node, dict):
+        return {k: _unescape_deep(v) for k, v in node.items()}
+    return node
 
 
 def _extract_jsonld_events(html: str, *, base_url: str) -> List[Dict[str, Any]]:
@@ -585,7 +1111,7 @@ def _extract_jsonld_events(html: str, *, base_url: str) -> List[Dict[str, Any]]:
         except (json.JSONDecodeError, ValueError):
             continue
         _collect_events(data, out)
-    return out
+    return [_unescape_deep(ev) for ev in out]
 
 
 def _collect_events(node: Any, out: List[Dict[str, Any]]) -> None:
@@ -604,9 +1130,36 @@ def _collect_events(node: Any, out: List[Dict[str, Any]]) -> None:
             _collect_events(item, out)
 
 
+# Files that are not pages. Fetching one and parsing it as HTML costs a request
+# and yields nothing — an 800 KB scaled photo, in the case that prompted this.
+_NOT_A_PAGE = re.compile(
+    r"\.(jpe?g|png|gif|webp|svg|pdf|zip|mp4|mp3|ics|xml|json)(\?|$)", re.I
+)
+
+_EVENTISH_PATH = re.compile(
+    r"/(events?|agenda|manifestations?|veranstaltung(en)?|termine?)/", re.I
+)
+
+
 def _extract_event_links(html: str, *, base_url: str) -> List[str]:
-    """Fallback: pull URLs from ItemList JSON-LD or from anchor tags that
-    plausibly link to an event detail page."""
+    """URLs of individual event pages linked from a listing.
+
+    Two things used to go wrong here, and they compounded.
+
+    _collect_urls walked the JSON-LD and took `url` off *any* node. A commune
+    site describes itself with a WebSite or Organization block, so what came
+    back was the site's own address and a photo — never an event.
+
+    Worse, the anchor scan below ran only `if not urls`. That garbage counted
+    as a result, so the scan was skipped. differdange.lu lists 229 event links
+    in its markup; this function returned three, none of them an event, one a
+    JPEG. Every commune whose listing carries a self-describing JSON-LD block
+    but no Event objects — 41 of the 100 checked — looked like a site with no
+    events at all.
+
+    Now only Event nodes contribute URLs, the anchor scan runs whenever that
+    found nothing, and anything that is not a page is dropped.
+    """
     soup = BeautifulSoup(html, "lxml")
     urls: List[str] = []
     for tag in soup.find_all("script", attrs={"type": "application/ld+json"}):
@@ -614,24 +1167,66 @@ def _extract_event_links(html: str, *, base_url: str) -> List[str]:
             data = json.loads(tag.string or tag.get_text() or "")
         except Exception:
             continue
-        _collect_urls(data, urls)
-    # Also try anchor tags with event-ish paths.
+        _collect_event_urls(data, urls)
+
     if not urls:
         for a in soup.find_all("a", href=True):
             href = a["href"]
-            if any(seg in href.lower() for seg in ("/event", "/agenda", "/manifestation", "/veranstaltung")):
+            if _EVENTISH_PATH.search(href):
                 urls.append(_abs_url(base_url, href))
-    # Dedup, keep order
-    seen = set()
-    unique = []
+
+    # The listing links to itself, to its own translations, and to the site
+    # root. Fetching those re-parses the page we already have.
+    base = base_url.rstrip("/")
+    seen, unique = set(), []
     for u in urls:
-        if u and u not in seen:
-            seen.add(u)
-            unique.append(u)
+        if not u or u in seen or _NOT_A_PAGE.search(u):
+            continue
+        if u.rstrip("/") == base:
+            continue
+        seen.add(u)
+        unique.append(u)
+
+    # A single event first, listing pages last. The caller follows at most
+    # twenty of these, and /de/agenda/ is the page we are standing on in
+    # another language — spending the budget on those means never reaching an
+    # actual event. Ordering rather than dropping: on a site whose listing is
+    # paginated the second page is worth having once the events are exhausted.
+    unique.sort(key=lambda u: 0 if _has_slug_after_section(u) else 1)
     return unique
 
 
+def _has_slug_after_section(url: str) -> bool:
+    """True for /events/spillfest-2026/, false for /events/ and /de/agenda/."""
+    m = _EVENTISH_PATH.search(url)
+    return bool(m) and len(url[m.end():].strip("/")) > 0
+
+
+def _collect_event_urls(node: Any, out: List[str]) -> None:
+    """URLs of Event nodes only — not of whatever else the page describes."""
+    if isinstance(node, dict):
+        node_type = node.get("@type") or node.get("type")
+        types = [node_type] if isinstance(node_type, str) else (node_type or [])
+        if any(t and "Event" in t for t in types):
+            url = node.get("url") or node.get("@id")
+            if isinstance(url, str) and url.startswith("http"):
+                out.append(url)
+        for key in ("@graph", "itemListElement", "item", "subEvent"):
+            if key in node:
+                _collect_event_urls(node[key], out)
+    elif isinstance(node, list):
+        for item in node:
+            _collect_event_urls(item, out)
+
+
 def _collect_urls(node: Any, out: List[str]) -> None:
+    """Every `url` in a JSON-LD tree, whatever describes it.
+
+    Kept for probe_sources.py, which reports what a site publishes and wants
+    the lot. Do not use this to decide what to crawl — that is
+    _collect_event_urls, which takes URLs off Event nodes only. Using this one
+    is what made a commune's own homepage and a photo look like events.
+    """
     if isinstance(node, dict):
         url = node.get("url")
         if isinstance(url, str) and url.startswith("http"):
@@ -654,6 +1249,9 @@ _SITEMAP_EVENT_PATTERNS = re.compile(
     r"|expo|expositions?|kalender|calendar|whats?[-_]on"
     r"|actualit(e|é)s?|ateliers?|workshops?"
     r"|concerts?|spectacles?|festivals?|kids?|jeunesse|jeunes|enfants?"
+    # "shows" is how the Rockhal names its 998 event pages, and French spells
+    # the word with accents that "events?" cannot match.
+    r"|shows?|[ée]v[eè]nements?|[ée]v[ée]nements?"
     r"|familles?|familien?)([/_-]|$)",
     re.IGNORECASE,
 )
@@ -678,28 +1276,10 @@ async def _import_sitemap(source: Dict[str, Any], db) -> Tuple[int, int]:
     parsed = urlparse(source["url"])
     origin = f"{parsed.scheme}://{parsed.netloc}"
 
-    # Resolve the actual sitemap URL
-    sitemap_url = source["url"] if source["url"].endswith(".xml") else None
-    if not sitemap_url:
-        # Try robots.txt first (sites often list all sitemaps there)
-        try:
-            robots = await _fetch_text(origin + "/robots.txt")
-            for line in robots.splitlines():
-                if line.lower().startswith("sitemap:"):
-                    sitemap_url = line.split(":", 1)[1].strip()
-                    break
-        except Exception:
-            pass
-    if not sitemap_url:
-        sitemap_url = origin + "/sitemap.xml"
+    sitemap_url, xml = await _find_sitemap(source["url"], origin)
 
-    # Fetch sitemap (may be a sitemap index containing more sitemaps)
-    try:
-        xml = await _fetch_text(sitemap_url)
-    except Exception as exc:
-        raise RuntimeError(f"Could not fetch sitemap {sitemap_url}: {exc}")
-
-    all_urls = _collect_sitemap_urls(xml, base=origin)
+    all_entries = _collect_sitemap_entries(xml, base=origin)
+    all_urls = [u for u, _ in all_entries]
 
     # Recursively expand sitemap indexes (one level deep). We recurse when
     # a URL looks like another sitemap: ends with .xml OR the path contains
@@ -710,25 +1290,31 @@ async def _import_sitemap(source: Dict[str, Any], db) -> Tuple[int, int]:
 
     nested = [u for u in all_urls if _looks_like_sitemap(u)]
     if nested and len(all_urls) < 30:
-        expanded: List[str] = []
+        expanded: List[Tuple[str, str]] = []
         for nested_url in nested[:10]:
             try:
                 sub_xml = await _fetch_text(nested_url)
-                expanded.extend(_collect_sitemap_urls(sub_xml, base=origin))
+                expanded.extend(_collect_sitemap_entries(sub_xml, base=origin))
             except Exception as e:
                 logger.info("nested sitemap %s failed: %s", nested_url, e)
         # Replace originals with what we found inside them
-        all_urls = expanded or all_urls
+        if expanded:
+            all_entries = expanded
+            all_urls = [u for u, _ in all_entries]
 
-    # Filter to event-like paths, dedup, cap
-    candidates: List[str] = []
+    # Filter to event-like paths and dedup, then spend the page budget on the
+    # most recently changed pages rather than on whatever the file happens to
+    # list first. Without this, Rockhal's 998-entry show archive gave us
+    # twenty concerts from 2022 and no import at all.
+    matched: List[Tuple[str, str]] = []
     seen = set()
-    for u in all_urls:
+    for u, mod in all_entries:
         if _SITEMAP_EVENT_PATTERNS.search(u) and u not in seen:
             seen.add(u)
-            candidates.append(u)
-        if len(candidates) >= max_pages:
-            break
+            matched.append((u, mod))
+
+    matched.sort(key=lambda pair: pair[1] or "", reverse=True)
+    candidates: List[str] = [u for u, _ in matched[:max_pages]]
 
     logger.info(
         "[sitemap] %s → %d total sitemap URLs, %d event-like candidates",
@@ -741,9 +1327,15 @@ async def _import_sitemap(source: Dict[str, Any], db) -> Tuple[int, int]:
     known_ids = await _known_external_ids(source, db)
     inserted = 0
     skipped = 0
+    blocked = 0   # refused by content_filter, never stored
     today = datetime.now(timezone.utc).date()
+    deadline = _fetch_deadline()
 
-    for page_url in candidates:
+    for position, page_url in enumerate(candidates):
+        # Out of time, not out of pages. Everything so far is already in the
+        # database; returning normally means the source record says so.
+        if _out_of_time(deadline, f"[sitemap] {source['name']}", position):
+            break
         try:
             html = await _fetch_text(page_url)
         except RobotsBlocked:
@@ -826,30 +1418,55 @@ async def _import_sitemap(source: Dict[str, Any], db) -> Tuple[int, int]:
                 start_date=start_iso,
                 end_date=end_iso,
                 time_str=time_str,
-                town=str(town),
+                town=canonical_town(str(town)),
                 lat=lat,
                 lng=lng,
                 image=image,
             )
+            if doc is None:
+                blocked += 1
+                continue
             await db.events.insert_one(doc)
             known_ids.add(doc["external_id"])
             inserted += 1
 
-    return inserted, skipped
+    return inserted, skipped, blocked
 
 
-def _collect_sitemap_urls(xml_text: str, *, base: str) -> List[str]:
-    """Extract every <loc> URL from a sitemap or sitemap-index XML string."""
-    urls: List[str] = []
+def _collect_sitemap_entries(xml_text: str, *, base: str) -> List[Tuple[str, str]]:
+    """Every (url, lastmod) pair in a sitemap or sitemap-index XML string.
+
+    lastmod is kept because the page budget is small and the archive is not:
+    rockhal.lu lists 998 shows going back years, and spending 20 fetches on
+    whichever 20 happen to come first in the file means fetching 2022 concerts
+    and importing nothing. The sitemap already says which entries are fresh.
+    Missing lastmod sorts last rather than being dropped — unknown is not old,
+    but a dated entry is the better bet.
+    """
+    entries: List[Tuple[str, str]] = []
     try:
         soup = BeautifulSoup(xml_text, "lxml-xml")
     except Exception:
         soup = BeautifulSoup(xml_text, "lxml")
-    for loc in soup.find_all("loc"):
-        text = (loc.get_text() or "").strip()
-        if text:
-            urls.append(text)
-    return urls
+    for node in soup.find_all(["url", "sitemap"]) or []:
+        loc = node.find("loc")
+        text = (loc.get_text() or "").strip() if loc else ""
+        if not text:
+            continue
+        mod = node.find("lastmod")
+        entries.append((text, (mod.get_text() or "").strip() if mod else ""))
+    if not entries:
+        # Some sitemaps nest <loc> outside <url>/<sitemap>; fall back to those.
+        for loc in soup.find_all("loc"):
+            text = (loc.get_text() or "").strip()
+            if text:
+                entries.append((text, ""))
+    return entries
+
+
+def _collect_sitemap_urls(xml_text: str, *, base: str) -> List[str]:
+    """Extract every <loc> URL from a sitemap or sitemap-index XML string."""
+    return [u for u, _ in _collect_sitemap_entries(xml_text, base=base)]
 
 
 def _extract_open_graph_event(html: str, *, page_url: str) -> Optional[Dict[str, Any]]:
@@ -866,9 +1483,16 @@ def _extract_open_graph_event(html: str, *, page_url: str) -> Optional[Dict[str,
     desc = og("og:description")
     image = og("og:image")
 
+    # 0. A date the title states outright. Ahead of everything else, because a
+    #    venue naming its page "… | 24.10.2026 13:15" is telling us the date in
+    #    so many words, while that page's first <time> tag turned out to be the
+    #    start time and nothing more.
+    start = date_from_title(title)
+
     # 1. URL-slug date parsing (Mudam etc. embed date in slug — most reliable
     #    for our LU sources because <time> tags often only contain a time-of-day)
-    start = _extract_date_from_url(page_url)
+    if not start:
+        start = _extract_date_from_url(page_url)
 
     # 2. <time datetime="..."> tags (require a value that includes a year)
     if not start:
@@ -974,45 +1598,108 @@ IMPORTERS["sitemap"] = _import_sitemap
 
 
 # --- kids-in-lux.com custom crawler --------------------------------------
-# Runs the sync crawler in a worker thread and returns (inserted, skipped) so
-# it plugs into the same `run_source` / cron flow as the JSON-LD / sitemap
-# importers.
-async def _import_kids_in_lux(source: Dict[str, Any], db) -> tuple[int, int]:
+# Runs the sync crawler in a worker thread and returns (inserted, skipped,
+# blocked) so it plugs into the same `run_source` / cron flow as the JSON-LD /
+# sitemap importers.
+async def _import_kids_in_lux(source: Dict[str, Any], db) -> tuple[int, int, int]:
     import asyncio
 
-    def _run_sync() -> tuple[int, int]:
+    def _run_sync() -> tuple[int, int, int]:
         # Late-import to keep the module boot fast when the source isn't used.
-        import time as _t
-
         from crawlers import kids_in_lux as k
         from pymongo import MongoClient
 
-        client = MongoClient(os.environ["MONGO_URL"])
+        # A short selection timeout: this runs inside a crawl thread with
+        # a fetch budget, and pymongo's 30s default turns an unreachable
+        # database into a stalled crawl rather than a quick, clear error.
+        client = MongoClient(os.environ["MONGO_URL"],
+                             serverSelectionTimeoutMS=SYNC_DB_TIMEOUT_MS)
         sdb    = client[os.environ["DB_NAME"]]
 
-        inserted = updated = failed = 0
+        inserted = updated = failed = blocked = 0
+        # This site asks for a 5s Crawl-delay and the three sources between
+        # them walk about a hundred detail pages, so a full pass needs several
+        # times the watchdog. Before, the crawl died on its first event and the
+        # question never came up; now that it runs, it has to know when to stop.
+        deadline = _fetch_deadline()
+        seen_pages = 0
+        name = source.get("name", "kids-in-lux")
         try:
             with httpx.Client() as hx:
-                for index_url, cats, ev_type in k.INDEX_URLS:
-                    details = k.list_detail_urls(index_url, hx)
-                    for url in details:
-                        html = k.fetch(url, hx)
-                        if not html:
-                            failed += 1
-                            continue
-                        parsed = k.parse_detail(url, html)
-                        if not parsed:
-                            failed += 1
-                            continue
-                        status = k.upsert_event(sdb, parsed, cats, ev_type, source["id"])
-                        if status == "inserted":
-                            inserted += 1
-                        else:
-                            updated += 1
-                        _t.sleep(k.PAUSE_S)
+                # Every index page first, then the detail pages. The old shape
+                # interleaved them, which meant the budget always ran out
+                # inside the first index and the later ones were never opened
+                # at all.
+                # This source's own index page, not all three. See
+                # _index_for_source: reading the module's whole list meant
+                # every source ran the same crawl, three times over, on a site
+                # that asks for five seconds between requests.
+                index_url, cats, ev_type = _index_for_source(source, k.INDEX_URLS)
+                logger.info("%s: index %s", name, index_url)
+                todo: List[Tuple[str, Any, Any]] = [
+                    (url, cats, ev_type)
+                    for url in k.list_detail_urls(index_url, hx)
+                ]
+                listed = len(todo)
+                todo, next_cursor = _rotate_to_cursor(sdb, source, todo)
+
+                for url, cats, ev_type in todo:
+                    if _out_of_time(deadline, name, seen_pages):
+                        break
+                    seen_pages += 1
+                    html = k.fetch(url, hx)
+                    if not html:
+                        failed += 1
+                        continue
+                    parsed = k.parse_detail(url, html)
+                    if not parsed:
+                        failed += 1
+                        continue
+                    verdict = content_filter.assess(
+                        parsed.get("title"), parsed.get("desc"))
+                    if verdict:
+                        logger.warning(
+                            "Refused %s event from %s (%r matched %s)",
+                            verdict[0], source.get("name", "?"),
+                            verdict[1], url[:120],
+                        )
+                        blocked += 1
+                        continue
+                    status = k.upsert_event(sdb, parsed, cats, ev_type, source["id"])
+                    if status == "inserted":
+                        inserted += 1
+                    else:
+                        updated += 1
+                    # No sleep here. The pacing moved into
+                    # crawler_utils.polite_get_sync, which waits the longer of
+                    # our baseline and the site's own Crawl-delay; the constant
+                    # this line used to read was deleted with it.
+                _save_cursor(sdb, source, next_cursor, seen_pages, listed)
         finally:
             client.close()
-        return inserted, failed
+
+        if not listed:
+            # The index page gave us no link at all. That is a different thing
+            # from "crawled it, found nothing", and both used to come out as
+            # `no_events` with three zeroes — the same record for a working
+            # crawl of an empty site and for an index page that cannot be read.
+            # Raising says which one it was, and names the page.
+            raise RuntimeError(f"no detail links found on the index page {index_url}")
+
+        # `updated` goes in the skipped slot, the same place the sitemap
+        # importer puts an event it already has. Leaving it out of the return
+        # value entirely meant a refresh of known venues reported (0, 0, 0),
+        # and `run_source` reads three zeroes as "this site has died". These
+        # are always-open venues: after the first run every pass is an update,
+        # so the source was on course to report itself dead forever.
+        #
+        # But the two are not the same thing, and the three-number return has
+        # nowhere to keep them apart: 37 pages seen and 6 events stored can
+        # mean 31 healthy refreshes or 31 pages that would not parse, and those
+        # need opposite responses. So the split goes in the log, where a run
+        # that looks wrong can be taken apart afterwards.
+        _log_breakdown(source, listed, seen_pages, inserted, updated, failed, blocked)
+        return inserted, failed + updated, blocked
 
     return await asyncio.to_thread(_run_sync)
 
@@ -1021,22 +1708,31 @@ IMPORTERS["kids_in_lux"] = _import_kids_in_lux
 
 
 # --- visitluxembourg.com Discovery-Tours crawler -------------------------
-async def _import_visit_luxembourg(source: Dict[str, Any], db) -> tuple[int, int]:
+async def _import_visit_luxembourg(source: Dict[str, Any], db) -> tuple[int, int, int]:
     import asyncio
 
-    def _run_sync() -> tuple[int, int]:
-        import time as _t
-
+    def _run_sync() -> tuple[int, int, int]:
         from crawlers import visit_luxembourg as v
         from pymongo import MongoClient
 
-        client = MongoClient(os.environ["MONGO_URL"])
+        # A short selection timeout: this runs inside a crawl thread with
+        # a fetch budget, and pymongo's 30s default turns an unreachable
+        # database into a stalled crawl rather than a quick, clear error.
+        client = MongoClient(os.environ["MONGO_URL"],
+                             serverSelectionTimeoutMS=SYNC_DB_TIMEOUT_MS)
         sdb    = client[os.environ["DB_NAME"]]
-        inserted = updated = failed = 0
+        inserted = updated = failed = blocked = 0
+        deadline = _fetch_deadline()
+        listed = 0
         try:
             with httpx.Client() as hx:
                 urls = list(v.list_detail_urls(hx))
-                for url in urls:
+                listed = len(urls)
+                for position, url in enumerate(urls):
+                    if _out_of_time(
+                        deadline, source.get("name", "visit-luxembourg"), position
+                    ):
+                        break
                     html = v.fetch(url, hx)
                     if not html:
                         failed += 1
@@ -1045,20 +1741,44 @@ async def _import_visit_luxembourg(source: Dict[str, Any], db) -> tuple[int, int
                     if not parsed:
                         failed += 1
                         continue
+                    verdict = content_filter.assess(
+                        parsed.get("title"), parsed.get("desc"))
+                    if verdict:
+                        logger.warning(
+                            "Refused %s event from %s (%r matched %s)",
+                            verdict[0], source.get("name", "?"), verdict[1], url[:120],
+                        )
+                        blocked += 1
+                        continue
                     status = v.upsert_event(sdb, parsed, source["id"])
                     if status == "inserted":
                         inserted += 1
                     else:
                         updated += 1
-                    _t.sleep(v.PAUSE_S)
+                    # See the note in the kids-in-lux importer: polite_get_sync
+                    # owns the pacing now.
         finally:
             client.close()
-        return inserted, failed
+
+        # Both as in the kids-in-lux importer above: an unreadable index page
+        # says so instead of passing for an empty one, and `updated` is part
+        # of the count rather than being dropped on the floor.
+        if not listed:
+            raise RuntimeError("no detail links found in the pages sitemap")
+        _log_breakdown(source, listed, len(urls), inserted, updated, failed, blocked)
+        return inserted, failed + updated, blocked
 
     return await asyncio.to_thread(_run_sync)
 
 
 IMPORTERS["visit_luxembourg"] = _import_visit_luxembourg
+
+
+# How many runs of nothing at all before it is worth saying out loud. The
+# importer runs three times a day, so this is roughly a day of silence — long
+# enough that a site being briefly down does not raise it, short enough that a
+# commune which redesigned its calendar is noticed the next morning.
+EMPTY_RUNS_BEFORE_WARNING = 3
 
 
 async def run_source(source: Dict[str, Any], db) -> Dict[str, Any]:
@@ -1075,14 +1795,39 @@ async def run_source(source: Dict[str, Any], db) -> Dict[str, Any]:
         }
     else:
         try:
-            inserted, skipped = await importer(source, db)
+            inserted, skipped, blocked = await importer(source, db)
+            # inserted + skipped + blocked is what the page actually yielded:
+            # skipped counts events that were read and then set aside, usually
+            # for being in the past, and blocked counts the ones content_filter
+            # refused. Zero of all three means nothing was parsed at all, which
+            # is what a redesigned website looks like from here — and under a
+            # plain "ok" it looks identical to a quiet week.
+            seen = inserted + skipped + blocked
+            empty_runs = 0 if seen else int(source.get("empty_runs") or 0) + 1
             result = {
                 "last_run_at": started,
-                "last_status": "ok",
+                "last_status": "ok" if seen else "no_events",
                 "last_error": None,
                 "last_imported_count": inserted,
                 "last_skipped_count": skipped,
+                "last_blocked_count": blocked,
+                "last_seen_count": seen,
+                "empty_runs": empty_runs,
             }
+            if blocked:
+                # Visible on the source, not just in the log. A filter whose
+                # work nobody can see is a filter nobody can correct — and the
+                # cost of a wrong rule here is a village festival that quietly
+                # stops appearing.
+                logger.warning(
+                    "Source %s: %d event(s) refused as not family-safe",
+                    source.get("name"), blocked,
+                )
+            if empty_runs >= EMPTY_RUNS_BEFORE_WARNING:
+                logger.warning(
+                    "Source %s has parsed nothing %d runs running — check the page",
+                    source.get("name"), empty_runs,
+                )
         except RobotsBlocked as rb:
             logger.warning("Source %s blocked by robots.txt: %s", source.get("name"), rb)
             result = {
@@ -1096,7 +1841,10 @@ async def run_source(source: Dict[str, Any], db) -> Dict[str, Any]:
             result = {
                 "last_run_at": started,
                 "last_status": "error",
-                "last_error": str(exc)[:300],
+                # The chain, not just the wrapper. `last_error` is usually the
+                # only thing anyone sees about a failed source, and a line
+                # reading "ConnectError" says nothing about what to fix.
+                "last_error": describe_exception(exc)[:300],
                 "last_imported_count": 0,
             }
 

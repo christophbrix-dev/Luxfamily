@@ -29,7 +29,8 @@ export default function Detail() {
       </SafeAreaView>
     );
   }
-  const isSaved = saved.includes(place.id);
+  const savedId = place.sourceId ?? String(place.id);
+  const isSaved = saved.includes(savedId);
 
   const openMaps = () => {
     const url = `https://www.openstreetmap.org/?mlat=${place.lat}&mlon=${place.lng}#map=16/${place.lat}/${place.lng}`;
@@ -57,7 +58,7 @@ export default function Detail() {
               <Ionicons name="chevron-back" size={20} color={palette.textPrimary} />
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => toggleSave(place.id)}
+              onPress={() => toggleSave(savedId)}
               style={styles.roundBtn}
               testID="detail-save-btn"
             >
@@ -88,14 +89,22 @@ export default function Detail() {
           <View style={styles.weatherPill}>
             <Ionicons name="partly-sunny-outline" size={14} color="#92400E" />
             <Text style={styles.weatherTxt}>
-              {t("greatForToday", lang)}: {place.weatherFit[lang]}
+              {t("greatForToday", lang)}: {pickLang(place.weatherFit, lang)}
             </Text>
           </View>
 
+          {place.ageStated === false ? (
+            <Text style={styles.ageHint}>{t("ageNotStatedHint", lang)}</Text>
+          ) : null}
+
           <View style={styles.statsGrid}>
-            <StatCard icon="people-outline" label={t("age", lang)} value={place.age} />
+            <StatCard
+              icon="people-outline"
+              label={t("age", lang)}
+              value={place.ageStated === false ? t("ageNotStated", lang) : place.age}
+            />
             <StatCard icon="time-outline" label={t("date", lang)} value={place.time} />
-            <StatCard icon="pricetag-outline" label="Price" value={place.priceLabel[lang]} />
+            <StatCard icon="pricetag-outline" label="Price" value={pickLang(place.priceLabel, lang)} />
             <StatCard
               icon="accessibility-outline"
               label="Access"
@@ -109,7 +118,9 @@ export default function Detail() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.locationTxt}>{place.town}, Luxembourg</Text>
                 <Text style={styles.locationSub}>
-                  {place.distanceKm.toFixed(1)} km {t("fromYou", lang)}
+                  {place.distanceKm !== undefined
+                    ? `${place.distanceKm.toFixed(1)} km ${t("fromYou", lang)}`
+                    : place.town}
                 </Text>
               </View>
               <TouchableOpacity
@@ -157,7 +168,7 @@ export default function Detail() {
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            onPress={() => toggleSave(place.id)}
+            onPress={() => toggleSave(savedId)}
             style={styles.footerPrimary}
             testID="footer-save-btn"
           >
@@ -257,6 +268,16 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
+  },
+  ageHint: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: palette.textSecondary,
+    backgroundColor: palette.surfaceMuted,
+    borderRadius: radii.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
   },
   statCard: {
     width: "47.5%",

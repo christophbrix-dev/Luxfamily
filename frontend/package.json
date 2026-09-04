@@ -11,7 +11,12 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "check": "yarn typecheck && yarn lint"
+    "check": "yarn typecheck && yarn lint && yarn test-hours && yarn test-photo && yarn test-api-errors && yarn test-confirm",
+    "lb-coverage": "node scripts/lb-coverage.mjs",
+    "test-hours": "node --experimental-strip-types --no-warnings scripts/test-opening-hours.mjs",
+    "test-photo": "node --experimental-strip-types --no-warnings scripts/test-photo.mjs",
+    "test-api-errors": "node --experimental-strip-types --no-warnings scripts/test-api-errors.mjs",
+    "test-confirm": "node --experimental-strip-types --no-warnings scripts/test-confirm.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "6.1.2",
@@ -32,6 +37,7 @@
     "expo-image": "~3.0.11",
     "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.11",
+    "expo-location": "~19.0.8",
     "expo-router": "~6.0.24",
     "expo-secure-store": "~15.0.8",
     "expo-splash-screen": "~31.0.13",

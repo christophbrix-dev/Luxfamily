@@ -2,6 +2,7 @@
 // and always prefixes endpoints with /api so the Kubernetes ingress routes
 // requests to the FastAPI service.
 
+import { ApiError, describeHttpError, readBody } from "@/src/utils/apiError";
 import { storage } from "@/src/utils/storage";
 
 const RAW = process.env.EXPO_PUBLIC_BACKEND_URL ?? "";
@@ -24,6 +25,8 @@ type FetchOpts = {
   admin?: boolean; // attach admin JWT if true
 };
 
+export { ApiError };
+
 export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (opts.admin) {
@@ -36,17 +39,31 @@ export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
   if (res.status === 204) return undefined as unknown as T;
+
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+
+  // Not every response is JSON, and assuming so turned a plain "404 page not
+  // found" from a gateway into "Unexpected non-whitespace character after JSON
+  // at position 4" on the user's screen — because "404" parses as a number and
+  // the rest of the sentence does not. Anything that is not our own API
+  // answering can arrive as HTML or text: a proxy, a maintenance page, a
+  // container that has not started.
+  const { data, parsed } = readBody(text);
+
   if (!res.ok) {
-    const detail = (data && (data.detail ?? data.message)) || `HTTP ${res.status}`;
-    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+    throw new ApiError(res.status, describeHttpError(res.status, data, parsed ? "" : text));
+  }
+  if (text && !parsed) {
+    // A 200 that is not JSON means something answered in our place.
+    throw new ApiError(res.status, `Unexpected reply from ${BASE || "the server"}`);
   }
   return data as T;
 }
 
 // ----- Types matching FastAPI EventResponse -----
-export type LocalizedString = { en: string; de: string; fr: string };
+// Same shape as the one in src/data/places, deliberately: values move between
+// the two and a mismatch shows up as an unfixable assignment error.
+export type LocalizedString = { en: string; de: string; fr: string; lb?: string };
 
 export type ApiEvent = {
   id: string;
@@ -62,8 +79,13 @@ export type ApiEvent = {
   start_date: string;
   end_date?: string | null;
   time: string;
-  price_adult: number;
-  price_child: number;
+  // null when the page never said. A zero here reads as "free", which is what
+  // every imported event used to claim — 528 of them, some costing 30 €.
+  price_adult: number | null;
+  price_child: number | null;
+  price_free?: boolean;
+  price_source?: "event" | "unknown";
+  age_source?: "event" | "source" | "unknown";
   price_label: LocalizedString;
   accessibility: LocalizedString;
   weather_fit: LocalizedString;
@@ -106,10 +128,46 @@ export type ApiEventSummary = Pick<
   ApiEvent,
   | "id" | "title" | "short" | "type" | "canton" | "town" | "category"
   | "age_min" | "age_max" | "start_date" | "end_date" | "time"
-  | "price_adult" | "price_child" | "image" | "lat" | "lng"
+  | "price_adult" | "price_child" | "price_free" | "price_source"
+  | "age_source" | "image" | "lat" | "lng"
   | "featured" | "published" | "rating" | "view_count"
   | "accessibility_wheelchair" | "sensory_friendly" | "free_parking"
 > & { source_name?: string | null };
+
+// One OpenStreetMap point of interest. The ingest holds thousands of these —
+// playgrounds, parks, pools, museums — and nothing displayed them until now.
+export type ApiPlace = {
+  id: string;
+  slug: string;
+  kind: string;
+  group: string;
+  name: string;
+  lat: number | null;
+  lng: number | null;
+  age_min: number;
+  age_max: number;
+  family_score: number;
+  website_url: string;
+  phone: string;
+  opening_hours: string;
+  wheelchair: boolean;
+  toilets: boolean;
+  source_ref: string;
+  source_license: string;
+};
+
+/** Group and category labels, translated by the backend taxonomy. */
+export type PlaceLabels = {
+  label_de: string;
+  label_fr: string;
+  label_lb: string;
+  label_en: string;
+};
+
+export type PlacesMeta = {
+  groups: Record<string, PlaceLabels & { color: string }>;
+  categories: Record<string, PlaceLabels & { group: string; base_score: number }>;
+};
 
 export type ApiSource = {
   id: string;
@@ -128,10 +186,16 @@ export type ApiSource = {
   selectors?: Record<string, string> | null;
   created_at: string;
   last_run_at?: string | null;
-  last_status?: "ok" | "error" | "blocked_by_robots" | null;
+  // "no_events": the run succeeded and parsed nothing at all. Distinct from
+  // "ok" with zero imports, which happens whenever a calendar is simply quiet.
+  last_status?: "ok" | "no_events" | "error" | "blocked_by_robots" | null;
   last_error?: string | null;
   last_imported_count?: number | null;
   last_skipped_count?: number | null;
+  /** inserted + skipped: what the page yielded before any filtering. */
+  last_seen_count?: number | null;
+  /** Consecutive runs that yielded nothing. Reset by the first event seen. */
+  empty_runs?: number | null;
 };
 
 export type Analytics = {
@@ -152,11 +216,59 @@ export const api = {
       body: { email, password },
     }),
   me: () => apiFetch<AdminUser>("/api/auth/me", { admin: true }),
+
+  /**
+   * Change the signed-in admin's password.
+   *
+   * The current one is sent as well as the new one: the backend requires it,
+   * because a seven-day token sitting in browser storage should not be enough
+   * to lock the owner out of their own account.
+   */
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiFetch<void>("/api/admin/password", {
+      method: "POST",
+      admin: true,
+      body: { current_password: currentPassword, new_password: newPassword },
+    }),
   // List endpoints return ApiEventSummary, not the full document. Every field
   // the list screens currently read is included; anything else needs the detail
   // endpoint (or a new field on the backend's EventSummary).
-  publicEvents: () => apiFetch<ApiEventSummary[]>("/api/events?upcoming=false&limit=200"),
+  // upcoming=true, not false. The backend caps limit at 200 and sorts featured
+  // first, then by date ascending — so with upcoming=false the 200 rows that
+  // come back are the *oldest* ones. Against the live database that was 200
+  // events and not one of them in the future: an empty calendar, a "near you"
+  // row of things that already happened, and no sign anything was wrong.
+  // Every screen here asks "what is on", which is what this flag means.
+  publicEvents: () => apiFetch<ApiEventSummary[]>("/api/events?upcoming=true&limit=200"),
   event: (id: string) => apiFetch<ApiEvent>(`/api/events/${id}`),
+
+  /** The OSM taxonomy: group and category names in every language. */
+  placesMeta: () => apiFetch<PlacesMeta>("/api/places/meta"),
+
+  /**
+   * OSM points of interest.
+   *
+   * Without a position the backend returns the highest-scoring entries; with
+   * one it filters by radius, which is what makes thousands of places usable.
+   */
+  osmPlaces: (opts: {
+    group?: string;
+    near?: { lat: number; lng: number };
+    radiusKm?: number;
+    limit?: number;
+    skip?: number;
+  } = {}) => {
+    const q = new URLSearchParams();
+    if (opts.group) q.set("group", opts.group);
+    if (opts.near) {
+      q.set("near_lat", String(opts.near.lat));
+      q.set("near_lng", String(opts.near.lng));
+      q.set("radius_km", String(opts.radiusKm ?? 10));
+    }
+    q.set("limit", String(opts.limit ?? 60));
+    if (opts.skip) q.set("skip", String(opts.skip));
+    return apiFetch<ApiPlace[]>(`/api/places?${q.toString()}`);
+  },
   pingView: (id: string) =>
     apiFetch<void>(`/api/events/${id}/view`, { method: "POST" }),
   adminEvents: () => apiFetch<ApiEventSummary[]>("/api/admin/events?limit=500", { admin: true }),

@@ -1,33 +1,49 @@
-"""
-Batch-geocode all Wat Elo? events that still have lat=0, lng=0.
-Uses Nominatim (OpenStreetMap's free geocoder) — no API key needed, but we
-respect the 1-request-per-second usage policy and cache results per query.
+"""Fill in coordinates for events that still sit at lat=0, lng=0.
+
+Three steps per event, in order, stopping at the first that answers:
+
+1. **Our own places collection.** The OSM ingest already holds thousands of
+   Luxembourg parks, playgrounds, museums and zoos with coordinates. A venue
+   *name* — "Escher Déierepark", "Parc Merveilleux" — is far more likely to
+   match there than in any address service, and it costs no network call.
+2. **The country's cadastral geocoder** (see geocoders.py). Good at addresses,
+   poor at names, which is why it comes second.
+3. **The canton centroid**, so a marker still appears somewhere plausible.
+
+Every record keeps `geocode_precision` and `geocode_source`, because a canton
+centroid and a rooftop match are otherwise indistinguishable afterwards — and
+the map would present both with the same confidence.
 
 Run:
-    cd /app/backend && python geocode_events.py &
+    cd /app/backend && python geocode_events.py
 
-The script writes progress to stdout every 10 records. It is idempotent —
-already-geocoded events are skipped, so you can safely re-run it.
+Idempotent: events that already have coordinates are skipped, so re-running is
+safe.
 """
+import json
 import os
 import re
 import time
-import json
-from typing import Optional, Tuple
+from datetime import datetime, timedelta, timezone
+from typing import Dict, Optional, Tuple
 
-import httpx
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
+from geocoders import DEFAULT_COUNTRY, GeoResult, geocoder_for
+from town_names import is_commune
+
 load_dotenv()
 
-NOMINATIM_URL   = "https://nominatim.openstreetmap.org/search"
-USER_AGENT      = "WatEloLuxembourg/1.0 (contact@wat-elo.lu)"
-REQUEST_PAUSE_S = 1.1   # be nice to Nominatim (>= 1s policy)
+REQUEST_PAUSE_S = 0.5  # gentle spacing between calls to the address service
 
-# Rough fallback centroids per Luxembourg canton — used when Nominatim can't
-# resolve the address, so an event still lands somewhere plausible on the map.
-CANTON_FALLBACK: dict[str, Tuple[float, float]] = {
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+# Rough centroids per Luxembourg canton — last resort, so an event still lands
+# somewhere plausible rather than at (0, 0) in the Gulf of Guinea.
+CANTON_FALLBACK: Dict[str, Tuple[float, float]] = {
     "Luxembourg":         (49.6117, 6.1319),
     "Esch-sur-Alzette":   (49.4959, 5.9807),
     "Diekirch":           (49.8683, 6.1560),
@@ -43,71 +59,297 @@ CANTON_FALLBACK: dict[str, Tuple[float, float]] = {
 }
 
 
-def geocode(query: str, cache: dict[str, dict]) -> Optional[Tuple[float, float]]:
-    if not query:
-        return None
-    if query in cache:
-        hit = cache[query]
-        return (hit["lat"], hit["lng"]) if hit else None
+def clean_title(ev: dict) -> str:
+    """Venue name without the trailing marketing tail.
 
-    params = {
-        "q": query,
-        "format": "json",
-        "limit": 1,
-        "countrycodes": "lu,de,be,fr",   # Luxembourg + border-region fallback
-        "accept-language": "de,fr,en",
+    "MIGO — Minigolf & more" becomes "MIGO", which is what a place lookup can
+    actually match.
+    """
+    title = (ev.get("title") or {}).get("de") or (ev.get("title") or {}).get("en") or ""
+    return re.split(r" [—\-–|]", title)[0].strip()
+
+
+def clean_town(ev: dict) -> str:
+    """"Luxembourg-Stadt (Kirchberg)" becomes "Kirchberg"."""
+    town = (ev.get("town") or "").strip()
+    inner = re.search(r"\(([^)]+)\)", town)
+    return inner.group(1).strip() if inner else town
+
+
+def lookup_local_place(db, name: str, town: str) -> Optional[GeoResult]:
+    """Search our own OSM places for this venue name.
+
+    Anchored, case-insensitive, and escaped — a venue called "Parc (Merveilleux)"
+    must not be read as a regular expression.
+    """
+    if len(name) < 4:
+        return None
+    pattern = {"$regex": f"^{re.escape(name)}", "$options": "i"}
+    # Places record their municipality as `commune`; nothing in that collection
+    # has ever had a `town`. Narrowing by "town" therefore matched no document
+    # at all, so the narrowed lookup silently did nothing and every venue fell
+    # through to the wider name-only search or out to the geoportal — with
+    # 6,857 places carrying exactly the answer being asked for. 70 events sat
+    # on a canton centroid because of it.
+    for query in ({"name": pattern, "commune": town} if town else None, {"name": pattern}):
+        if query is None:
+            continue
+        hit = db.places.find_one(query, {"_id": 0, "lat": 1, "lng": 1, "name": 1})
+        if hit and hit.get("lat") and hit.get("lng"):
+            return GeoResult(
+                float(hit["lat"]), float(hit["lng"]), "address", "places", hit.get("name", "")
+            )
+    return None
+
+
+def commune_centre(db, town: str) -> Optional[GeoResult]:
+    """The middle of the OSM places we hold inside this commune, or None.
+
+    A last resort before the canton centroid, and a much closer one. Averaging
+    is crude, but a Luxembourg commune is a few kilometres across, so the mean
+    lands in or beside the village; the canton fallback puts every commune in
+    the canton on one pin, often twenty kilometres away.
+
+    Requires a handful of places, because the mean of two scattered ones says
+    less than nothing, and it reports "commune" precision so the result is
+    never mistaken for a real address.
+    """
+    if not town:
+        return None
+    points = list(
+        db.places.find(
+            {"commune": town, "lat": {"$ne": None}, "lng": {"$ne": None}},
+            {"_id": 0, "lat": 1, "lng": 1},
+        ).limit(400)
+    )
+    if len(points) < 5:
+        return None
+    lat = sum(float(p["lat"]) for p in points) / len(points)
+    lng = sum(float(p["lng"]) for p in points) / len(points)
+    return GeoResult(lat, lng, "commune", "places", town)
+
+
+def build_address_query(ev: dict) -> str:
+    """An address-shaped query for the cadastral service.
+
+    The venue name is left out on purpose: address geocoders match streets and
+    house numbers, and a name in the query only pulls the result towards an
+    unrelated locality. Names are handled by the places lookup instead.
+
+    So is the canton, which used to be appended and did real damage. Luxembourg
+    names its cantons after their main town, and the service latches onto the
+    part it recognises: "Bech, Echternach" came back as Echternach, "Boulaide,
+    Wiltz" as Wiltz, "Bettendorf, Diekirch" as Diekirch. Every commune in a
+    canton collapsed onto its cantonal seat, and the guard against a wrong
+    locality could not see it — the address it got back did echo a word from
+    the query, just the wrong one.
+
+    The service covers Luxembourg and nothing else, so the town alone is the
+    whole question. Where that is ambiguous the guard rejects the answer and
+    the event keeps a canton centroid, marked as one.
+    """
+    return clean_town(ev)
+
+
+def narrowed_address_query(ev: dict) -> str:
+    """A second query for places the service does not know by name alone.
+
+    "Kirchberg" returns nothing; "Kirchberg, Luxembourg" returns the right
+    district. Same for a venue: "Théâtre des Capucins" is unknown, with the
+    town appended it resolves to its street.
+
+    Appending the canton is exactly what build_address_query stopped doing,
+    and for good reason — so this is deliberately restricted to towns that are
+    not communes. The old damage was that every commune collapsed onto its
+    cantonal seat, and that can only happen to a commune. Re-measured today
+    against the live service: "Bech" alone gives 49.75255, its own village,
+    while "Bech, Echternach" gives 49.80967, which is Echternach. Bech is a
+    commune, so it never reaches this function.
+
+    What does reach it are city quarters and venue names, which the service
+    cannot place without a town — and which no commune list will ever contain.
+    """
+    town = clean_town(ev)
+    if not town or is_commune(town):
+        return ""
+    canton = (ev.get("canton") or "").strip()
+    return f"{town}, {canton}" if canton else ""
+
+
+def resolve(db, ev: dict, cache: Dict[str, Optional[dict]]) -> GeoResult:
+    """Coordinates for one event, best available source first."""
+    name, town = clean_title(ev), clean_town(ev)
+
+    # The venue first, then the title.
+    #
+    # Only the title was tried, and an event is rarely named after the building
+    # it happens in: "Museum Break : Layers of summer" matches nothing, while
+    # its town field holds "Lëtzebuerg City Museum", which is in our own places
+    # with a coordinate. Both museum events in Luxembourg City fell through to
+    # the city centre, on the same point as everything else.
+    #
+    # The town is only a venue for imported events — a commune source writes a
+    # commune name there, which will not match a place and costs one indexed
+    # lookup that finds nothing.
+    if town and town != name:
+        local = lookup_local_place(db, town, "")
+        if local:
+            return local
+
+    local = lookup_local_place(db, name, town)
+    if local:
+        return local
+
+    country = (ev.get("country") or DEFAULT_COUNTRY).upper()
+    geocoder = geocoder_for(country)
+    if geocoder:
+        # The bare town first. The narrowed form is only tried when that finds
+        # nothing, so a commune — which always answers on its own — never sees
+        # it and cannot collapse onto its cantonal seat again.
+        for query in (build_address_query(ev), narrowed_address_query(ev)):
+            if not query:
+                continue
+            if query in cache:
+                cached = cache[query]
+                if cached:
+                    return GeoResult(**cached)
+                continue
+            hit = geocoder.geocode(query)
+            cache[query] = hit._asdict() if hit else None
+            time.sleep(REQUEST_PAUSE_S)
+            if hit:
+                return hit
+
+    # Before giving up on the canton: we usually hold hundreds of OSM places
+    # inside the commune this event names, each with a real coordinate. Their
+    # centre is a few hundred metres from the village — a canton centroid can
+    # be twenty kilometres out, and puts every commune in the canton on the
+    # same pin. It is still an approximation and is labelled as one.
+    centre = commune_centre(db, town)
+    if centre:
+        return centre
+
+    lat, lng = CANTON_FALLBACK.get((ev.get("canton") or "").strip(), (49.61, 6.13))
+    return GeoResult(lat, lng, "canton", "fallback")
+
+
+# Events that have never been geocoded, or only landed on a fallback.
+#
+# This used to look for lat == 0 or a missing lat, which no imported event ever
+# has: every importer writes the source's lat_default. So the query matched
+# nothing, the script printed "0 events to geocode" and stopped, and 122 of 304
+# events sat on 49.6117, 6.1319 — the generic point for Luxembourg City — with
+# 92% of all events sharing a coordinate with another. On a map that is a
+# handful of pins where there should be hundreds.
+#
+# geocode_precision records how a coordinate was arrived at. "exact" and "place"
+# are real; the rest are stand-ins worth retrying, since a venue may since have
+# been added to our own OSM places.
+# How long an imprecise result is left alone before it is tried again.
+#
+# "canton" and "commune" stay in the pending set on purpose: they are
+# approximations, and a later run may do better once the town spelling is
+# fixed or new places are ingested. Without a cooldown, though, "later" meant
+# "every single run" — four consecutive passes each re-resolved the same 69
+# events and each re-asked the geoportal the same questions that had never
+# worked. Nothing improved and a public service was queried for it repeatedly.
+RETRY_IMPRECISE_AFTER = timedelta(days=7)
+
+
+def _retry_cutoff() -> str:
+    return (datetime.now(timezone.utc) - RETRY_IMPRECISE_AFTER).isoformat()
+
+
+def pending_query() -> dict:
+    """Events worth (re)resolving right now."""
+    return {
+        "$and": [
+            {"$or": [
+                {"lat": 0}, {"lat": {"$exists": False}}, {"lat": None},
+                {"geocode_precision": {"$exists": False}},
+                {"geocode_precision": {"$in": [
+                    None, "", "canton", "commune", "fallback", "source_default",
+                ]}},
+            ]},
+            # Never attempted, or attempted long enough ago to be worth redoing.
+            {"$or": [
+                {"geocoded_at": {"$exists": False}},
+                {"geocoded_at": None},
+                {"geocoded_at": {"$lt": _retry_cutoff()}},
+            ]},
+        ],
     }
+
+# How many to resolve in one scheduled pass. Each unresolved event may cost a
+# request to the geoportal, and that is somebody else's service: three passes a
+# day at this size is a few hundred lookups, which clears a backlog over a
+# couple of days without ever arriving as a burst.
+SCHEDULED_BATCH = 150
+
+
+def geocode_pending(limit: int = SCHEDULED_BATCH) -> Dict[str, int]:
+    """Resolve a batch of events, for the scheduler to call after an import.
+
+    Synchronous and opening its own connection on purpose: everything below —
+    resolve(), the local place lookup, the geocoders — works against pymongo,
+    and the server runs this in a worker thread rather than having two database
+    drivers understand each other.
+
+    Returns the count per source of coordinate, so the caller can log what a
+    pass actually achieved.
+    """
+    client = MongoClient(os.environ["MONGO_URL"])
     try:
-        r = httpx.get(
-            NOMINATIM_URL,
-            params=params,
-            headers={"User-Agent": USER_AGENT},
-            timeout=10.0,
-        )
-        r.raise_for_status()
-        data = r.json()
-    except Exception as e:
-        print(f"  [nominatim] error for {query!r}: {e}")
-        cache[query] = None      # type: ignore[assignment]
-        return None
+        db = client[os.environ["DB_NAME"]]
+        todo = list(db.events.find(pending_query()).limit(max(1, limit)))
+        if not todo:
+            return {}
 
-    if not data:
-        cache[query] = None      # type: ignore[assignment]
-        return None
-    hit = data[0]
-    lat = float(hit["lat"])
-    lng = float(hit["lon"])
-    cache[query] = {"lat": lat, "lng": lng, "display": hit.get("display_name", "")}
-    return lat, lng
-
-
-def build_query(ev: dict) -> str:
-    """Produce a Nominatim query from the event's town/canton/title fields."""
-    title = ev.get("title", {}).get("en") or ev.get("title", {}).get("de") or ""
-    # Strip common noise ("MIGO — Minigolf …" → "MIGO Minigolf …")
-    title = re.split(r" [—\-–|]", title)[0].strip()
-    town   = ev.get("town", "").strip()
-    canton = ev.get("canton", "").strip()
-
-    # Reduce town noise: "Luxembourg-Stadt (Kirchberg)" → "Kirchberg"
-    if "(" in town and ")" in town:
-        m = re.search(r"\(([^)]+)\)", town)
-        if m:
-            town = m.group(1).strip()
-
-    parts = [p for p in [title, town, canton, "Luxembourg"] if p]
-    return ", ".join(parts)
+        cache: Dict[str, Optional[dict]] = {}
+        counts: Dict[str, int] = {}
+        for ev in todo:
+            try:
+                result = resolve(db, ev, cache)
+            except Exception:
+                # One unreachable address must not abandon the rest of the
+                # batch; the next pass picks this event up again.
+                counts["error"] = counts.get("error", 0) + 1
+                continue
+            counts[result.source] = counts.get(result.source, 0) + 1
+            db.events.update_one(
+                {"_id": ev["_id"]},
+                {"$set": {
+                    "lat": result.lat,
+                    "lng": result.lng,
+                    "country": (ev.get("country") or DEFAULT_COUNTRY).upper(),
+                    "geocode_precision": result.precision,
+                    "geocode_source": result.source,
+                    "geocoded_at": _now_iso(),
+                }},
+            )
+        return counts
+    finally:
+        client.close()
 
 
 def main() -> None:
-    mongo_url = os.environ["MONGO_URL"]
-    db_name   = os.environ["DB_NAME"]
-    client    = MongoClient(mongo_url)
-    db        = client[db_name]
+    client = MongoClient(os.environ["MONGO_URL"])
+    db = client[os.environ["DB_NAME"]]
 
-    todo = list(db.events.find({
-        "$or": [{"lat": 0}, {"lat": {"$exists": False}}, {"lat": None}],
-    }))
+    # Events that have never been geocoded, or only landed on a fallback.
+    #
+    # This used to look for lat == 0 or a missing lat, which no imported event
+    # ever has: every importer writes the source's lat_default. So the query
+    # matched nothing, the script printed "0 events to geocode" and stopped,
+    # and 122 of 304 events sat on 49.6117, 6.1319 — the generic point for
+    # Luxembourg City — with 92% of all events sharing a coordinate with
+    # another. On a map that is a handful of pins where there should be
+    # hundreds.
+    #
+    # geocode_precision records how a coordinate was arrived at. "exact" and
+    # "place" are real; "canton" and "commune" are stand-ins worth retrying,
+    # since a venue may since have been added to our own OSM places.
+    todo = list(db.events.find(pending_query()))
     print(f"[geocode] {len(todo)} events to geocode")
 
     cache_path = "/tmp/geocode_cache.json"
@@ -117,41 +359,34 @@ def main() -> None:
     except Exception:
         cache = {}
 
-    ok = fb = skipped = 0
+    counts: Dict[str, int] = {}
     for i, ev in enumerate(todo, 1):
-        q = build_query(ev)
-        result = geocode(q, cache)
-
-        if result is None:
-            # Try a lighter query — town + canton only
-            q2 = ", ".join([p for p in [ev.get("town", "").split("(")[0].strip(),
-                                        ev.get("canton", ""), "Luxembourg"] if p])
-            if q2 != q:
-                result = geocode(q2, cache)
-
-        if result:
-            lat, lng = result
-            ok += 1
-        else:
-            # Canton centroid fallback so the marker still shows up somewhere.
-            lat, lng = CANTON_FALLBACK.get(ev.get("canton", ""), (49.61, 6.13))
-            fb += 1
+        result = resolve(db, ev, cache)
+        counts[result.source] = counts.get(result.source, 0) + 1
 
         db.events.update_one(
             {"_id": ev["_id"]},
-            {"$set": {"lat": lat, "lng": lng}},
+            {"$set": {
+                "lat": result.lat,
+                "lng": result.lng,
+                "country": (ev.get("country") or DEFAULT_COUNTRY).upper(),
+                "geocode_precision": result.precision,
+                "geocode_source": result.source,
+                "geocoded_at": _now_iso(),
+            }},
         )
 
         if i % 10 == 0 or i == len(todo):
-            print(f"[geocode] {i}/{len(todo)}  ok={ok}  fallback={fb}  skipped={skipped}")
+            summary = "  ".join(f"{k}={v}" for k, v in sorted(counts.items()))
+            print(f"[geocode] {i}/{len(todo)}  {summary}")
             with open(cache_path, "w", encoding="utf-8") as f:
                 json.dump(cache, f, ensure_ascii=False)
 
-        # Only sleep when we actually hit the network (cache miss).
-        if q not in cache or cache.get(q) is None:
-            time.sleep(REQUEST_PAUSE_S)
-
-    print(f"[geocode] done. exact={ok}, fallback={fb}")
+    print("[geocode] done. " + "  ".join(f"{k}={v}" for k, v in sorted(counts.items())))
+    fallbacks = counts.get("fallback", 0)
+    if fallbacks:
+        print(f"[geocode] {fallbacks} events only have a canton centroid — "
+              "find them with geocode_precision='canton' and fix them by hand.")
 
 
 if __name__ == "__main__":

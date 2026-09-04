@@ -22,3 +22,15 @@ export function pickLang(field: I18nField | undefined, lang: Lang): string {
   if (lang === "lb") return field.lb ?? field.de ?? field.en ?? "";
   return field[lang] ?? field.en ?? field.de ?? "";
 }
+
+
+/**
+ * The closest language a three-language lookup table can serve.
+ *
+ * For tables keyed by en/de/fr only — month names, chip labels — Luxembourgish
+ * resolves to German, matching pickLang() and the fact that the two share most
+ * of their vocabulary. Falling through to English would be the wrong neighbour.
+ */
+export function baseLang(lang: Lang): "en" | "de" | "fr" {
+  return lang === "lb" ? "de" : lang;
+}

@@ -12,6 +12,7 @@ import asyncio
 import hashlib
 import logging
 import os
+import re
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
@@ -37,7 +38,7 @@ from fastapi import (
 )
 from fastapi.security import OAuth2PasswordBearer
 from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ValidationError, field_validator
 from pymongo.errors import DuplicateKeyError, OperationFailure
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -47,6 +48,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 
+from check_family_safe import audit_family_safety
+from geocode_events import geocode_pending
 from importers import run_all_active, run_source
 
 # ---------------------------------------------------------------------------
@@ -166,8 +169,18 @@ class EventBase(BaseModel):
     start_date: str  # ISO date (YYYY-MM-DD)
     end_date: Optional[str] = None
     time: str = ""
-    price_adult: float = 0.0
-    price_child: float = 0.0
+    # None when the source never stated a price. Declared as float with a 0.0
+    # default, these two turned "we were not told" into "free" — and once the
+    # database actually held None, the response model rejected every row and
+    # /api/events returned 500. Both halves of that were one wrong type.
+    price_adult: Optional[float] = None
+    price_child: Optional[float] = None
+    price_free: bool = False
+    price_source: str = "unknown"
+    # "event" when the page stated an age, "source" when only the feed's
+    # default applied, "unknown" when nobody said. The app shows a note for
+    # the last one instead of printing 0–99 as if it were a fact.
+    age_source: str = "unknown"
     price_label: LocalizedString
     accessibility: LocalizedString
     weather_fit: LocalizedString
@@ -277,13 +290,37 @@ class EventSummary(BaseModel):
     canton: str
     town: str
     category: List[str] = Field(default_factory=list)
+    # A stored None here means a one-sided age — "bis 12 Joer" has a maximum
+    # and no minimum — and the open end is 0 or 99, not a hole. The importers
+    # fill it in now, but rows written before that sit in databases this code
+    # cannot reach, and an event missing its lower bound is still a perfectly
+    # good event: repairing it beats dropping it, and both beat what happened —
+    # a plain `int` rejected the None and every request for the whole list came
+    # back 500.
     age_min: int = 0
     age_max: int = 99
+
+    @field_validator("age_min", "age_max", mode="before")
+    @classmethod
+    def _open_end(cls, value, info):
+        if value is None:
+            return 0 if info.field_name == "age_min" else 99
+        return value
     start_date: str
     end_date: Optional[str] = None
     time: str = ""
-    price_adult: float = 0.0
-    price_child: float = 0.0
+    # None when the source never stated a price. Declared as float with a 0.0
+    # default, these two turned "we were not told" into "free" — and once the
+    # database actually held None, the response model rejected every row and
+    # /api/events returned 500. Both halves of that were one wrong type.
+    price_adult: Optional[float] = None
+    price_child: Optional[float] = None
+    price_free: bool = False
+    price_source: str = "unknown"
+    # "event" when the page stated an age, "source" when only the feed's
+    # default applied, "unknown" when nobody said. The app shows a note for
+    # the last one instead of printing 0–99 as if it were a fact.
+    age_source: str = "unknown"
     image: str = ""
     lat: float
     lng: float
@@ -300,6 +337,38 @@ class EventSummary(BaseModel):
 # Mongo projection matching EventSummary, so the trimming happens in the
 # database rather than after we've already paid to transfer the documents.
 SUMMARY_PROJECTION: Dict[str, Any] = {"_id": 0, **{f: 1 for f in EventSummary.model_fields}}
+
+
+def _summaries(docs: List[Dict[str, Any]]) -> List[EventSummary]:
+    """Build the list, and let one bad row cost one row.
+
+    `[EventSummary(**d) for d in docs]` fails the whole request when a single
+    stored document is malformed, and FastAPI answers 500. That is how a
+    database holding hundreds of good events produced "Server error (500)" and
+    "0 Aktivitäten" in the app: one row had `age_min: None`, written by an
+    importer that stored a half-stated age ("bis 12 Joer") without filling in
+    the open end.
+
+    The importers are fixed too — this is the second layer, not the fix. It
+    exists because those rows are already sitting in a database this code
+    cannot reach, and because a list should lose one entry rather than
+    collapse. The warning names the id, so a skipped row is findable instead
+    of merely absent.
+    """
+    out: List[EventSummary] = []
+    for doc in docs:
+        try:
+            out.append(EventSummary(**doc))
+        except ValidationError as exc:
+            logger.warning(
+                "Skipping unusable event %s: %s",
+                doc.get("id", "?"),
+                "; ".join(
+                    f"{'.'.join(str(p) for p in e['loc'])} {e['msg']}"
+                    for e in exc.errors()[:3]
+                ),
+            )
+    return out
 
 
 TokenResponse.model_rebuild()
@@ -320,8 +389,13 @@ def _event_to_response(doc: Dict[str, Any]) -> EventResponse:
         start_date=doc["start_date"],
         end_date=doc.get("end_date"),
         time=doc.get("time", ""),
-        price_adult=doc.get("price_adult", 0.0),
-        price_child=doc.get("price_child", 0.0),
+        # No 0.0 default: a missing price is unknown, and defaulting it here
+        # would put the "free" claim back after the model stopped allowing it.
+        price_adult=doc.get("price_adult"),
+        price_child=doc.get("price_child"),
+        price_free=bool(doc.get("price_free", False)),
+        price_source=doc.get("price_source", "unknown"),
+        age_source=doc.get("age_source", "unknown"),
         price_label=doc["price_label"],
         accessibility=doc["accessibility"],
         weather_fit=doc["weather_fit"],
@@ -402,6 +476,11 @@ class SourceResponse(SourceBase):
     last_error: Optional[str] = None
     last_imported_count: Optional[int] = None
     last_skipped_count: Optional[int] = None
+    # inserted + skipped: what the page yielded before any filtering. Zero of
+    # both means nothing was parsed, which under a plain "ok" looks the same as
+    # a quiet week — the admin console needs to tell the two apart.
+    last_seen_count: Optional[int] = None
+    empty_runs: Optional[int] = None
 
 
 def _source_to_response(doc: Dict[str, Any]) -> SourceResponse:
@@ -500,7 +579,18 @@ async def _release_importer_lease(db_) -> None:
 
 
 async def _run_importers_once() -> None:
-    """Scheduled entry point: run every active source, but only once globally."""
+    """Scheduled entry point: crawl every active source, then place what arrived.
+
+    Geocoding runs here rather than as a separate job because it only has work
+    to do once an import has produced some. Left as a manual script it was
+    never run at all, and 122 of 304 events sat on the same generic point for
+    Luxembourg City.
+
+    It runs under the same lease as the import and after it, so two workers
+    cannot both be resolving the same events, and a batch is capped — each
+    unresolved event may cost a request to the geoportal, which is somebody
+    else's service.
+    """
     if not await _acquire_importer_lease(db):
         logger.info("Importer run skipped — another worker holds the lease")
         return
@@ -509,6 +599,41 @@ async def _run_importers_once() -> None:
         logger.info("Importer run finished for %d sources", len(results))
     except Exception:
         logger.exception("Scheduled importer run failed")
+
+    try:
+        # Synchronous, with its own connection: resolve() and the geocoders all
+        # work against pymongo. A worker thread is cheaper than teaching two
+        # database drivers about each other.
+        counts = await asyncio.to_thread(geocode_pending)
+        if counts:
+            logger.info(
+                "Geocoded %d events (%s)",
+                sum(counts.values()),
+                ", ".join(f"{k}={v}" for k, v in sorted(counts.items())),
+            )
+    except Exception:
+        # A geocoding failure must not make the import look failed: the events
+        # are already stored, they simply keep the coordinate they arrived with.
+        logger.exception("Scheduled geocoding failed")
+
+    try:
+        # Ask the family-safety question of the whole database, not just of
+        # what arrived. The import filter cannot see events stored before it
+        # existed, or an entry an importer wrote without asking, or a source
+        # that changed what it publishes after we first read it.
+        #
+        # Findings are hidden, never deleted: a hit is a question for a person,
+        # and an entry that is gone cannot be looked at to decide whether the
+        # rule was right. Nothing is expected to turn up — the point is the day
+        # something does.
+        hidden = await audit_family_safety(db)
+        if hidden:
+            logger.warning(
+                "Family-safety audit hid %d stored entr(ies) — review family_flag",
+                hidden,
+            )
+    except Exception:
+        logger.exception("Family-safety audit failed")
     finally:
         await _release_importer_lease(db)
 
@@ -547,6 +672,14 @@ async def lifespan(_: FastAPI):
         [("published", 1), ("canton", 1), ("featured", -1), ("start_date", 1)],
         name="pub_canton_featured_start",
     )
+    # Category became a real server-side filter rather than something the app
+    # did to whatever it had downloaded, so it is now a first-class query.
+    # Multikey on the array, then the same sort as the other two.
+    await _ensure_index(
+        db.events,
+        [("published", 1), ("category", 1), ("featured", -1), ("start_date", 1)],
+        name="pub_category_featured_start",
+    )
     # Backs the analytics top-events sort.
     await _ensure_index(db.events, [("published", 1), ("view_count", -1)], name="pub_viewcount")
     await db.events.create_index([("source_id", 1), ("external_id", 1)], sparse=True)
@@ -579,31 +712,47 @@ async def lifespan(_: FastAPI):
     except Exception:
         pass  # already exists with different options — non-fatal
 
-    # Admin seeding. ADMIN_PASSWORD is authoritative: if it no longer matches
-    # the stored hash, the stored hash is replaced on boot.
+    # Admin seeding. ADMIN_PASSWORD is the way in and the way back in, not a
+    # standing instruction.
     #
-    # It used to seed only when the account was absent, which meant there was no
-    # way to rotate the password at all — changing the variable did nothing, and
-    # no endpoint existed to change it either. Rotating now means updating
-    # ADMIN_PASSWORD in the environment and restarting.
+    # It used to compare the variable against the stored hash on every boot and
+    # overwrite the hash whenever they differed. That made the variable the only
+    # possible source of the password: change it anywhere else and the next
+    # restart silently undid you — which is why the console can now offer a
+    # change form at all.
+    #
+    # What is compared instead is the *variable* against what it was last time,
+    # recorded as a fingerprint. Editing it in the environment still rotates the
+    # password, so a forgotten one is still recoverable; leaving it alone leaves
+    # a password changed in the console alone.
+    #
+    # The fingerprint is a salted hash. It never has to be checked against a
+    # candidate, only against itself, so nothing here can be used to test
+    # guesses even by someone holding the database.
+    env_fingerprint = hashlib.sha256(
+        f"{ADMIN_EMAIL}:{ADMIN_PASSWORD}".encode()
+    ).hexdigest()
+
     existing = await db.users.find_one({"email": ADMIN_EMAIL})
     if not existing:
         admin_doc = {
             "id": str(uuid.uuid4()),
             "email": ADMIN_EMAIL,
             "hashed_password": hash_password(ADMIN_PASSWORD),
+            "admin_password_env_fingerprint": env_fingerprint,
             "role": "admin",
             "name": "Administrator",
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.users.insert_one(admin_doc)
         logger.info("Seeded admin user %s", ADMIN_EMAIL)
-    elif not verify_password(ADMIN_PASSWORD, existing.get("hashed_password", "")):
+    elif existing.get("admin_password_env_fingerprint") != env_fingerprint:
         await db.users.update_one(
             {"email": ADMIN_EMAIL},
             {
                 "$set": {
                     "hashed_password": hash_password(ADMIN_PASSWORD),
+                    "admin_password_env_fingerprint": env_fingerprint,
                     "password_rotated_at": datetime.now(timezone.utc).isoformat(),
                 }
             },
@@ -647,6 +796,30 @@ app = FastAPI(lifespan=lifespan, title="Wat Elo? API")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+def _if_none_match_matches(header: Optional[str], etag: str) -> bool:
+    """RFC 7232 comparison for If-None-Match.
+
+    A literal string compare is not enough. Proxies rewrite a strong ETag into
+    its weak form when they re-encode the body — Cloudflare does exactly this in
+    front of this API — and clients echo back whatever they received. So the
+    server would emit `"abc"`, the client would return `W/"abc"`, the compare
+    would fail, and the 304 path never fired in production even though it worked
+    against the container directly.
+
+    Also handles the comma-separated list and `*` that the header allows.
+    """
+    if not header:
+        return False
+    candidates = [c.strip() for c in header.split(",") if c.strip()]
+    if "*" in candidates:
+        return True
+
+    def unweak(tag: str) -> str:
+        return tag[2:] if tag.startswith("W/") else tag
+
+    return any(unweak(c) == unweak(etag) for c in candidates)
+
+
 class ETagMiddleware(BaseHTTPMiddleware):
     """Strong ETag on GET responses, answering If-None-Match with a 304.
 
@@ -671,7 +844,7 @@ class ETagMiddleware(BaseHTTPMiddleware):
         headers.setdefault("Cache-Control", "private, max-age=60, must-revalidate")
         del headers["content-length"]  # recomputed by Response below
 
-        if request.headers.get("if-none-match") == etag:
+        if _if_none_match_matches(request.headers.get("if-none-match"), etag):
             return Response(status_code=304, headers=dict(headers))
         return Response(content=body, status_code=200, headers=dict(headers))
 
@@ -707,6 +880,62 @@ async def root():
 
 
 # ---- Auth ----
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+# Short enough not to be a nuisance, long enough that guessing is hopeless
+# against a 5/minute limit. Nothing longer is enforced: a passphrase someone
+# will actually remember beats a short one they write on a sticky note.
+MIN_PASSWORD_LENGTH = 12
+
+
+@app.post("/api/admin/password", status_code=204)
+@limiter.limit("5/minute")
+async def change_admin_password(
+    request: Request,
+    body: PasswordChangeRequest = Body(...),
+    user: Dict[str, Any] = Depends(require_admin),
+):
+    """Change the signed-in admin's password.
+
+    The current password is required even though the caller already holds a
+    valid token. A token lives seven days and travels in browser storage; an
+    unattended console should not be enough to lock the owner out of their own
+    admin account.
+
+    This survives a restart. The boot code used to overwrite the stored hash
+    whenever it differed from ADMIN_PASSWORD, which would have undone this at
+    the next deploy; it now rotates only when the variable itself changes, so
+    the environment stays the way back in without being a standing order.
+
+    Neither password is logged, not even its length.
+    """
+    stored = await db.users.find_one({"id": user["id"]})
+    if not stored or not verify_password(body.current_password, stored.get("hashed_password", "")):
+        raise HTTPException(status_code=403, detail="Current password is not correct")
+
+    new = body.new_password
+    if len(new) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"New password must be at least {MIN_PASSWORD_LENGTH} characters",
+        )
+    if verify_password(new, stored.get("hashed_password", "")):
+        raise HTTPException(status_code=400, detail="New password must differ from the old one")
+
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {
+            "hashed_password": hash_password(new),
+            "password_changed_at": datetime.now(timezone.utc).isoformat(),
+        }},
+    )
+    logger.info("Admin password changed via the console for %s", stored.get("email"))
+    return Response(status_code=204)
+
+
 @app.post("/api/auth/login", response_model=TokenResponse)
 @limiter.limit("10/minute")
 async def login(request: Request, body: LoginRequest = Body(...)):
@@ -752,7 +981,13 @@ class GoogleSessionResponse(BaseModel):
     user: GoogleAuthUser
 
 
-EMERGENT_SESSION_URL = os.environ["EMERGENT_SESSION_URL"]
+# Google sign-in goes through Emergent's session service. This used to be read
+# as os.environ[...] at import time, so a deployment that had not set it — or
+# does not offer Google sign-in at all — died on start-up with a bare
+# KeyError naming a variable documented nowhere. Everything else in the app
+# works without it, so it is optional now and only the one endpoint below
+# refuses, with a message that says what is missing.
+EMERGENT_SESSION_URL = os.environ.get("EMERGENT_SESSION_URL", "")
 
 
 @app.post("/api/auth/session", response_model=GoogleSessionResponse)
@@ -764,6 +999,14 @@ async def exchange_google_session(payload: GoogleSessionRequest):
     - Upserts the user by email (reuse existing user_id if present).
     - Stores the session in `user_sessions` with a TTL index.
     """
+    if not EMERGENT_SESSION_URL:
+        # 503, not 500: the service is configured out, not broken.
+        raise HTTPException(
+            status_code=503,
+            detail="Google sign-in is not configured on this server "
+                   "(EMERGENT_SESSION_URL is unset).",
+        )
+
     if not payload.session_id.strip():
         raise HTTPException(status_code=400, detail="session_id is required")
 
@@ -884,26 +1127,126 @@ async def delete_my_account(current: Dict[str, Any] = Depends(get_current_user))
 
 
 # ---- Public events ----
-@app.get("/api/events", response_model=List[EventSummary])
-async def list_events(
-    response: Response,
-    canton: Optional[str] = None,
-    upcoming: bool = True,
-    limit: int = Query(100, ge=1, le=200),
-    skip: int = Query(0, ge=0),
-):
-    """Paginated event list in the trimmed EventSummary shape.
+def _events_query(
+    *,
+    canton: Optional[str],
+    category: Optional[List[str]],
+    type_: Optional[str],
+    age_min: Optional[int],
+    age_max: Optional[int],
+    wheelchair: bool,
+    sensory: bool,
+    free_parking: bool,
+    date_from: Optional[str],
+    date_to: Optional[str],
+    q: Optional[str],
+    upcoming: bool,
+) -> Dict[str, Any]:
+    """The filter the list screens were applying by hand, in Mongo's language.
 
-    `limit` is capped: it used to be an unbounded caller-supplied number, so a
-    single `?limit=1000000` could force a full-collection scan and serialize the
-    lot. The total goes out in X-Total-Count so clients can page.
+    All of this used to happen in the app, on whatever had been downloaded —
+    which was 200 events out of 479. Choosing "Playgrounds" searched 200 rows
+    and returned what happened to be among them; the endpoint did not even
+    accept the parameter, so `?category=Playgrounds` was silently dropped and
+    answered with everything.
+
+    Two of these are easy to get backwards, so they are spelled out:
+
+    * The three family-needs switches only ever *narrow*. `wheelchair=false`
+      means "do not care", never "only events without wheelchair access" — the
+      app's toggles are off by default, and reading them as an exclusion would
+      hide most of the calendar the moment somebody left one alone.
+    * Ages *overlap*, they are not contained. An event for 4-to-10-year-olds
+      belongs in a search for "0-3"'s siblings only if the ranges actually
+      meet, which is `age_min <= wanted_max and age_max >= wanted_min`.
     """
     query: Dict[str, Any] = {"published": True}
     if canton:
         query["canton"] = canton
+    if category:
+        query["category"] = {"$in": category}
+    if type_:
+        query["type"] = type_
+
+    if age_min is not None or age_max is not None:
+        # Overlap, both directions. See the note above.
+        if age_max is not None:
+            query["age_min"] = {"$lte": age_max}
+        if age_min is not None:
+            query["age_max"] = {"$gte": age_min}
+
+    # Only ever narrowing — never "show me the inaccessible ones".
+    for flag, field in (
+        (wheelchair, "accessibility_wheelchair"),
+        (sensory, "sensory_friendly"),
+        (free_parking, "free_parking"),
+    ):
+        if flag:
+            query[field] = True
+
+    start: Dict[str, str] = {}
     if upcoming:
-        today = datetime.now(timezone.utc).date().isoformat()
-        query["start_date"] = {"$gte": today}
+        start["$gte"] = datetime.now(timezone.utc).date().isoformat()
+    if date_from:
+        # An explicit window wins over the general "not in the past".
+        start["$gte"] = date_from
+    if date_to:
+        start["$lte"] = date_to
+    if start:
+        query["start_date"] = start
+
+    if q:
+        # Substring, case-insensitive, over the same fields the app searched:
+        # the title and teaser in every language, plus the town. re.escape
+        # matters — this is caller-supplied text going into a regex, and
+        # without it a stray "(" is a 500 and ".*.*.*" is a way to make the
+        # database work very hard.
+        needle = re.escape(q.strip())
+        if needle:
+            # en/de/fr and not lb: the backend's LocalizedString has three
+            # languages, and no stored event carries a Luxembourgish title —
+            # checked against all 528. The app translates its own interface
+            # into Lëtzebuergesch, but event text arrives in the language the
+            # source wrote it in. Searching `title.lb` would be a branch that
+            # can never match.
+            fields = [f"{part}.{lang}" for part in ("title", "short")
+                      for lang in ("en", "de", "fr")] + ["town"]
+            query["$or"] = [{f: {"$regex": needle, "$options": "i"}} for f in fields]
+
+    return query
+
+
+@app.get("/api/events", response_model=List[EventSummary])
+async def list_events(
+    response: Response,
+    canton: Optional[str] = None,
+    category: Optional[List[str]] = Query(None),
+    type: Optional[str] = Query(None),
+    age_min: Optional[int] = Query(None, ge=0, le=99),
+    age_max: Optional[int] = Query(None, ge=0, le=99),
+    wheelchair: bool = False,
+    sensory: bool = False,
+    free_parking: bool = False,
+    date_from: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    date_to: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    q: Optional[str] = Query(None, max_length=80),
+    upcoming: bool = True,
+    limit: int = Query(100, ge=1, le=200),
+    skip: int = Query(0, ge=0),
+):
+    """Paginated, filtered event list in the trimmed EventSummary shape.
+
+    `limit` is capped: it used to be an unbounded caller-supplied number, so a
+    single `?limit=1000000` could force a full-collection scan and serialize the
+    lot. The total goes out in X-Total-Count so clients can page — and paging
+    is the point, because the cap is below the number of events we hold.
+    """
+    query = _events_query(
+        canton=canton, category=category, type_=type,
+        age_min=age_min, age_max=age_max,
+        wheelchair=wheelchair, sensory=sensory, free_parking=free_parking,
+        date_from=date_from, date_to=date_to, q=q, upcoming=upcoming,
+    )
 
     # Featured first, then by start date — matches pub_featured_start /
     # pub_canton_featured_start so Mongo walks the index instead of sorting.
@@ -918,7 +1261,7 @@ async def list_events(
         db.events.count_documents(query),
     )
     response.headers["X-Total-Count"] = str(total)
-    return [EventSummary(**d) for d in docs]
+    return _summaries(docs)
 
 
 @app.get("/api/events/{event_id}", response_model=EventResponse)
@@ -984,7 +1327,7 @@ async def admin_list_events(
         db.events.count_documents({}),
     )
     response.headers["X-Total-Count"] = str(total)
-    return [EventSummary(**d) for d in docs]
+    return _summaries(docs)
 
 
 @app.get("/api/admin/events/{event_id}", response_model=EventResponse)
@@ -1453,6 +1796,11 @@ async def list_places(
     group: Optional[str] = None,
     min_score: int = 0,
     limit: int = 200,
+    # There are 8,354 places and this endpoint could return at most 200 of
+    # them, with no way to ask for the next ones. The events list has had skip
+    # since it was written; this one never did, so the app showed the first
+    # page and stopped there.
+    skip: int = 0,
     near_lat: Optional[float] = None,
     near_lng: Optional[float] = None,
     radius_km: float = 10.0,
@@ -1481,7 +1829,11 @@ async def list_places(
     projection = {"_id": 0, "tags_raw": 0}
     cursor = (
         db.places.find(query, projection)
-        .sort("family_score", -1)
+        # family_score first, then id: without a tiebreak Mongo may order two
+        # equally scored places differently between calls, and with paging that
+        # means a place appearing on two pages while another appears on none.
+        .sort([("family_score", -1), ("id", 1)])
+        .skip(max(skip, 0))
         .limit(min(max(limit, 1), 1000))
     )
     docs = await cursor.to_list(length=None)

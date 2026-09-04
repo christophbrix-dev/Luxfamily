@@ -37,13 +37,49 @@ CATEGORIES = {
         "group": "play", "base_score": 90,
         "filters": ['["leisure"="playground"]'],
     },
+    # Position matters: this must come before `water_playground`, because
+    # both claim `leisure=water_park` and the first category that accepts
+    # an item wins. Named water parks are public pools and belong here;
+    # `require_name` below makes this category decline the unnamed ones,
+    # which then fall through to the paddling pools.
+    "swimming": {
+        "label_de": "Schwimmbad / Freibad", "label_fr": "Piscine",
+        "label_lb": "Schwämm",              "label_en": "Swimming pool",
+        "group": "sport", "base_score": 85,
+        # Require a name — OSM Luxembourg has ~1800 unnamed private backyard
+        # pools tagged `leisure=swimming_pool` that we do NOT want to expose.
+        "require_name": True,
+        # `access=customers` normally means "not really open to the public",
+        # and the ingest drops it everywhere else for good reason. A municipal
+        # outdoor pool that charges admission is tagged that way too, though,
+        # and dropping it is the wrong call: paying at the gate is what a
+        # public pool is. It cost us the Piscine ouverte d'Oberkorn, which is
+        # not a private garden but the town's open-air pool.
+        "allow_customers": True,
+        "filters": [
+            '["leisure"="swimming_pool"]',
+            '["amenity"="public_bath"]',
+            '["leisure"="water_park"]',
+        ],
+    },
     "water_playground": {
         "label_de": "Wasserspielplatz", "label_fr": "Aire de jeux d'eau",
         "label_lb": "Waasserspillplaz", "label_en": "Water playground",
         "group": "play", "base_score": 88,
+        # `leisure=water_park` appears here *and* under `swimming` above, and
+        # that is deliberate: it is the catch-all for the unnamed ones. Named
+        # ones are public pools and `swimming` takes them first; what is left
+        # is the paddling area in a village park, which is this.
+        #
+        # It used to be listed only here, and `water_playground` came first, so
+        # seven of Luxembourg's public pools were filed as splash pads —
+        # AquaNat'Our, Piscine Piko, Piscine Plein-Air Dudelange, Remich,
+        # Vianden, Freibad Troisvierges and the Réidener Schwämm. Anyone
+        # filtering for "Schwämm" found none of them.
         "filters": [
-            '["leisure"="water_park"]',
             '["playground"="splash_pad"]',
+            '["leisure"="splash_pad"]',
+            '["leisure"="water_park"]',
             '["amenity"="fountain"]["drinking_water"="yes"]',
         ],
     },
@@ -111,6 +147,28 @@ CATEGORIES = {
             '["natural"="beach"]',
             '["sport"="swimming"]["natural"="water"]',
         ],
+    },
+    # Luxembourg's bathing lakes. They are tagged natural=water + water=lake
+    # and nothing else — no swimming_area, no beach — so the category above
+    # never matched a single one, and the Lac d'Echternach was missing from an
+    # app about family outings in Luxembourg.
+    #
+    # Matching water=lake on its own is useless: 3,110 unnamed ponds sit inside
+    # the country's bounding box. A name cuts that to 41, and a minimum size
+    # settles the rest — a storm basin called "A2" is 0.4 ha, a lake people
+    # drive to is not. At 2 ha the whole country yields exactly four: Haute-
+    # Sûre, Echternach, the Riemescher Weieren and Weiswampach. Which is the
+    # right answer, because that is how many bathing lakes Luxembourg has.
+    #
+    # water=reservoir stays out deliberately: at this size it means the upper
+    # basins at Vianden, which are fenced industrial pumped storage.
+    "lake": {
+        "label_de": "Badesee", "label_fr": "Lac de baignade",
+        "label_lb": "Badeséi", "label_en": "Bathing lake",
+        "group": "nature", "base_score": 85,
+        "filters": ['["natural"="water"]["water"="lake"]'],
+        "require_name": True,
+        "min_area_m2": 20_000,
     },
     "cave_rock": {
         "label_de": "Höhle / Fels", "label_fr": "Grotte / Rocher",
@@ -204,8 +262,17 @@ CATEGORIES = {
         "group": "animals", "base_score": 92,
         "filters": [
             '["tourism"="zoo"]',
-            '["attraction"="animal"]',
+            # Not ["attraction"="animal"]. In OSM that tags one exhibit inside
+            # an attraction, not a place to go: the 41 in Luxembourg are
+            # "Dunkelroter Ara", "Molukkenkakadu", "Wellensittich", "Schweine"
+            # — individual cages and pens in the Parc Merveilleux, listed
+            # beside the park itself as though each were its own outing. Not
+            # one of them also carries tourism=zoo, so nothing is lost.
         ],
+        # Unnamed tourism=zoo areas are enclosures inside a zoo: five of them
+        # sit in Bettembourg, all of them inside the Parc Merveilleux, which is
+        # listed once under its own name.
+        "require_name": True,
     },
     "horse": {
         "label_de": "Reiterhof / Ponys", "label_fr": "Centre équestre",
@@ -215,6 +282,10 @@ CATEGORIES = {
             '["leisure"="horse_riding"]',
             '["sport"="equestrian"]',
         ],
+        # 8 named against 148 unnamed. A riding school has a name; the rest are
+        # paddocks and fields tagged leisure=horse_riding, which is not
+        # somewhere to take the children on a Sunday.
+        "require_name": True,
     },
 
     # ---------- Kultur & Lernen ----------
@@ -233,6 +304,12 @@ CATEGORIES = {
             '["historic"="fort"]',
             '["historic"="ruins"]',
         ],
+        # A castle is its name. Unnamed, historic=ruins is a fragment of wall or
+        # a sally port — 133 of them against 26 named ones, most in Echternach
+        # where the Roman remains are mapped piece by piece — and an unnamed
+        # historic=castle with building=yes is usually the keep of a castle
+        # that is already listed under its own name.
+        "require_name": True,
     },
     "library": {
         "label_de": "Bibliothek", "label_fr": "Bibliothèque",
@@ -261,19 +338,6 @@ CATEGORIES = {
     },
 
     # ---------- Sport & Schwimmen ----------
-    "swimming": {
-        "label_de": "Schwimmbad / Freibad", "label_fr": "Piscine",
-        "label_lb": "Schwämm",              "label_en": "Swimming pool",
-        "group": "sport", "base_score": 85,
-        # Require a name — OSM Luxembourg has ~1800 unnamed private backyard
-        # pools tagged `leisure=swimming_pool` that we do NOT want to expose.
-        "require_name": True,
-        "filters": [
-            '["leisure"="swimming_pool"]',
-            '["amenity"="public_bath"]',
-            '["leisure"="water_park"]',
-        ],
-    },
     "ice_rink": {
         "label_de": "Eislaufbahn", "label_fr": "Patinoire",
         "label_lb": "Aisstadion",  "label_en": "Ice rink",
@@ -317,14 +381,18 @@ SCORE_RULES = [
     ("opening_hours",     None,               +2),
     ("wheelchair",        r"^(yes|designated)$", +4),
     ("toilets",           r"^yes$",           +4),
-    ("amenity:toilets",   None,               +4),
+    # The POI *is* a toilet.  OSM spells this amenity=toilets — a key literally
+    # named "amenity:toilets" does not exist, so the old rule never once fired.
+    ("amenity",           r"^toilets$",       +4),
     ("drinking_water",    r"^yes$",           +3),
     ("shade",             r"^(yes|partial)$", +3),
     ("fee",               r"^no$",            +3),
     ("fee",               r"^yes$",           -3),
     ("playground:theme",  None,               +3),
     ("max_age",           None,               +2),
-    ("baby_feeding",      None,               +5),
+    # baby_feeding is commonly tagged "no".  Without a value check, a place that
+    # states it has nowhere to feed a baby scored the same as one that has.
+    ("baby_feeding",      r"^(yes|room|dedicated_room)$", +5),
     ("changing_table",    r"^yes$",           +5),
     ("access",            r"^(private|no|customers)$", -40),
 ]

@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -25,6 +24,7 @@ import {
 } from "@/src/data/onboarding";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { pickLang } from "@/src/i18n/pickLang";
+import { ConfirmDialog } from "@/src/components/ConfirmDialog";
 import { type Palette, shadowFor } from "@/src/theme";
 
 type Step = "welcome" | "persona" | "ages" | "interests" | "needs" | "cantons" | "budget" | "done";
@@ -86,29 +86,25 @@ export default function OnboardingScreen() {
     });
   }, [persona, childAges, interests, needs, preferredCantons, budget, persistAndExit]);
 
-  const confirmSkip = useCallback(() => {
-    Alert.alert(
-      pickLang(ONBOARDING_COPY.skipWarnTitle, lang),
-      pickLang(ONBOARDING_COPY.skipWarnBody, lang),
-      [
-        { text: pickLang(ONBOARDING_COPY.cancel, lang), style: "cancel" },
-        {
-          text: pickLang(ONBOARDING_COPY.skipConfirm, lang),
-          style: "destructive",
-          onPress: () =>
-            persistAndExit({
-              persona: "skipped",
-              childAgeGroups: [],
-              interests: [],
-              needs: [],
-              preferredCantons: [],
-              budget: "",
-              completedAt: null,
-            }),
-        },
-      ],
-    );
-  }, [lang, persistAndExit]);
+  // An in-app dialog, not Alert.alert and not the browser's confirm(). The
+  // first opened nothing on the web (react-native-web ships Alert as an empty
+  // function) and the second blocked the page behind a dialog that looks
+  // nothing like the app. This sits on the path every new user takes who does
+  // not want to answer the questions, so it has to work everywhere.
+  const [askingToSkip, setAskingToSkip] = useState(false);
+
+  const skipForReal = useCallback(() => {
+    setAskingToSkip(false);
+    persistAndExit({
+      persona: "skipped",
+      childAgeGroups: [],
+      interests: [],
+      needs: [],
+      preferredCantons: [],
+      budget: "",
+      completedAt: null,
+    });
+  }, [persistAndExit]);
 
   // Prefill interests when persona changes (nice UX).
   const onPickPersona = useCallback((id: PersonaId) => {
@@ -181,7 +177,7 @@ export default function OnboardingScreen() {
         )}
 
         {step !== "done" ? (
-          <TouchableOpacity onPress={confirmSkip} hitSlop={12} testID="onb-skip">
+          <TouchableOpacity onPress={() => setAskingToSkip(true)} hitSlop={12} testID="onb-skip">
             <Text style={styles.skipTxt}>{pickLang(ONBOARDING_COPY.skip, lang)}</Text>
           </TouchableOpacity>
         ) : (
@@ -229,7 +225,7 @@ export default function OnboardingScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.cardTitle}>{pickLang(p.labels, lang)}</Text>
-                      <Text style={styles.cardDesc}>{p.descriptions[lang]}</Text>
+                      <Text style={styles.cardDesc}>{pickLang(p.descriptions, lang)}</Text>
                     </View>
                     {active ? (
                       <Ionicons
@@ -273,7 +269,8 @@ export default function OnboardingScreen() {
           <View>
             <Text style={styles.h1}>{pickLang(ONBOARDING_COPY.interestsTitle, lang)}</Text>
             <Text style={styles.subtitle}>
-              {pickLang(ONBOARDING_COPY.interestsSub, lang)} · {interests.length} selected
+              {pickLang(ONBOARDING_COPY.interestsSub, lang)} · {interests.length}{" "}
+                {pickLang(ONBOARDING_COPY.selected, lang)}
             </Text>
             <View style={styles.chipsWrap}>
               {INTEREST_TAGS.map((t) => {
@@ -335,7 +332,8 @@ export default function OnboardingScreen() {
           <View>
             <Text style={styles.h1}>{pickLang(ONBOARDING_COPY.cantonsTitle, lang)}</Text>
             <Text style={styles.subtitle}>
-              {pickLang(ONBOARDING_COPY.cantonsSub, lang)} · {preferredCantons.length} selected
+              {pickLang(ONBOARDING_COPY.cantonsSub, lang)} · {preferredCantons.length}{" "}
+                {pickLang(ONBOARDING_COPY.selected, lang)}
             </Text>
             <View style={styles.chipsWrap}>
               {CANTON_OPTIONS.map((c) => {
@@ -419,7 +417,10 @@ export default function OnboardingScreen() {
               )}
               <SummaryRow
                 icon="pricetag-outline"
-                label={`${interests.length} interest${interests.length === 1 ? "" : "s"}`}
+                label={`${interests.length} ${pickLang(
+                    interests.length === 1 ? ONBOARDING_COPY.interestOne : ONBOARDING_COPY.interestMany,
+                    lang,
+                  )}`}
               />
               {needs.length > 0 && (
                 <SummaryRow
@@ -465,6 +466,17 @@ export default function OnboardingScreen() {
           <Ionicons name="arrow-forward" size={18} color="#fff" />
         </TouchableOpacity>
       </View>
+
+      <ConfirmDialog
+        open={askingToSkip}
+        title={pickLang(ONBOARDING_COPY.skipWarnTitle, lang)}
+        message={pickLang(ONBOARDING_COPY.skipWarnBody, lang)}
+        confirmLabel={pickLang(ONBOARDING_COPY.skipConfirm, lang)}
+        cancelLabel={pickLang(ONBOARDING_COPY.cancel, lang)}
+        destructive
+        onConfirm={skipForReal}
+        onCancel={() => setAskingToSkip(false)}
+      />
     </SafeAreaView>
   );
 }

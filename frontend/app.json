@@ -36,7 +36,15 @@
           "backgroundColor": "#F0FDF4"
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Wat Elo? uses your location to show how far away places are and what is nearby. Location is never stored or shared.",
+          "locationWhenInUsePermission": "Wat Elo? uses your location to show how far away places are and what is nearby. Location is never stored or shared.",
+          "isAndroidBackgroundLocationEnabled": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

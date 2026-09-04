@@ -30,6 +30,32 @@ os.environ.setdefault("DISABLE_SCHEDULER", "1")
 os.environ.setdefault("EMERGENT_SESSION_URL", "https://example.invalid/session")
 
 
+@pytest.fixture(autouse=True)
+def offline(monkeypatch):
+    """Make the name of this directory true.
+
+    Nothing here is supposed to touch the network, and for a long time nothing
+    did — by convention, with nothing enforcing it. Then a test meant to stub a
+    crawler stubbed it in the wrong place, and the suite went out and fetched
+    kids-in-lux.com for real, at the 5s Crawl-delay that site asks for, until
+    it was killed by hand. It never failed; it hung, which is worse, and on
+    someone else's server.
+
+    A refused connection turns that into a normal test failure naming the
+    place. mongomock and httpx's ASGITransport are both in-process, so nothing
+    legitimate here opens a socket.
+    """
+    import socket
+
+    def _refuse(self, address, *args, **kwargs):
+        raise RuntimeError(
+            f"offline test tried to reach {address!r} — stub the fetch instead"
+        )
+
+    monkeypatch.setattr(socket.socket, "connect", _refuse)
+    monkeypatch.setattr(socket.socket, "connect_ex", _refuse)
+
+
 @pytest.fixture
 def run():
     """Run one coroutine to completion in a fresh event loop."""
@@ -46,6 +72,16 @@ def app_module():
 
     server.client = AsyncMongoMockClient()
     server.db = server.client["offline"]
+    # The rate limiter counts per client address, and every test here shares
+    # one, so counts leak from one test into the next: a test passes or fails
+    # depending on how many requests the tests before it made. Clearing the
+    # counters rather than disabling the limiter keeps the tests that assert
+    # the limits working — one of them checks the sponsor endpoint refuses a
+    # thirteenth request.
+    try:
+        server.limiter._storage.reset()
+    except Exception:
+        pass
     return server
 
 

@@ -1,13 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState, useMemo } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AppCard } from "@/src/components/AppCard";
 import { Chip } from "@/src/components/Chip";
 import { useApp } from "@/src/contexts/AppContext";
-import { PLACES } from "@/src/data/places";
+import type { Place } from "@/src/data/places";
+import { usePlaces } from "@/src/hooks/useLivePlaces";
+import { detailHref } from "@/src/utils/toPlace";
 import { t } from "@/src/i18n/strings";
 import { pickLang } from "@/src/i18n/pickLang";
 import { type Palette, shadowFor } from "@/src/theme";
@@ -18,25 +20,75 @@ export default function Calendar() {
   const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const router = useRouter();
   const { lang, bookings } = useApp();
-  const [chip, setChip] = useState<"weekend" | "7days" | "june" | "bookings">("weekend");
+  const [chip, setChip] = useState<"weekend" | "7days" | "month" | "bookings">("weekend");
+  const { places, loading } = usePlaces();
 
-  // Group static demo content by date for the weekend / 7-day view.
-  // Labels are formatted per-locale below so the calendar reads naturally
-  // in DE/FR too (e.g. "Samstag, 25. Mai").
-  const fmtDate = (iso: string) => {
-    const d = new Date(iso);
-    const locale = lang === "de" ? "de-DE" : lang === "fr" ? "fr-FR" : "en-GB";
-    return d.toLocaleDateString(locale, {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    });
-  };
-  const groups: { label: string; items: typeof PLACES }[] = [
-    { label: fmtDate("2026-05-25"), items: [PLACES[2], PLACES[1], PLACES[4]] },
-    { label: fmtDate("2026-05-26"), items: [PLACES[0], PLACES[3]] },
-    { label: fmtDate("2026-06-01"), items: [PLACES[5], PLACES[6]] },
-  ];
+  // Labels are formatted per-locale so the calendar reads naturally in DE/FR
+  // too (e.g. "Samstag, 25. Mai"). Luxembourgish borrows the German locale,
+  // matching the fallback used everywhere else.
+  const locale = lang === "de" || lang === "lb" ? "de-DE" : lang === "fr" ? "fr-FR" : "en-GB";
+  const fmtDate = useCallback(
+    (iso: string) =>
+      new Date(iso).toLocaleDateString(locale, {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      }),
+    [locale],
+  );
+
+  /**
+   * The window the selected chip covers, as inclusive YYYY-MM-DD bounds.
+   *
+   * Compared as strings: the dates arrive from the API in that format, and
+   * string comparison orders them correctly without building Date objects that
+   * would drag the device timezone into it.
+   */
+  const range = useMemo(() => {
+    const iso = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+        d.getDate(),
+      ).padStart(2, "0")}`;
+    const today = new Date();
+
+    if (chip === "weekend") {
+      // The coming Saturday and Sunday. On a Saturday that means today and
+      // tomorrow; on a Sunday, today alone rather than a week away.
+      const day = today.getDay(); // 0 = Sunday
+      const sat = new Date(today);
+      if (day === 0) {
+        return { from: iso(today), to: iso(today) };
+      }
+      sat.setDate(today.getDate() + ((6 - day + 7) % 7));
+      const sun = new Date(sat);
+      sun.setDate(sat.getDate() + 1);
+      return { from: iso(sat), to: iso(sun) };
+    }
+
+    if (chip === "7days") {
+      const end = new Date(today);
+      end.setDate(today.getDate() + 7);
+      return { from: iso(today), to: iso(end) };
+    }
+
+    // Remainder of the current month.
+    const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    return { from: iso(today), to: iso(end) };
+  }, [chip]);
+
+  /** Events inside the window, grouped by day and in date order. */
+  const groups = useMemo(() => {
+    const byDay = new Map<string, Place[]>();
+    for (const p of places ?? []) {
+      if (!p.startDate || p.startDate < range.from || p.startDate > range.to) continue;
+      const bucket = byDay.get(p.startDate) ?? [];
+      bucket.push(p);
+      byDay.set(p.startDate, bucket);
+    }
+    return [...byDay.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, items]) => ({ label: fmtDate(date), items }));
+  }, [places, range, fmtDate]);
 
   const showGroups = chip !== "bookings";
 
@@ -69,9 +121,9 @@ export default function Calendar() {
             testID="cal-chip-7days"
           />
           <Chip
-            label={t("june", lang)}
-            active={chip === "june"}
-            onPress={() => setChip("june")}
+            label={new Date().toLocaleDateString(locale, { month: "long" })}
+            active={chip === "month"}
+            onPress={() => setChip("month")}
             testID="cal-chip-june"
           />
           <Chip
@@ -82,7 +134,15 @@ export default function Calendar() {
           />
         </ScrollView>
 
-        {showGroups ? (
+        {showGroups && loading ? (
+          <ActivityIndicator color={palette.primary} style={{ marginTop: 32 }} />
+        ) : showGroups && groups.length === 0 ? (
+          // A window with nothing in it is a normal answer, not an error. Most
+          // of the catalogue is undated venues rather than dated events.
+          <View style={styles.groupList}>
+            <Text style={styles.groupLabel}>{t("noEventsYet", lang).toUpperCase()}</Text>
+          </View>
+        ) : showGroups ? (
           <View style={styles.groupList}>
             {groups.map((g) => (
               <View key={g.label} style={styles.group}>
@@ -92,7 +152,7 @@ export default function Calendar() {
                     <AppCard
                       key={p.id}
                       item={p}
-                      onPress={() => router.push(`/detail/${p.id}`)}
+                      onPress={() => router.push(detailHref(p))}
                     />
                   ))}
                 </View>
@@ -107,12 +167,12 @@ export default function Calendar() {
         ) : (
           <View style={styles.bookingList}>
             {bookings.map((b) => {
-              const p = PLACES.find((x) => x.id === b.placeId);
+              const p = (places ?? []).find((x) => x.id === b.placeId);
               if (!p) return null;
               return (
                 <TouchableOpacity
                   key={b.id}
-                  onPress={() => router.push(`/detail/${p.id}`)}
+                  onPress={() => router.push(detailHref(p))}
                   style={styles.bookingCard}
                   testID={`booking-card-${b.id}`}
                 >
@@ -158,7 +218,11 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
     boxShadow: "0px 4px 8px rgba(15, 23, 42, 0.05)",
     elevation: 2,
   },
-  chipRowOuter: { marginTop: 18, marginBottom: 4, maxHeight: 56, marginHorizontal: -20 },
+// flexShrink: 0 because maxHeight does not stop a flex child from being
+  // squeezed — it only caps how tall it may grow. React Native Web gives
+  // every view flexShrink: 1, so this row collapsed to 10px and the filter
+  // chips were simply not on screen.
+  chipRowOuter: { marginTop: 18, marginBottom: 4, maxHeight: 56, flexShrink: 0, marginHorizontal: -20 },
   chipRow: { gap: 8, alignItems: "center", height: 56, paddingHorizontal: 20 },
   groupList: { marginTop: 14, gap: 28 },
   group: { gap: 12 },

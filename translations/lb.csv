@@ -1,0 +1,216 @@
+Status,Bereich,Schlüssel,Wo es erscheint,Englisch,Deutsch,Französisch,Lëtzebuergesch
+OFFEN,1 Oberfläche,june,"Knöpfe, Titel, Menüs",June,Juni,Juin,Juni
+OFFEN,1 Oberfläche,noEventsYetSub,"Knöpfe, Titel, Menüs",New events are added by the team and partners. Pull to refresh.,Neue Events werden vom Team und Partnern hinzugefügt. Zum Aktualisieren nach unten ziehen.,De nouveaux événements sont ajoutés par l'équipe et les partenaires. Tirez pour actualiser.,Nei Eventer gi vum Team a vu Partner bäigefüügt. Zéi no ënne fir ze aktualiséieren.
+OFFEN,1 Oberfläche,tryRemovingFilter,"Knöpfe, Titel, Menüs",Try removing a filter above.,Entferne einen Filter oben.,Retire un filtre ci-dessus.,Huel e Filter hei uewen ewech.
+OFFEN,1 Oberfläche,failedToLoad,"Knöpfe, Titel, Menüs",Failed to load events,Events konnten nicht geladen werden,Impossible de charger les événements,Eventer konnten net gelueden ginn
+OFFEN,1 Oberfläche,confirmDelete,"Knöpfe, Titel, Menüs",Permanently delete your account and all data?,Konto und alle Daten wirklich unwiderruflich löschen?,Supprimer définitivement le compte et toutes les données ?,Däi Kont an all Donnéeë wierklech definitiv läschen?
+OFFEN,1 Oberfläche,preferencesTitle,"Knöpfe, Titel, Menüs",Preferences,Einstellungen,Préférences,Astellungen
+OFFEN,1 Oberfläche,notifyOnMatch,"Knöpfe, Titel, Menüs",Notify me when new events match my preferences,"Benachrichtige mich bei neuen Events, die zu meinen Präferenzen passen",M'avertir des nouveaux événements correspondant à mes préférences,Sot mir Bescheed wa nei Eventer zu mengen Astellunge passen
+OFFEN,1 Oberfläche,notifyBuildHint,"Knöpfe, Titel, Menüs",Requires the published app build (not Expo Go) and granted notification permission.,Erfordert den veröffentlichten App-Build (nicht Expo Go) und die erteilte Benachrichtigungsberechtigung.,Nécessite la version publiée de l'app (pas Expo Go) et l'autorisation des notifications.,Erfuerdert de verëffentlechten App-Build (net Expo Go) an d'Erlaabnis fir Notifikatiounen.
+OFFEN,1 Oberfläche,sponsorIntro,"Knöpfe, Titel, Menüs",Boost your event with a featured placement at the top of Home and Events for families across Luxembourg.,Bring dein Event mit einer Featured-Platzierung ganz oben auf Home & Events vor Familien in ganz Luxemburg.,Boostez votre événement avec un placement mis en avant en haut de l'Accueil et des Événements pour les familles luxembourgeoises.,Bréng däin Event mat enger Featured-Plaz ganz uewen op Start & Eventer virun d'Famillen a ganz Lëtzebuerg.
+OFFEN,1 Oberfläche,sponsorTrust,"Knöpfe, Titel, Menüs",Secure payment with Stripe. Cancel anytime by contacting support.,Sichere Zahlung mit Stripe. Jederzeit kündbar über den Support.,Paiement sécurisé avec Stripe. Annulation à tout moment via le support.,Sécher bezuele mat Stripe. Zu all Moment kënnegbar iwwer de Support.
+OFFEN,1 Oberfläche,plan1Month,"Knöpfe, Titel, Menüs",1 month,1 Monat,1 mois,1 Mount
+OFFEN,1 Oberfläche,plan3Months,"Knöpfe, Titel, Menüs",3 months,3 Monate,3 mois,3 Méint
+OFFEN,1 Oberfläche,plan6Months,"Knöpfe, Titel, Menüs",6 months,6 Monate,6 mois,6 Méint
+OFFEN,1 Oberfläche,planSave18,"Knöpfe, Titel, Menüs",Save EUR 18,Spare EUR 18,Économisez 18 EUR,Spuer 18 EUR
+OFFEN,1 Oberfläche,planSave65,"Knöpfe, Titel, Menüs",Save EUR 65,Spare EUR 65,Économisez 65 EUR,Spuer 65 EUR
+OFFEN,1 Oberfläche,eventNotFound,"Knöpfe, Titel, Menüs",Event not found,Event nicht gefunden,Événement introuvable,Event net fonnt
+OFFEN,1 Oberfläche,checkoutFailed,"Knöpfe, Titel, Menüs",Checkout failed,Zahlung fehlgeschlagen,Paiement échoué,Bezuelung feelgeschloen
+OFFEN,1 Oberfläche,lookupFailed,"Knöpfe, Titel, Menüs",Lookup failed,Abruf fehlgeschlagen,Recherche échouée,Ofruff feelgeschloen
+OFFEN,1 Oberfläche,featuredSlotActive,"Knöpfe, Titel, Menüs",Your featured slot is active. Plan:,Dein Featured-Platz ist aktiv. Plan:,Votre placement premium est actif. Formule :,Deng Featured-Plaz ass aktiv. Abo:
+OFFEN,1 Oberfläche,paymentProcessing,"Knöpfe, Titel, Menüs",Payment is being processed. Please wait a moment.,Zahlung wird verarbeitet. Bitte einen Moment warten.,Le paiement est en cours de traitement. Merci de patienter.,D'Bezuelung gëtt veraarbecht. Waart w.e.g. e Moment.
+OFFEN,1 Oberfläche,paymentCancelledSub,"Knöpfe, Titel, Menüs",No worries — nothing has been charged. You can try again anytime.,Kein Problem — es wurde nichts abgebucht. Du kannst es jederzeit erneut versuchen.,Pas d'inquiétude — aucun montant n'a été prélevé. Vous pouvez réessayer à tout moment.,Kee Problem — et gouf näischt ofgebucht. Du kanns et zu all Moment nach eemol probéieren.
+OFFEN,1 Oberfläche,adminConsole,"Knöpfe, Titel, Menüs",Admin Console,Admin-Konsole,Console d'administration,Admin-Konsol
+OFFEN,1 Oberfläche,adminSub,"Knöpfe, Titel, Menüs",Wat Elo? event management,Wat Elo? Event-Verwaltung,Wat Elo? gestion d'événements,Wat Elo? Event-Verwaltung
+OFFEN,1 Oberfläche,adminAnalytics,"Knöpfe, Titel, Menüs",Analytics,Statistiken,Statistiques,Statistiken
+OFFEN,1 Oberfläche,allTimeViews,"Knöpfe, Titel, Menüs",All-time views,Views insgesamt,Vues totales,Views am Ganzen
+OFFEN,1 Oberfläche,monthlyFeaturedRevenue,"Knöpfe, Titel, Menüs",Monthly featured revenue,Featured-Einnahmen (Monat),Revenus premium (mensuel),Featured-Recetten (Mount)
+OFFEN,1 Oberfläche,topEventsByViews,"Knöpfe, Titel, Menüs",Top events by views,Top-Events nach Views,Top événements par vues,Top-Eventer no Views
+OFFEN,1 Oberfläche,noViewsYet,"Knöpfe, Titel, Menüs",No views yet.,Noch keine Views.,Aucune vue pour l'instant.,Nach keng Views.
+OFFEN,1 Oberfläche,partnerSubmissions,"Knöpfe, Titel, Menüs",Partner submissions,Partner-Einreichungen,Soumissions partenaires,Virschléi vu Partner
+OFFEN,1 Oberfläche,noPartnerSubmissions,"Knöpfe, Titel, Menüs",No partner submissions yet.,Noch keine Einreichungen.,Aucune soumission pour l'instant.,Nach keng Virschléi vu Partner.
+OFFEN,1 Oberfläche,approve,"Knöpfe, Titel, Menüs",Approve,Annehmen,Approuver,Unhuelen
+OFFEN,1 Oberfläche,reject,"Knöpfe, Titel, Menüs",Reject,Ablehnen,Rejeter,Ofleenen
+OFFEN,1 Oberfläche,importSources,"Knöpfe, Titel, Menüs",Auto-Importer Sources,Auto-Importer Quellen,Sources d'importation,Auto-Importer Quellen
+OFFEN,1 Oberfläche,addNewFeed,"Knöpfe, Titel, Menüs",Add a new feed,Neue Quelle hinzufügen,Ajouter une source,Nei Quell derbäisetzen
+OFFEN,1 Oberfläche,addSource,"Knöpfe, Titel, Menüs",Add source,Quelle hinzufügen,Ajouter la source,Quell derbäisetzen
+OFFEN,1 Oberfläche,neverRun,"Knöpfe, Titel, Menüs",Never run,Nie ausgeführt,Jamais exécuté,Ni ausgefouert
+PRÜFEN,1 Oberfläche,appTitle,"Knöpfe, Titel, Menüs",Wat Elo?,Wat Elo?,Wat Elo?,Wat Elo?
+PRÜFEN,1 Oberfläche,home,"Knöpfe, Titel, Menüs",Home,Start,Accueil,Start
+PRÜFEN,1 Oberfläche,explore,"Knöpfe, Titel, Menüs",Explore,Entdecken,Explorer,Entdecken
+PRÜFEN,1 Oberfläche,profile,"Knöpfe, Titel, Menüs",Profile,Profil,Profil,Profil
+PRÜFEN,1 Oberfläche,filter,"Knöpfe, Titel, Menüs",Filter,Filter,Filtres,Filter
+PRÜFEN,1 Oberfläche,age,"Knöpfe, Titel, Menüs",Age,Alter,Âge,Alter
+PRÜFEN,1 Oberfläche,category,"Knöpfe, Titel, Menüs",Category,Kategorie,Catégorie,Kategorie
+PRÜFEN,1 Oberfläche,date,"Knöpfe, Titel, Menüs",Date,Datum,Date,Datum
+PRÜFEN,1 Oberfläche,subscription,"Knöpfe, Titel, Menüs",Subscription,Abonnement,Abonnement,Abonnement
+PRÜFEN,1 Oberfläche,email,"Knöpfe, Titel, Menüs",Email,E-Mail,Email,E-Mail
+PRÜFEN,1 Oberfläche,filtered,"Knöpfe, Titel, Menüs",filtered,gefiltert,filtré,gefiltert
+PRÜFEN,1 Oberfläche,sponsored,"Knöpfe, Titel, Menüs",Sponsored,Gesponsert,Sponsorisé,Gesponsert
+PRÜFEN,1 Oberfläche,themeLight,"Knöpfe, Titel, Menüs",Light,Hell,Clair,Hell
+PRÜFEN,1 Oberfläche,themeSystem,"Knöpfe, Titel, Menüs",System,System,Système,System
+PRÜFEN,1 Oberfläche,or,"Knöpfe, Titel, Menüs",OR,ODER,OU,ODER
+PRÜFEN,1 Oberfläche,bookingsPlural,"Knöpfe, Titel, Menüs",Bookings,Buchungen,Réservations,Buchungen
+fertig,1 Oberfläche,goodMorning,"Knöpfe, Titel, Menüs",Good morning!,Guten Morgen!,Bonjour !,Gudde Moien!
+fertig,1 Oberfläche,goodAfternoon,"Knöpfe, Titel, Menüs",Good afternoon!,Guten Tag!,Bon après-midi !,Gudden Nomëtteg!
+fertig,1 Oberfläche,goodEvening,"Knöpfe, Titel, Menüs",Good evening!,Guten Abend!,Bonsoir !,Gudden Owend!
+fertig,1 Oberfläche,ideasForToday,"Knöpfe, Titel, Menüs",Here are ideas for today,Hier sind Ideen für heute,Voici des idées pour aujourd'hui,Hei sinn Iddie fir haut
+fertig,1 Oberfläche,saved,"Knöpfe, Titel, Menüs",Saved,Favoriten,Favoris,Favoritten
+fertig,1 Oberfläche,calendar,"Knöpfe, Titel, Menüs",Calendar,Kalender,Agenda,Kalenner
+fertig,1 Oberfläche,search,"Knöpfe, Titel, Menüs","Search for places, events...","Suche Orte, Events...","Chercher lieux, événements...","Sich Plazen, Eventer..."
+fertig,1 Oberfläche,nearYou,"Knöpfe, Titel, Menüs",Near you,In deiner Nähe,Près de vous,An denger Géigend
+fertig,1 Oberfläche,seeAll,"Knöpfe, Titel, Menüs",See all,Alle anzeigen,Voir tout,All uweisen
+fertig,1 Oberfläche,reset,"Knöpfe, Titel, Menüs",Reset,Zurücksetzen,Réinitialiser,Zerécksetzen
+fertig,1 Oberfläche,indoorOutdoor,"Knöpfe, Titel, Menüs",Indoor / Outdoor,Drinnen / Draußen,Intérieur / Extérieur,Bannen / Baussen
+fertig,1 Oberfläche,showResults,"Knöpfe, Titel, Menüs",Show results,Ergebnisse zeigen,Voir les résultats,Resultater weisen
+fertig,1 Oberfläche,places,"Knöpfe, Titel, Menüs",Places,Orte,Lieux,Plazen
+fertig,1 Oberfläche,events,"Knöpfe, Titel, Menüs",Events,Events,Événements,Eventer
+fertig,1 Oberfläche,itineraries,"Knöpfe, Titel, Menüs",Itineraries,Routen,Itinéraires,Wanderungen
+fertig,1 Oberfläche,thisWeekend,"Knöpfe, Titel, Menüs",This weekend,Dieses Wochenende,Ce week-end,Dëst Weekend
+fertig,1 Oberfläche,next7Days,"Knöpfe, Titel, Menüs",Next 7 days,Nächste 7 Tage,7 prochains jours,Nächst 7 Deeg
+fertig,1 Oberfläche,myAccount,"Knöpfe, Titel, Menüs",My account,Mein Konto,Mon compte,Mäi Kont
+fertig,1 Oberfläche,familyInLuxembourg,"Knöpfe, Titel, Menüs",Family in Luxembourg,Familie in Luxemburg,Famille au Luxembourg,Famill zu Lëtzebuerg
+fertig,1 Oberfläche,preferencesFilters,"Knöpfe, Titel, Menüs",Preferences & filters,Einstellungen & Filter,Préférences & filtres,Astellungen & Filter
+fertig,1 Oberfläche,savedInterests,"Knöpfe, Titel, Menüs",Saved interests,Gespeicherte Interessen,Centres d'intérêt,Gespäichert Interessen
+fertig,1 Oberfläche,language,"Knöpfe, Titel, Menüs",Language,Sprache,Langue,Sprooch
+fertig,1 Oberfläche,signOut,"Knöpfe, Titel, Menüs",Sign out,Abmelden,Se déconnecter,Ausloggen
+fertig,1 Oberfläche,openInMaps,"Knöpfe, Titel, Menüs",Open in Maps,In Karten öffnen,Ouvrir dans Maps,An der Kaart opmaachen
+fertig,1 Oberfläche,save,"Knöpfe, Titel, Menüs",Save,Speichern,Enregistrer,Späicheren
+fertig,1 Oberfläche,unsave,"Knöpfe, Titel, Menüs",Saved,Gespeichert,Enregistré,Gespäichert
+fertig,1 Oberfläche,about,"Knöpfe, Titel, Menüs",About,Über,À propos,Iwwer
+fertig,1 Oberfläche,location,"Knöpfe, Titel, Menüs",Location,Standort,Lieu,Uert
+fertig,1 Oberfläche,fromYou,"Knöpfe, Titel, Menüs",from you,von dir,de vous,vun dir
+fertig,1 Oberfläche,greatForToday,"Knöpfe, Titel, Menüs",Great for today,Perfekt für heute,Parfait pour aujourd'hui,Perfekt fir haut
+fertig,1 Oberfläche,bookNow,"Knöpfe, Titel, Menüs",Book now,Jetzt buchen,Réserver,Elo buchen
+fertig,1 Oberfläche,bookActivity,"Knöpfe, Titel, Menüs",Book activity,Aktivität buchen,Réserver l'activité,Aktivitéit buchen
+fertig,1 Oberfläche,yourBooking,"Knöpfe, Titel, Menüs",Your booking,Deine Buchung,Votre réservation,Deng Buchung
+fertig,1 Oberfläche,selectDate,"Knöpfe, Titel, Menüs",Select date,Datum wählen,Choisir la date,Datum wielen
+fertig,1 Oberfläche,numAdults,"Knöpfe, Titel, Menüs",Adults,Erwachsene,Adultes,Erwuessen
+fertig,1 Oberfläche,numChildren,"Knöpfe, Titel, Menüs",Children,Kinder,Enfants,Kanner
+fertig,1 Oberfläche,total,"Knöpfe, Titel, Menüs",Total,Gesamt,Total,Total
+fertig,1 Oberfläche,confirmBooking,"Knöpfe, Titel, Menüs",Confirm booking,Buchung bestätigen,Confirmer,Buchung bestätegen
+fertig,1 Oberfläche,bookingConfirmed,"Knöpfe, Titel, Menüs",Booking confirmed!,Buchung bestätigt!,Réservation confirmée !,Buchung bestätegt!
+fertig,1 Oberfläche,bookingConfirmedSub,"Knöpfe, Titel, Menüs",We have sent the details to your email.,Wir haben die Details an deine E-Mail gesendet.,Nous avons envoyé les détails par email.,Mir hu d'Detailer un deng E-Mail geschéckt.
+fertig,1 Oberfläche,backToHome,"Knöpfe, Titel, Menüs",Back to home,Zurück zum Start,Retour à l'accueil,Zréck op de Start
+fertig,1 Oberfläche,signIn,"Knöpfe, Titel, Menüs",Sign in,Anmelden,Se connecter,Aloggen
+fertig,1 Oberfläche,createAccount,"Knöpfe, Titel, Menüs",Create account,Konto erstellen,Créer un compte,Kont uleeën
+fertig,1 Oberfläche,password,"Knöpfe, Titel, Menüs",Password,Passwort,Mot de passe,Passwuert
+fertig,1 Oberfläche,yourName,"Knöpfe, Titel, Menüs",Your name,Dein Name,Votre nom,Däin Numm
+fertig,1 Oberfläche,continueWithEmail,"Knöpfe, Titel, Menüs",Continue with email,Mit E-Mail fortfahren,Continuer avec email,Mat E-Mail weider
+fertig,1 Oberfläche,skip,"Knöpfe, Titel, Menüs",Continue as guest,Als Gast fortfahren,Continuer en invité,Als Gaascht weider
+fertig,1 Oberfläche,welcomeTitle,"Knöpfe, Titel, Menüs",What to do in Luxembourg?,Was in Luxemburg unternehmen?,Quoi faire au Luxembourg ?,Wat maachen zu Lëtzebuerg?
+fertig,1 Oberfläche,welcomeSub,"Knöpfe, Titel, Menüs","Discover places, events and workshops — matched to who you are.","Entdecke Orte, Events und Workshops — abgestimmt auf dich.",Découvrez lieux et événements adaptés à vos envies.,"Entdeck Plazen, Eventer a Workshops — op dech ofgestëmmt."
+fertig,1 Oberfläche,noResults,"Knöpfe, Titel, Menüs",No results,Keine Ergebnisse,Aucun résultat,Keng Resultater
+fertig,1 Oberfläche,noSaved,"Knöpfe, Titel, Menüs",Nothing saved yet. Tap the heart to save your favourites.,"Noch nichts gespeichert. Tippe das Herz, um Favoriten zu speichern.",Rien d'enregistré. Touchez le cœur pour ajouter.,Nach näischt gespäichert. Tipp op d'Häerz fir ze späicheren.
+fertig,1 Oberfläche,loading,"Knöpfe, Titel, Menüs",Loading...,Lädt...,Chargement...,Lueden...
+fertig,1 Oberfläche,forYou,"Knöpfe, Titel, Menüs",FOR YOU,FÜR DICH,POUR VOUS,FIR DECH
+fertig,1 Oberfläche,matchedToInterests,"Knöpfe, Titel, Menüs",Matched to your interests,Passend zu deinen Interessen,Adapté à vos centres d'intérêt,Passt zu dengen Interessen
+fertig,1 Oberfläche,showAll,"Knöpfe, Titel, Menüs",Show all,Alle anzeigen,Tout afficher,All uweisen
+fertig,1 Oberfläche,turnPersonalizationBackOn,"Knöpfe, Titel, Menüs",Turn personalization back on,Personalisierung wieder einschalten,Réactiver la personnalisation,Personaliséierung erëm aschalten
+fertig,1 Oberfläche,personalization,"Knöpfe, Titel, Menüs",Personalization,Personalisierung,Personnalisation,Personaliséierung
+fertig,1 Oberfläche,wheelchair,"Knöpfe, Titel, Menüs",Wheelchair,Rollstuhl,Fauteuil roulant,Rollstull
+fertig,1 Oberfläche,sensoryFriendly,"Knöpfe, Titel, Menüs",Sensory friendly,Reizarm,Adapté aux sens,Reizaarm
+fertig,1 Oberfläche,freeParking,"Knöpfe, Titel, Menüs",Free parking,Kostenlos parken,Parking gratuit,Gratis parken
+fertig,1 Oberfläche,clear,"Knöpfe, Titel, Menüs",Clear,Löschen,Effacer,Läschen
+fertig,1 Oberfläche,tryAgain,"Knöpfe, Titel, Menüs",Try again,Erneut versuchen,Réessayer,Nach eemol probéieren
+fertig,1 Oberfläche,noEventsYet,"Knöpfe, Titel, Menüs",No events yet,Noch keine Events,Aucun événement pour l'instant,Nach keng Eventer
+fertig,1 Oberfläche,noMatches,"Knöpfe, Titel, Menüs",No matches,Keine Treffer,Aucun résultat,Keng Treffer
+fertig,1 Oberfläche,activity,"Knöpfe, Titel, Menüs",activity,Aktivität,activité,Aktivitéit
+fertig,1 Oberfläche,activities,"Knöpfe, Titel, Menüs",activities,Aktivitäten,activités,Aktivitéiten
+fertig,1 Oberfläche,browseByCanton,"Knöpfe, Titel, Menüs",Browse by canton,Nach Kanton stöbern,Parcourir par canton,No Kanton kucken
+fertig,1 Oberfläche,tapCantonToFilter,"Knöpfe, Titel, Menüs",Tap a canton to filter activities,"Tippe einen Kanton, um zu filtern",Appuyez sur un canton pour filtrer,Tipp op e Kanton fir ze filteren
+fertig,1 Oberfläche,anytime,"Knöpfe, Titel, Menüs",Anytime,Jederzeit,À tout moment,Zu all Zäit
+fertig,1 Oberfläche,settings,"Knöpfe, Titel, Menüs",Settings,Einstellungen,Paramètres,Astellungen
+fertig,1 Oberfläche,appearance,"Knöpfe, Titel, Menüs",Appearance,Erscheinungsbild,Apparence,Erscheinung
+fertig,1 Oberfläche,themeDarkBeta,"Knöpfe, Titel, Menüs",Dark (Beta),Dunkel (Beta),Sombre (Beta),Däischter (Beta)
+fertig,1 Oberfläche,deleteAccount,"Knöpfe, Titel, Menüs",Delete account,Konto löschen,Supprimer le compte,Kont läschen
+fertig,1 Oberfläche,cancel,"Knöpfe, Titel, Menüs",Cancel,Abbrechen,Annuler,Ofbriechen
+fertig,1 Oberfläche,delete,"Knöpfe, Titel, Menüs",Delete,Löschen,Supprimer,Läschen
+fertig,1 Oberfläche,continueWithGoogle,"Knöpfe, Titel, Menüs",Continue with Google,Mit Google fortfahren,Continuer avec Google,Mat Google weider
+fertig,1 Oberfläche,forBusinesses,"Knöpfe, Titel, Menüs",For businesses,Für Unternehmen,Pour les entreprises,Fir Betriber
+fertig,1 Oberfläche,comingSoon,"Knöpfe, Titel, Menüs",Coming soon,Bald verfügbar,Bientôt disponible,Geschwënn verfügbar
+fertig,1 Oberfläche,showing,"Knöpfe, Titel, Menüs",Showing,Angezeigt:,Affichage :,Ugewisen:
+fertig,1 Oberfläche,noBookingsYet,"Knöpfe, Titel, Menüs",No bookings yet.,Noch keine Buchungen.,Aucune réservation pour l'instant.,Nach keng Buchungen.
+fertig,1 Oberfläche,ageRange,"Knöpfe, Titel, Menüs",Age range,Altersgruppe,Tranche d'âge,Alter
+fertig,1 Oberfläche,favouriteCantons,"Knöpfe, Titel, Menüs",Favourite cantons,Lieblingskantone,Cantons favoris,Léifste Kantonen
+fertig,1 Oberfläche,favouriteCategories,"Knöpfe, Titel, Menüs",Favourite categories,Lieblings-Kategorien,Catégories favorites,Léifste Kategorien
+fertig,1 Oberfläche,notifications,"Knöpfe, Titel, Menüs",Notifications,Benachrichtigungen,Notifications,Notifikatiounen
+fertig,1 Oberfläche,notSet,"Knöpfe, Titel, Menüs",Not set,Nicht gesetzt,Non défini,Net gesat
+fertig,1 Oberfläche,alwaysOpen,"Knöpfe, Titel, Menüs",Always open,Immer offen,Toujours ouvert,Ëmmer op
+fertig,1 Oberfläche,allCantons,"Knöpfe, Titel, Menüs",All cantons,Alle Kantone,Tous les cantons,All Kantonen
+fertig,1 Oberfläche,result,"Knöpfe, Titel, Menüs",result,Ergebnis,résultat,Resultat
+fertig,1 Oberfläche,results,"Knöpfe, Titel, Menüs",results,Ergebnisse,résultats,Resultater
+fertig,1 Oberfläche,openDetails,"Knöpfe, Titel, Menüs",Details,Details,Détails,Detailer
+fertig,1 Oberfläche,guests,"Knöpfe, Titel, Menüs",Guests,Gäste,Invités,Gäscht
+fertig,1 Oberfläche,eachLabel,"Knöpfe, Titel, Menüs",each,pro Person,par personne,pro Persoun
+fertig,1 Oberfläche,notFound,"Knöpfe, Titel, Menüs",Not found,Nicht gefunden,Introuvable,Net fonnt
+fertig,1 Oberfläche,back,"Knöpfe, Titel, Menüs",Back,Zurück,Retour,Zréck
+fertig,1 Oberfläche,sponsorTitle,"Knöpfe, Titel, Menüs",Sponsor this event,Event bewerben,Sponsoriser cet événement,Dësen Event sponsere
+fertig,1 Oberfläche,featuredPlacement,"Knöpfe, Titel, Menüs",FEATURED PLACEMENT,FEATURED PLATZIERUNG,PLACEMENT PREMIUM,FEATURED PLAZ
+fertig,1 Oberfläche,planTryIt,"Knöpfe, Titel, Menüs",Try it,Ausprobieren,Essayer,Testen
+fertig,1 Oberfläche,planMostPopular,"Knöpfe, Titel, Menüs",Most popular,Beliebt,Le plus populaire,Populär
+fertig,1 Oberfläche,planBestValue,"Knöpfe, Titel, Menüs",Best value,Bestes Angebot,Meilleur rapport,Bescht Ubidder
+fertig,1 Oberfläche,paymentSuccess,"Knöpfe, Titel, Menüs",Payment successful!,Zahlung erfolgreich!,Paiement réussi !,Bezuelung erfollegräich!
+fertig,1 Oberfläche,paymentAwaiting,"Knöpfe, Titel, Menüs",Awaiting payment,Zahlung wird verarbeitet,En attente du paiement,Bezuelung leeft
+fertig,1 Oberfläche,paymentCancelled,"Knöpfe, Titel, Menüs",Payment cancelled,Zahlung abgebrochen,Paiement annulé,Bezuelung ofgebrach
+fertig,1 Oberfläche,totalPaid,"Knöpfe, Titel, Menüs",Total paid,Gezahlter Betrag,Total payé,Bezuelt Bedrag
+fertig,1 Oberfläche,backToApp,"Knöpfe, Titel, Menüs",Back to app,Zurück zur App,Retour à l'app,Zréck an d'App
+OFFEN,1 Oberfläche,all,Orte-Bildschirm,All,Alle,Tout,All
+OFFEN,1 Oberfläche,placesSub,Orte-Bildschirm,"Playgrounds, parks, pools and more","Spielplätze, Parks, Schwimmbäder und mehr","Aires de jeux, parcs, piscines et plus","Spillplazen, Parken, Schwämmen a méi"
+OFFEN,1 Oberfläche,enableLocation,Orte-Bildschirm,Show what's near me,"Zeig mir, was in der Nähe ist",Montrer ce qui est près de moi,"Weis mir, wat an der Géigend ass"
+OFFEN,2 Orte,place1.title,Name des Ortes — Besuch auf dem Bauernhof A Schmatten,Visit the Farm A Schmatten,Besuch auf dem Bauernhof A Schmatten,Visite de la Ferme A Schmatten,Besuch um Bauerenhaff A Schmatten
+OFFEN,2 Orte,place1.short,Kurzbeschreibung — Besuch auf dem Bauernhof A Schmatten,"Meet animals, play and discover nature.","Tiere treffen, spielen und Natur entdecken.","Rencontrer les animaux, jouer et explorer la nature.","Déieren treffen, spillen an d'Natur entdecken."
+OFFEN,2 Orte,place1.weatherFit,Wetter-Hinweis — Besuch auf dem Bauernhof A Schmatten,Sunny & 18 degrees,Sonnig & 18 Grad,Ensoleille & 18 degres,Sonneg & 18 Grad
+OFFEN,2 Orte,place1.date,Öffnungszeit / Datum — Besuch auf dem Bauernhof A Schmatten,Open daily,Täglich offen,Ouvert tous les jours,All Dag op
+OFFEN,2 Orte,place1.priceLabel,Preisangabe — Besuch auf dem Bauernhof A Schmatten,EUR 6 / adult - EUR 4 / child,6 EUR / Erw. - 4 EUR / Kind,6 EUR / adulte - 4 EUR / enfant,6 EUR / Erwuessen - 4 EUR / Kand
+OFFEN,2 Orte,place1.accessibility,Barrierefreiheit — Besuch auf dem Bauernhof A Schmatten,Stroller friendly,Kinderwagenfreundlich,Accessible poussette,Kannerwoenfrëndlech
+OFFEN,2 Orte,place1.description,Beschreibung — Besuch auf dem Bauernhof A Schmatten,"A friendly educational farm where kids can meet animals, explore nature and play in the big outdoor area.","Ein freundlicher Lern-Bauernhof, wo Kinder Tiere kennenlernen, die Natur erkunden und im grossen Aussenbereich spielen.",Une ferme pedagogique conviviale ou les enfants rencontrent des animaux et explorent la nature.,"E frëndlechen pädagogesche Bauerenhaff, wou Kanner Déiere kenneléieren, d'Natur entdecken an am grousse Bausseberäich spille kënnen."
+OFFEN,2 Orte,place2.title,Name des Ortes — Mudam Familien-Workshop,Mudam Family Workshop,Mudam Familien-Workshop,Atelier Famille Mudam,Mudam Familljen-Workshop
+OFFEN,2 Orte,place2.short,Kurzbeschreibung — Mudam Familien-Workshop,Creative workshop for kids and parents.,Kreativer Workshop für Kinder und Eltern.,Atelier créatif pour enfants et parents.,Kreative Workshop fir Kanner an Elteren.
+OFFEN,2 Orte,place2.weatherFit,Wetter-Hinweis — Mudam Familien-Workshop,Perfect for rainy afternoons,Perfekt für regnerische Nachmittage,Parfait pour les après-midi pluvieux,Perfekt fir verreent Nomëtteger
+OFFEN,2 Orte,place2.date,Öffnungszeit / Datum — Mudam Familien-Workshop,"Saturday, 25 May","Samstag, 25. Mai",Samedi 25 mai,"Samschdeg, 25. Mee"
+OFFEN,2 Orte,place2.priceLabel,Preisangabe — Mudam Familien-Workshop,Free with museum ticket,Gratis mit Museumsticket,Gratuit avec billet musée,Gratis mam Musée-Ticket
+OFFEN,2 Orte,place2.accessibility,Barrierefreiheit — Mudam Familien-Workshop,Barrier-free,Barrierefrei,Sans barrieres,Barrièrefräi
+OFFEN,2 Orte,place2.description,Beschreibung — Mudam Familien-Workshop,"Hands-on art activities designed for families, with rotating themes inspired by current exhibitions.","Praktische Kunstaktivitaeten für Familien, mit wechselnden Themen inspiriert von aktuellen Ausstellungen.","Activités artistiques pratiques pour les familles, thèmes inspirés des expositions en cours.","Praktesch Konschtaktivitéite fir Famillen, mat wiesselnden Themen inspiréiert vun den aktuellen Ausstellungen."
+OFFEN,2 Orte,place3.title,Name des Ortes — Street Food Festival Luxemburg,Street Food Festival Luxembourg,Street Food Festival Luxemburg,Festival Street Food Luxembourg,Street Food Festival Lëtzebuerg
+OFFEN,2 Orte,place3.short,Kurzbeschreibung — Street Food Festival Luxemburg,"Tasty food, music and activities.","Leckeres Essen, Musik und Aktivitäten.","Cuisine savoureuse, musique et animations.","Lecker Iessen, Musek an Aktivitéiten."
+OFFEN,2 Orte,place3.weatherFit,Wetter-Hinweis — Street Food Festival Luxemburg,Best on dry evenings,Am besten an trockenen Abenden,Mieux par soirees seches,Am beschten un dréchenen Owenter
+OFFEN,2 Orte,place3.date,Öffnungszeit / Datum — Street Food Festival Luxemburg,Today,Heute,Aujourd'hui,Haut
+OFFEN,2 Orte,place3.priceLabel,Preisangabe — Street Food Festival Luxemburg,Free entry,Eintritt frei,Entree libre,Gratis Entrée
+OFFEN,2 Orte,place3.accessibility,Barrierefreiheit — Street Food Festival Luxemburg,Step-free access,Stufenloser Zugang,Acces sans marches,Zougang ouni Trapen
+OFFEN,2 Orte,place3.description,Beschreibung — Street Food Festival Luxemburg,"A lively family-friendly food festival with street food stalls, music and open public spaces.","Ein lebendiges familienfreundliches Essensfestival mit Streetfood-Staenden, Musik und offenen Plaetzen.","Un festival convivial avec stands de street food, musique et espaces ouverts.","E liewegt famillefrëndlecht Iessensfestival mat Street-Food-Stänn, Musek an oppene Plazen."
+OFFEN,2 Orte,place4.title,Name des Ortes — Kizou Indoor Spielplatz,Kizou Indoor Play,Kizou Indoor Spielplatz,Kizou Aire de Jeux Couverte,Kizou Indoor-Spillplaz
+OFFEN,2 Orte,place4.short,Kurzbeschreibung — Kizou Indoor Spielplatz,Indoor playground for all ages.,Indoor-Spielplatz für alle Altersgruppen.,Aire de jeux couverte pour tous.,Indoor-Spillplaz fir all Alter.
+OFFEN,2 Orte,place4.weatherFit,Wetter-Hinweis — Kizou Indoor Spielplatz,Great when it rains,Super bei Regen,Ideal sous la pluie,Super wann et reent
+OFFEN,2 Orte,place4.date,Öffnungszeit / Datum — Kizou Indoor Spielplatz,Open daily,Täglich offen,Ouvert tous les jours,All Dag op
+OFFEN,2 Orte,place4.priceLabel,Preisangabe — Kizou Indoor Spielplatz,EUR 12 / child,12 EUR / Kind,12 EUR / enfant,12 EUR / Kand
+OFFEN,2 Orte,place4.accessibility,Barrierefreiheit — Kizou Indoor Spielplatz,Stroller parking,Kinderwagen-Parkplatz,Parking poussettes,Kannerwon-Parking
+OFFEN,2 Orte,place4.description,Beschreibung — Kizou Indoor Spielplatz,"An energetic indoor play zone with soft play, climbing areas and a cafe for parents.","Eine energiegeladene Indoor-Spielzone mit Soft-Play, Kletterbereich und Cafe für Eltern.","Une zone de jeux interieure dynamique avec espaces souples, escalade et cafe pour parents.","Eng flott Indoor-Spillzon mat Soft-Play, Kletterberäich an engem Café fir d'Elteren."
+OFFEN,2 Orte,place5.title,Name des Ortes — Naturmuseum,Natur Musee,Naturmuseum,Musée National d'Histoire Naturelle,Naturmusée
+OFFEN,2 Orte,place5.short,Kurzbeschreibung — Naturmuseum,Interactive museum about nature.,Interaktives Museum über die Natur.,Musée interactif sur la nature.,Interaktive Musée iwwer d'Natur.
+OFFEN,2 Orte,place5.weatherFit,Wetter-Hinweis — Naturmuseum,Excellent indoor backup,Ausgezeichnete Indoor-Option,Excellent plan B en intérieur,Exzellent Indoor-Alternativ
+OFFEN,2 Orte,place5.date,Öffnungszeit / Datum — Naturmuseum,Open daily,Täglich offen,Ouvert tous les jours,All Dag op
+OFFEN,2 Orte,place5.priceLabel,Preisangabe — Naturmuseum,EUR 5 / adult - kids free,5 EUR / Erw. - Kinder gratis,5 EUR / adulte - enfants gratuits,5 EUR / Erwuessen - Kanner gratis
+OFFEN,2 Orte,place5.accessibility,Barrierefreiheit — Naturmuseum,Barrier-free,Barrierefrei,Sans barrieres,Barrièrefräi
+OFFEN,2 Orte,place5.description,Beschreibung — Naturmuseum,"Interactive exhibitions about wildlife, geology and ecosystems with plenty for curious children.","Interaktive Ausstellungen über Tierwelt, Geologie und Ökosysteme mit viel für neugierige Kinder.","Expositions interactives sur la faune, la geologie et les ecosystemes pour enfants curieux.","Interaktiv Ausstellungen iwwer d'Déierewelt, d'Geologie an d'Ökosystemer mat vill fir virwëtzeg Kanner."
+OFFEN,2 Orte,place6.title,Name des Ortes — Parc Merveilleux Bettemburg,Parc Merveilleux Bettembourg,Parc Merveilleux Bettemburg,Parc Merveilleux Bettembourg,Parc Merveilleux Beetebuerg
+OFFEN,2 Orte,place6.short,Kurzbeschreibung — Parc Merveilleux Bettemburg,Fairytale park with animals and rides.,Maerchenpark mit Tieren und Fahrgeschaeften.,Parc de contes avec animaux et manages.,Mäerchepark mat Déieren an Attraktiounen.
+OFFEN,2 Orte,place6.weatherFit,Wetter-Hinweis — Parc Merveilleux Bettemburg,Best on sunny days,Am besten an sonnigen Tagen,Au mieux par temps ensoleille,Am beschten u sonnegen Deeg
+OFFEN,2 Orte,place6.date,Öffnungszeit / Datum — Parc Merveilleux Bettemburg,Open daily until October,Täglich offen bis Oktober,Ouvert tous les jours jusqu'en octobre,All Dag op bis Oktober
+OFFEN,2 Orte,place6.priceLabel,Preisangabe — Parc Merveilleux Bettemburg,EUR 14 / adult - EUR 11 / child,14 EUR / Erw. - 11 EUR / Kind,14 EUR / adulte - 11 EUR / enfant,14 EUR / Erwuessen - 11 EUR / Kand
+OFFEN,2 Orte,place6.accessibility,Barrierefreiheit — Parc Merveilleux Bettemburg,Stroller friendly,Kinderwagenfreundlich,Accessible poussette,Kannerwoenfrëndlech
+OFFEN,2 Orte,place6.description,Beschreibung — Parc Merveilleux Bettemburg,"A magical adventure park combining fairytale scenes, animal enclosures, playgrounds and a small train.","Ein magischer Abenteuerpark mit Maerchenszenen, Tiergehegen, Spielplaetzen und einer kleinen Bahn.","Un parc d'aventure magique avec contes, enclos d'animaux, aires de jeux et un petit train.","E magesche Fräizäitpark mat Mäercheszenen, Déiereparken, Spillplazen an engem klengen Zuch."
+OFFEN,2 Orte,place7.title,Name des Ortes — Mullerthal Wanderung für Kinder,Mullerthal Hike for Kids,Mullerthal Wanderung für Kinder,Randonnee Mullerthal pour Enfants,Mëllerdall-Wanderung fir Kanner
+OFFEN,2 Orte,place7.short,Kurzbeschreibung — Mullerthal Wanderung für Kinder,Family-friendly trail in the Little Switzerland.,Familienfreundlicher Pfad in der kleinen Schweiz.,Sentier familial dans la petite Suisse.,Famillefrëndleche Wee an der Klenger Schwäiz.
+OFFEN,2 Orte,place7.weatherFit,Wetter-Hinweis — Mullerthal Wanderung für Kinder,"Cool forest, great on hot days","Kuehler Wald, ideal bei Hitze","Foret fraiche, ideale par chaleur","Kille Bësch, ideal bei Hëtzt"
+OFFEN,2 Orte,place7.date,Öffnungszeit / Datum — Mullerthal Wanderung für Kinder,Anytime,Jederzeit,A tout moment,Zu all Zäit
+OFFEN,2 Orte,place7.priceLabel,Preisangabe — Mullerthal Wanderung für Kinder,Free,Kostenlos,Gratuit,Gratis
+OFFEN,2 Orte,place7.accessibility,Barrierefreiheit — Mullerthal Wanderung für Kinder,Hiking shoes recommended,Wanderschuhe empfohlen,Chaussures de randonnee recommandees,Wanderschong recommandéiert
+OFFEN,2 Orte,place7.description,Beschreibung — Mullerthal Wanderung für Kinder,"Discover dramatic sandstone rocks, mossy forest and waterfalls on a gentle loop tailored for kids.","Entdecke dramatische Sandsteinfelsen, moosigen Wald und Wasserfaelle auf einer sanften Schleife.","Decouvrez des rochers de gres, foret moussue et cascades sur une boucle douce.","Entdeck imposant Sandsteefielsen, moosege Bësch a Waasserfäll op enger einfacher Ronn fir Kanner."
+OFFEN,2 Orte,place8.title,Name des Ortes — Aquasud Schwimmbad,Aquasud Swimming Pool,Aquasud Schwimmbad,Piscine Aquasud,Aquasud Schwämm
+OFFEN,2 Orte,place8.short,Kurzbeschreibung — Aquasud Schwimmbad,Family pool with slides and shallow areas.,Familienbad mit Rutschen und flachen Bereichen.,Piscine familiale avec toboggans.,Famillebad mat Rutschen a flaache Beräicher.
+OFFEN,2 Orte,place8.weatherFit,Wetter-Hinweis — Aquasud Schwimmbad,Any weather,Bei jedem Wetter,Par tous les temps,Bei all Wieder
+OFFEN,2 Orte,place8.date,Öffnungszeit / Datum — Aquasud Schwimmbad,Open daily,Täglich offen,Ouvert tous les jours,All Dag op
+OFFEN,2 Orte,place8.priceLabel,Preisangabe — Aquasud Schwimmbad,EUR 5.5 / adult - EUR 3.5 / child,"5,50 EUR / Erw. - 3,50 EUR / Kind","5,50 EUR / adulte - 3,50 EUR / enfant","5,50 EUR / Erwuessen - 3,50 EUR / Kand"
+OFFEN,2 Orte,place8.accessibility,Barrierefreiheit — Aquasud Schwimmbad,Lift available,Aufzug vorhanden,Ascenseur disponible,Lift virhanden
+OFFEN,2 Orte,place8.description,Beschreibung — Aquasud Schwimmbad,"Modern aquatic centre with a kids lagoon, slides, wave pool and a heated outdoor area in summer.","Modernes Schwimmzentrum mit Kinderlagune, Rutschen, Wellenbad und beheiztem Aussenbereich.","Centre aquatique moderne avec lagune enfants, toboggans et zone exterieure chauffee.","Modernt Schwämmzentrum mat Kannerlagun, Rutschen, Wellebad an engem gehëtzte Bausseberäich am Summer."

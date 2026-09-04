@@ -1,11 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState, useMemo } from "react";
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp } from "@/src/contexts/AppContext";
 import { PLACES } from "@/src/data/places";
+import { usePlaces } from "@/src/hooks/useLivePlaces";
 import { t } from "@/src/i18n/strings";
 import { pickLang } from "@/src/i18n/pickLang";
 import { radii, type Palette, shadowFor } from "@/src/theme";
@@ -33,12 +34,25 @@ export default function Book() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { lang, addBooking } = useApp();
-  const place = PLACES.find((p) => p.id === Number(id));
+  const { places, loading } = usePlaces();
+  // Live records carry the same numeric id the route was built from, so one
+  // lookup covers both. PLACES is the fallback for the remaining demo entries.
+  const place =
+    (places ?? []).find((p) => p.id === Number(id)) ??
+    PLACES.find((p) => p.id === Number(id));
 
   const [dateIdx, setDateIdx] = useState(1);
   const [adults, setAdults] = useState(2);
   const [children, setChildren] = useState(1);
   const [confirmed, setConfirmed] = useState(false);
+
+  if (!place && loading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <ActivityIndicator color={palette.primary} style={{ marginTop: 48 }} />
+      </SafeAreaView>
+    );
+  }
 
   if (!place) {
     return (
@@ -48,7 +62,13 @@ export default function Book() {
     );
   }
 
-  const total = adults * place.priceAdult + children * place.priceChild;
+  // A total can only be computed from prices we were actually given. An
+  // unknown price used to arrive here as 0, so the screen quietly presented a
+  // booking for "0.00 €" on events whose price nobody had ever read.
+  const priceKnown = place.priceAdult !== null && place.priceChild !== null;
+  const total = priceKnown
+    ? adults * (place.priceAdult ?? 0) + children * (place.priceChild ?? 0)
+    : null;
 
   const onConfirm = () => {
     addBooking({
@@ -56,7 +76,7 @@ export default function Book() {
       date: DATE_OPTS[dateIdx].iso,
       adults,
       children,
-      total,
+      total: total ?? 0,
     });
     setConfirmed(true);
   };
@@ -84,7 +104,9 @@ export default function Book() {
             <Text style={styles.confirmCardMeta}>
               {adults} {t("numAdults", lang)} · {children} {t("numChildren", lang)}
             </Text>
-            <Text style={styles.confirmTotal}>EUR {total.toFixed(2)}</Text>
+            <Text style={styles.confirmTotal}>
+              {total === null ? t("priceNotStated", lang) : `EUR ${total.toFixed(2)}`}
+            </Text>
           </View>
         </View>
 
@@ -126,7 +148,7 @@ export default function Book() {
             <Text style={styles.placeMeta}>
               {place.town} · {place.time}
             </Text>
-            <Text style={styles.placeMeta}>{place.priceLabel[lang]}</Text>
+            <Text style={styles.placeMeta}>{pickLang(place.priceLabel, lang)}</Text>
           </View>
         </View>
 
@@ -178,7 +200,7 @@ export default function Book() {
         <View style={styles.totalCard}>
           <Text style={styles.totalLabel}>{t("total", lang)}</Text>
           <Text style={styles.totalValue} testID="book-total">
-            EUR {total.toFixed(2)}
+            {total === null ? t("priceNotStated", lang) : `EUR ${total.toFixed(2)}`}
           </Text>
         </View>
       </ScrollView>

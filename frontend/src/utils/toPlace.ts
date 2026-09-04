@@ -1,0 +1,125 @@
+// Bridge between what the API returns and what the screens already render.
+//
+// Home, Saved, Calendar, Detail and Booking were written against `Place`, the
+// shape of the eight hard-coded demo entries in src/data/places.ts. The API
+// returns `ApiEventSummary`. Rather than rewrite five screens and AppCard, this
+// maps one onto the other — the same data, in the shape the components expect.
+//
+// The two differ in naming (camelCase against snake_case) and in reach: the
+// summary deliberately leaves out the long prose, which lives on the detail
+// endpoint. Fields that only exist there come back empty here, which is honest:
+// a card never showed them anyway.
+
+import type { Href } from "expo-router";
+
+import type { Canton, LocalizedString, Place } from "@/src/data/places";
+import type { ApiEventSummary, LocalizedString as ApiLocalizedString } from "@/src/utils/api";
+
+const EMPTY: LocalizedString = { en: "", de: "", fr: "", lb: "" };
+
+/**
+ * Guarantee a Luxembourgish field on text that came from the API.
+ *
+ * Our own texts all carry `lb` — the type enforces it. API events cannot: they
+ * are crawled from sources that publish in French or German, and inventing a
+ * Luxembourgish title for them would be worse than showing the German one.
+ * So the gap is closed here, with the same fallback pickLang() has always
+ * used: lb, then de, then en.
+ */
+function withLb(s: ApiLocalizedString): LocalizedString {
+  return { ...s, lb: s.lb || s.de || s.en || "" };
+}
+
+/** "2-10", or "Alle Altersgruppen" when the range covers everything. */
+/**
+ * The age range to print, or "" when the event never stated one.
+ *
+ * "0-99" used to be printed for both cases. In a family app that reads as
+ * "newborns welcome", and 400 of 528 events were showing it because nobody
+ * had told us anything — a Trivium concert among them. An empty string lets
+ * the components say so instead, and leaves the judgement with the parent.
+ */
+function ageLabel(min: number, max: number, stated: boolean): string {
+  if (!stated) return "";
+  if (min <= 0 && max >= 99) return "0-99";
+  return `${min}-${max}`;
+}
+
+/**
+ * One API event in the shape the existing screens render.
+ *
+ * `distanceKm` is deliberately left undefined. The demo entries carried a fixed
+ * number each — "2.4 km" was written into the file, not measured — and the app
+ * has no location permission to compute a real one. Showing "0.0 km" on every
+ * card would look like a measurement and be a lie; the components hide the
+ * pill when the value is missing.
+ */
+export function toPlace(ev: ApiEventSummary): Place {
+  return {
+    // Place.id is numeric because the demo entries were numbered 1-8. Real ids
+    // are uuids, so the numeric field carries a stable hash and `sourceId`
+    // keeps the value routing actually needs.
+    id: hashId(ev.id),
+    sourceId: ev.id,
+    startDate: ev.start_date,
+    title: withLb(ev.title),
+    short: withLb(ev.short),
+    type: ev.type,
+    age: ageLabel(ev.age_min, ev.age_max, ev.age_source !== "unknown"),
+    ageStated: ev.age_source !== "unknown",
+    ageMin: ev.age_min,
+    ageMax: ev.age_max,
+    town: ev.town,
+    canton: ev.canton as Canton,
+    category: ev.category,
+    image: ev.image,
+    time: ev.time,
+    priceAdult: ev.price_adult,
+    priceChild: ev.price_child,
+    lat: ev.lat,
+    lng: ev.lng,
+    rating: ev.rating,
+    wheelchair: ev.accessibility_wheelchair,
+    sensoryFriendly: ev.sensory_friendly,
+    freeParking: ev.free_parking,
+
+    // Detail-only. The list endpoint omits them on purpose — carrying them for
+    // every row is what made the payload roughly three times bigger.
+    date: EMPTY,
+    weatherFit: EMPTY,
+    priceLabel: EMPTY,
+    accessibility: EMPTY,
+    description: EMPTY,
+    bookable: false,
+  };
+}
+
+export function toPlaces(events: readonly ApiEventSummary[]): Place[] {
+  return events.map(toPlace);
+}
+
+/** Stable small integer from a uuid, so React keys stay put across reloads. */
+function hashId(id: string): number {
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1) {
+    hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+/**
+ * Where a card should lead.
+ *
+ * Records that came from the API go to /event/[id], which fetches the full
+ * document by its real id. /detail/[id] looks the entry up in the hard-coded
+ * list and finds nothing for a real id, so the two are not interchangeable.
+ *
+ * The return type is Href, not string. app.json sets typedRoutes, so
+ * router.push() only accepts paths that match a real route — a typo in one of
+ * these two strings is then a compile error rather than a screen that does
+ * nothing when tapped. A plain string defeats that check everywhere this is
+ * used.
+ */
+export function detailHref(item: Pick<Place, "id" | "sourceId">): Href {
+  return item.sourceId ? `/event/${item.sourceId}` : `/detail/${item.id}`;
+}

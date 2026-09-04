@@ -3,6 +3,15 @@
 
 export type Lang = "en" | "de" | "fr" | "lb";
 
+/**
+ * A translated text — all four languages, Lëtzebuergesch included.
+ *
+ * `lb` was optional while the translations were being written. They are now
+ * complete (215/215), so the requirement is real again: a text added without
+ * a Luxembourgish version does not compile. That is the point — Luxembourgish
+ * is not a nice-to-have here, and a type is the only reviewer that never
+ * forgets to check.
+ */
 export type LocalizedString = Record<Lang, string>;
 
 export type Canton =
@@ -36,13 +45,33 @@ export const CANTONS: Canton[] = [
 
 export type Place = {
   id: number;
+  /** The real event id when this came from the API. The demo entries have none. */
+  sourceId?: string;
+  /**
+   * Start date as YYYY-MM-DD, for grouping and sorting.
+   *
+   * `date` below is a display string in three languages and cannot be compared
+   * or ordered. The demo entries have no real date at all, which is why the
+   * calendar used to carry three hard-coded ones.
+   */
+  startDate?: string;
   title: LocalizedString;
   short: LocalizedString;
   type: "Outdoor" | "Indoor" | "Event" | "Educational";
   age: string;
+  /** False when the source gave no age at all — the card says so. */
+  ageStated?: boolean;
   ageMin: number;
   ageMax: number;
-  distanceKm: number;
+  /**
+   * Kilometres from the user — absent unless we actually know.
+   *
+   * The demo entries each carry a fixed number written into this file, not a
+   * measurement. The app has no location permission, so live records have no
+   * distance to report and components hide the pill rather than print "0.0 km"
+   * as though it meant something.
+   */
+  distanceKm?: number;
   town: string;
   canton: Canton;
   category: string[];
@@ -50,8 +79,10 @@ export type Place = {
   image: string;
   date: LocalizedString;
   time: string;
-  priceAdult: number;
-  priceChild: number;
+  // null when the source never stated a price. Zero means free — the two were
+  // the same value until 528 imported events all claimed to cost nothing.
+  priceAdult: number | null;
+  priceChild: number | null;
   priceLabel: LocalizedString;
   accessibility: LocalizedString;
   description: LocalizedString;
@@ -71,11 +102,13 @@ export const PLACES: Place[] = [
       en: "Visit the Farm A Schmatten",
       de: "Besuch auf dem Bauernhof A Schmatten",
       fr: "Visite de la Ferme A Schmatten",
+      lb: "Besuch um Bauerenhaff A Schmatten",
     },
     short: {
       en: "Meet animals, play and discover nature.",
       de: "Tiere treffen, spielen und Natur entdecken.",
       fr: "Rencontrer les animaux, jouer et explorer la nature.",
+      lb: "Déieren treffen, spillen an d'Natur entdecken.",
     },
     type: "Outdoor",
     age: "2-10",
@@ -89,10 +122,11 @@ export const PLACES: Place[] = [
       en: "Sunny & 18 degrees",
       de: "Sonnig & 18 Grad",
       fr: "Ensoleille & 18 degres",
+      lb: "Sonneg & 18 Grad",
     },
     image:
       "https://images.unsplash.com/photo-1500595046743-cd271d694d30?auto=format&fit=crop&w=1200&q=80",
-    date: { en: "Open daily", de: "Täglich offen", fr: "Ouvert tous les jours" },
+    date: { en: "Open daily", de: "Täglich offen", fr: "Ouvert tous les jours", lb: "All Dag op" },
     time: "10:00 - 18:00",
     priceAdult: 6,
     priceChild: 4,
@@ -100,16 +134,19 @@ export const PLACES: Place[] = [
       en: "EUR 6 / adult - EUR 4 / child",
       de: "6 EUR / Erw. - 4 EUR / Kind",
       fr: "6 EUR / adulte - 4 EUR / enfant",
+      lb: "6 EUR / Erwuessen - 4 EUR / Kand",
     },
     accessibility: {
       en: "Stroller friendly",
       de: "Kinderwagenfreundlich",
       fr: "Accessible poussette",
+      lb: "Kannerwoenfrëndlech",
     },
     description: {
       en: "A friendly educational farm where kids can meet animals, explore nature and play in the big outdoor area.",
       de: "Ein freundlicher Lern-Bauernhof, wo Kinder Tiere kennenlernen, die Natur erkunden und im grossen Aussenbereich spielen.",
       fr: "Une ferme pedagogique conviviale ou les enfants rencontrent des animaux et explorent la nature.",
+      lb: "E frëndlechen pädagogesche Bauerenhaff, wou Kanner Déiere kenneléieren, d'Natur entdecken an am grousse Bausseberäich spille kënnen.",
     },
     lat: 49.6608,
     lng: 6.1336,
@@ -122,11 +159,13 @@ export const PLACES: Place[] = [
       en: "Mudam Family Workshop",
       de: "Mudam Familien-Workshop",
       fr: "Atelier Famille Mudam",
+      lb: "Mudam Familljen-Workshop",
     },
     short: {
       en: "Creative workshop for kids and parents.",
       de: "Kreativer Workshop für Kinder und Eltern.",
       fr: "Atelier créatif pour enfants et parents.",
+      lb: "Kreative Workshop fir Kanner an Elteren.",
     },
     type: "Indoor",
     age: "4-12",
@@ -140,6 +179,7 @@ export const PLACES: Place[] = [
       en: "Perfect for rainy afternoons",
       de: "Perfekt für regnerische Nachmittage",
       fr: "Parfait pour les après-midi pluvieux",
+      lb: "Perfekt fir verreent Nomëtteger",
     },
     image:
       "https://images.unsplash.com/photo-1607453998774-d533f65dac99?auto=format&fit=crop&w=1200&q=80",
@@ -147,6 +187,7 @@ export const PLACES: Place[] = [
       en: "Saturday, 25 May",
       de: "Samstag, 25. Mai",
       fr: "Samedi 25 mai",
+      lb: "Samschdeg, 25. Mee",
     },
     time: "15:00 - 16:30",
     priceAdult: 0,
@@ -155,16 +196,19 @@ export const PLACES: Place[] = [
       en: "Free with museum ticket",
       de: "Gratis mit Museumsticket",
       fr: "Gratuit avec billet musée",
+      lb: "Gratis mam Musée-Ticket",
     },
     accessibility: {
       en: "Barrier-free",
       de: "Barrierefrei",
       fr: "Sans barrieres",
+      lb: "Barrièrefräi",
     },
     description: {
       en: "Hands-on art activities designed for families, with rotating themes inspired by current exhibitions.",
       de: "Praktische Kunstaktivitaeten für Familien, mit wechselnden Themen inspiriert von aktuellen Ausstellungen.",
       fr: "Activités artistiques pratiques pour les familles, thèmes inspirés des expositions en cours.",
+      lb: "Praktesch Konschtaktivitéite fir Famillen, mat wiesselnden Themen inspiréiert vun den aktuellen Ausstellungen.",
     },
     lat: 49.6411,
     lng: 6.1417,
@@ -177,11 +221,13 @@ export const PLACES: Place[] = [
       en: "Street Food Festival Luxembourg",
       de: "Street Food Festival Luxemburg",
       fr: "Festival Street Food Luxembourg",
+      lb: "Street Food Festival Lëtzebuerg",
     },
     short: {
       en: "Tasty food, music and activities.",
       de: "Leckeres Essen, Musik und Aktivitäten.",
       fr: "Cuisine savoureuse, musique et animations.",
+      lb: "Lecker Iessen, Musek an Aktivitéiten.",
     },
     type: "Event",
     age: "All",
@@ -195,10 +241,11 @@ export const PLACES: Place[] = [
       en: "Best on dry evenings",
       de: "Am besten an trockenen Abenden",
       fr: "Mieux par soirees seches",
+      lb: "Am beschten un dréchenen Owenter",
     },
     image:
       "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=1200&q=80",
-    date: { en: "Today", de: "Heute", fr: "Aujourd'hui" },
+    date: { en: "Today", de: "Heute", fr: "Aujourd'hui", lb: "Haut" },
     time: "11:00 - 22:00",
     priceAdult: 0,
     priceChild: 0,
@@ -206,16 +253,19 @@ export const PLACES: Place[] = [
       en: "Free entry",
       de: "Eintritt frei",
       fr: "Entree libre",
+      lb: "Gratis Entrée",
     },
     accessibility: {
       en: "Step-free access",
       de: "Stufenloser Zugang",
       fr: "Acces sans marches",
+      lb: "Zougang ouni Trapen",
     },
     description: {
       en: "A lively family-friendly food festival with street food stalls, music and open public spaces.",
       de: "Ein lebendiges familienfreundliches Essensfestival mit Streetfood-Staenden, Musik und offenen Plaetzen.",
       fr: "Un festival convivial avec stands de street food, musique et espaces ouverts.",
+      lb: "E liewegt famillefrëndlecht Iessensfestival mat Street-Food-Stänn, Musek an oppene Plazen.",
     },
     lat: 49.6308,
     lng: 6.1620,
@@ -228,11 +278,13 @@ export const PLACES: Place[] = [
       en: "Kizou Indoor Play",
       de: "Kizou Indoor Spielplatz",
       fr: "Kizou Aire de Jeux Couverte",
+      lb: "Kizou Indoor-Spillplaz",
     },
     short: {
       en: "Indoor playground for all ages.",
       de: "Indoor-Spielplatz für alle Altersgruppen.",
       fr: "Aire de jeux couverte pour tous.",
+      lb: "Indoor-Spillplaz fir all Alter.",
     },
     type: "Indoor",
     age: "0-10",
@@ -246,10 +298,11 @@ export const PLACES: Place[] = [
       en: "Great when it rains",
       de: "Super bei Regen",
       fr: "Ideal sous la pluie",
+      lb: "Super wann et reent",
     },
     image:
       "https://images.unsplash.com/photo-1597524678053-faf08e5e1aff?auto=format&fit=crop&w=1200&q=80",
-    date: { en: "Open daily", de: "Täglich offen", fr: "Ouvert tous les jours" },
+    date: { en: "Open daily", de: "Täglich offen", fr: "Ouvert tous les jours", lb: "All Dag op" },
     time: "09:30 - 18:30",
     priceAdult: 0,
     priceChild: 12,
@@ -257,16 +310,19 @@ export const PLACES: Place[] = [
       en: "EUR 12 / child",
       de: "12 EUR / Kind",
       fr: "12 EUR / enfant",
+      lb: "12 EUR / Kand",
     },
     accessibility: {
       en: "Stroller parking",
       de: "Kinderwagen-Parkplatz",
       fr: "Parking poussettes",
+      lb: "Kannerwon-Parking",
     },
     description: {
       en: "An energetic indoor play zone with soft play, climbing areas and a cafe for parents.",
       de: "Eine energiegeladene Indoor-Spielzone mit Soft-Play, Kletterbereich und Cafe für Eltern.",
       fr: "Une zone de jeux interieure dynamique avec espaces souples, escalade et cafe pour parents.",
+      lb: "Eng flott Indoor-Spillzon mat Soft-Play, Kletterberäich an engem Café fir d'Elteren.",
     },
     lat: 49.6181,
     lng: 6.0780,
@@ -279,11 +335,13 @@ export const PLACES: Place[] = [
       en: "Natur Musee",
       de: "Naturmuseum",
       fr: "Musée National d'Histoire Naturelle",
+      lb: "Naturmusée",
     },
     short: {
       en: "Interactive museum about nature.",
       de: "Interaktives Museum über die Natur.",
       fr: "Musée interactif sur la nature.",
+      lb: "Interaktive Musée iwwer d'Natur.",
     },
     type: "Educational",
     age: "4-12",
@@ -297,10 +355,11 @@ export const PLACES: Place[] = [
       en: "Excellent indoor backup",
       de: "Ausgezeichnete Indoor-Option",
       fr: "Excellent plan B en intérieur",
+      lb: "Exzellent Indoor-Alternativ",
     },
     image:
       "https://images.unsplash.com/photo-1503424886307-b090341d25d1?auto=format&fit=crop&w=1200&q=80",
-    date: { en: "Open daily", de: "Täglich offen", fr: "Ouvert tous les jours" },
+    date: { en: "Open daily", de: "Täglich offen", fr: "Ouvert tous les jours", lb: "All Dag op" },
     time: "10:00 - 18:00",
     priceAdult: 5,
     priceChild: 0,
@@ -308,16 +367,19 @@ export const PLACES: Place[] = [
       en: "EUR 5 / adult - kids free",
       de: "5 EUR / Erw. - Kinder gratis",
       fr: "5 EUR / adulte - enfants gratuits",
+      lb: "5 EUR / Erwuessen - Kanner gratis",
     },
     accessibility: {
       en: "Barrier-free",
       de: "Barrierefrei",
       fr: "Sans barrieres",
+      lb: "Barrièrefräi",
     },
     description: {
       en: "Interactive exhibitions about wildlife, geology and ecosystems with plenty for curious children.",
       de: "Interaktive Ausstellungen über Tierwelt, Geologie und Ökosysteme mit viel für neugierige Kinder.",
       fr: "Expositions interactives sur la faune, la geologie et les ecosystemes pour enfants curieux.",
+      lb: "Interaktiv Ausstellungen iwwer d'Déierewelt, d'Geologie an d'Ökosystemer mat vill fir virwëtzeg Kanner.",
     },
     lat: 49.6126,
     lng: 6.1399,
@@ -330,11 +392,13 @@ export const PLACES: Place[] = [
       en: "Parc Merveilleux Bettembourg",
       de: "Parc Merveilleux Bettemburg",
       fr: "Parc Merveilleux Bettembourg",
+      lb: "Parc Merveilleux Beetebuerg",
     },
     short: {
       en: "Fairytale park with animals and rides.",
       de: "Maerchenpark mit Tieren und Fahrgeschaeften.",
       fr: "Parc de contes avec animaux et manages.",
+      lb: "Mäerchepark mat Déieren an Attraktiounen.",
     },
     type: "Outdoor",
     age: "2-12",
@@ -348,6 +412,7 @@ export const PLACES: Place[] = [
       en: "Best on sunny days",
       de: "Am besten an sonnigen Tagen",
       fr: "Au mieux par temps ensoleille",
+      lb: "Am beschten u sonnegen Deeg",
     },
     image:
       "https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?auto=format&fit=crop&w=1200&q=80",
@@ -355,6 +420,7 @@ export const PLACES: Place[] = [
       en: "Open daily until October",
       de: "Täglich offen bis Oktober",
       fr: "Ouvert tous les jours jusqu'en octobre",
+      lb: "All Dag op bis Oktober",
     },
     time: "10:00 - 19:00",
     priceAdult: 14,
@@ -363,16 +429,19 @@ export const PLACES: Place[] = [
       en: "EUR 14 / adult - EUR 11 / child",
       de: "14 EUR / Erw. - 11 EUR / Kind",
       fr: "14 EUR / adulte - 11 EUR / enfant",
+      lb: "14 EUR / Erwuessen - 11 EUR / Kand",
     },
     accessibility: {
       en: "Stroller friendly",
       de: "Kinderwagenfreundlich",
       fr: "Accessible poussette",
+      lb: "Kannerwoenfrëndlech",
     },
     description: {
       en: "A magical adventure park combining fairytale scenes, animal enclosures, playgrounds and a small train.",
       de: "Ein magischer Abenteuerpark mit Maerchenszenen, Tiergehegen, Spielplaetzen und einer kleinen Bahn.",
       fr: "Un parc d'aventure magique avec contes, enclos d'animaux, aires de jeux et un petit train.",
+      lb: "E magesche Fräizäitpark mat Mäercheszenen, Déiereparken, Spillplazen an engem klengen Zuch.",
     },
     lat: 49.5179,
     lng: 6.0922,
@@ -385,11 +454,13 @@ export const PLACES: Place[] = [
       en: "Mullerthal Hike for Kids",
       de: "Mullerthal Wanderung für Kinder",
       fr: "Randonnee Mullerthal pour Enfants",
+      lb: "Mëllerdall-Wanderung fir Kanner",
     },
     short: {
       en: "Family-friendly trail in the Little Switzerland.",
       de: "Familienfreundlicher Pfad in der kleinen Schweiz.",
       fr: "Sentier familial dans la petite Suisse.",
+      lb: "Famillefrëndleche Wee an der Klenger Schwäiz.",
     },
     type: "Outdoor",
     age: "5-12",
@@ -403,23 +474,26 @@ export const PLACES: Place[] = [
       en: "Cool forest, great on hot days",
       de: "Kuehler Wald, ideal bei Hitze",
       fr: "Foret fraiche, ideale par chaleur",
+      lb: "Kille Bësch, ideal bei Hëtzt",
     },
     image:
       "https://images.unsplash.com/photo-1551632811-561732d1e306?auto=format&fit=crop&w=1200&q=80",
-    date: { en: "Anytime", de: "Jederzeit", fr: "A tout moment" },
+    date: { en: "Anytime", de: "Jederzeit", fr: "A tout moment", lb: "Zu all Zäit" },
     time: "08:00 - sunset",
     priceAdult: 0,
     priceChild: 0,
-    priceLabel: { en: "Free", de: "Kostenlos", fr: "Gratuit" },
+    priceLabel: { en: "Free", de: "Kostenlos", fr: "Gratuit", lb: "Gratis" },
     accessibility: {
       en: "Hiking shoes recommended",
       de: "Wanderschuhe empfohlen",
       fr: "Chaussures de randonnee recommandees",
+      lb: "Wanderschong recommandéiert",
     },
     description: {
       en: "Discover dramatic sandstone rocks, mossy forest and waterfalls on a gentle loop tailored for kids.",
       de: "Entdecke dramatische Sandsteinfelsen, moosigen Wald und Wasserfaelle auf einer sanften Schleife.",
       fr: "Decouvrez des rochers de gres, foret moussue et cascades sur une boucle douce.",
+      lb: "Entdeck imposant Sandsteefielsen, moosege Bësch a Waasserfäll op enger einfacher Ronn fir Kanner.",
     },
     lat: 49.7333,
     lng: 6.4167,
@@ -432,11 +506,13 @@ export const PLACES: Place[] = [
       en: "Aquasud Swimming Pool",
       de: "Aquasud Schwimmbad",
       fr: "Piscine Aquasud",
+      lb: "Aquasud Schwämm",
     },
     short: {
       en: "Family pool with slides and shallow areas.",
       de: "Familienbad mit Rutschen und flachen Bereichen.",
       fr: "Piscine familiale avec toboggans.",
+      lb: "Famillebad mat Rutschen a flaache Beräicher.",
     },
     type: "Indoor",
     age: "0-12",
@@ -450,10 +526,11 @@ export const PLACES: Place[] = [
       en: "Any weather",
       de: "Bei jedem Wetter",
       fr: "Par tous les temps",
+      lb: "Bei all Wieder",
     },
     image:
       "https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?auto=format&fit=crop&w=1200&q=80",
-    date: { en: "Open daily", de: "Täglich offen", fr: "Ouvert tous les jours" },
+    date: { en: "Open daily", de: "Täglich offen", fr: "Ouvert tous les jours", lb: "All Dag op" },
     time: "08:00 - 21:00",
     priceAdult: 5.5,
     priceChild: 3.5,
@@ -461,16 +538,19 @@ export const PLACES: Place[] = [
       en: "EUR 5.5 / adult - EUR 3.5 / child",
       de: "5,50 EUR / Erw. - 3,50 EUR / Kind",
       fr: "5,50 EUR / adulte - 3,50 EUR / enfant",
+      lb: "5,50 EUR / Erwuessen - 3,50 EUR / Kand",
     },
     accessibility: {
       en: "Lift available",
       de: "Aufzug vorhanden",
       fr: "Ascenseur disponible",
+      lb: "Lift virhanden",
     },
     description: {
       en: "Modern aquatic centre with a kids lagoon, slides, wave pool and a heated outdoor area in summer.",
       de: "Modernes Schwimmzentrum mit Kinderlagune, Rutschen, Wellenbad und beheiztem Aussenbereich.",
       fr: "Centre aquatique moderne avec lagune enfants, toboggans et zone exterieure chauffee.",
+      lb: "Modernt Schwämmzentrum mat Kannerlagun, Rutschen, Wellebad an engem gehëtzte Bausseberäich am Summer.",
     },
     lat: 49.5106,
     lng: 5.9008,

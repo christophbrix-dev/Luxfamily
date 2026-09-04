@@ -36,16 +36,71 @@ memory/PRD.md     Produktbeschreibung und offene Punkte
 
 ## Entwicklung
 
+### Einmal einrichten (macOS, ohne Administratorrechte)
+
+Alles kostenlos und quelloffen, alles in `~/.local`, jederzeit rückstandslos
+löschbar. Das System-Python bleibt unangetastet.
+
+```bash
+# Python 3.11 — macOS liefert 3.9 mit, und das ist zu alt
+curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+uv python install 3.11
+
+# MongoDB Community (Apple Silicon; für Intel mongodb-macos-x86_64-*)
+curl -sSL -o /tmp/mongodb.tgz https://fastdl.mongodb.org/osx/mongodb-macos-arm64-8.0.4.tgz
+tar xzf /tmp/mongodb.tgz -C "$HOME/.local"
+ln -sf "$HOME"/.local/mongodb-macos-*/bin/mongod "$HOME/.local/bin/mongod"
+mkdir -p "$HOME/.local/var/mongodb" "$HOME/.local/var/log"
+
+cd backend
+uv venv --python 3.11 .venv
+uv pip install --python .venv/bin/python -r requirements-dev.txt
+cp .env.example .env        # ausfüllen, siehe Tabelle unten
+```
+
+### Jeden Tag starten
+
+Nach einem Neustart des Rechners sind alle drei Prozesse weg. Die Daten bleiben
+in `~/.local/var/mongodb`; nur die Dienste müssen wieder hoch.
+
+```bash
+# 1 — Datenbank
+mongod --dbpath ~/.local/var/mongodb --fork --logpath ~/.local/var/log/mongod.log
+
+# 2 — Backend
+cd backend && .venv/bin/python -m uvicorn server:app --reload --port 8001
+
+# 3 — App, in einem zweiten Terminal
+cd frontend && yarn web        # http://localhost:8081
+```
+
+Beenden: `pkill -f uvicorn`, `pkill -f "expo start"`, und
+`mongod --dbpath ~/.local/var/mongodb --shutdown`.
+
 ### Backend
+
+Braucht **Python 3.10 oder neuer**: `fastapi`, `python-dotenv` und `icalendar`
+liefern für ältere Versionen keine Pakete mehr. Unter 3.9 bricht `pip install`
+mit „No matching distribution found" ab und nennt den Grund nicht. Die CI läuft
+auf 3.11.
+
+Ohne die Werkzeuge von oben geht es auch klassisch:
 
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt        # requirements-dev.txt für Tests dazu
+cp .env.example .env                   # ausfüllen, siehe Tabelle
 uvicorn server:app --reload --port 8001
 ```
 
-Erwartet eine erreichbare MongoDB und eine `backend/.env`:
+`DB_NAME` hat bewusst **keinen** Vorgabewert. Die Werkzeuge brechen lieber ab,
+als in eine Datenbank zu schreiben, aus der niemand liest — das ist einmal
+passiert und sah dabei wie ein erfolgreicher Import aus.
+
+Erwartet eine erreichbare MongoDB und eine `backend/.env`
+(`backend/.env.example` listet alles auf):
 
 | Variable | Pflicht | Bedeutung |
 |---|---|---|
@@ -60,6 +115,9 @@ Erwartet eine erreichbare MongoDB und eine `backend/.env`:
 | `STRIPE_WEBHOOK_SECRET` | für Sponsoring | **ohne diesen Wert lehnt der Webhook ab** |
 | `FRONTEND_URL` | für Sponsoring | Basis für Stripe-Rücksprungadressen |
 | `DISABLE_SCHEDULER` | nein | `1` schaltet den Importer-Cron ab |
+| `CORS_ORIGINS` | nein | Kommagetrennt. Ohne Wert ist **jede** Herkunft erlaubt |
+| `EMERGENT_SESSION_URL` | für Google-Login | ohne Wert antwortet `POST /api/auth/session` mit 503 |
+| `VIEW_IP_SALT` | nein | salzt den Hash der Besucher-IPs; einmal setzen, dann nie ändern |
 
 #### Admin-Passwort ändern
 
@@ -79,19 +137,36 @@ Manuell auslösbar über `POST /api/admin/sources/run-all`.
 ```bash
 cd frontend
 yarn install
-yarn start          # Expo Dev Server
-yarn web            # nur Web
+cp .env.example .env    # EXPO_PUBLIC_BACKEND_URL eintragen
+yarn start              # Expo Dev Server
+yarn web                # nur Web
 ```
 
 `frontend/.env` braucht `EXPO_PUBLIC_BACKEND_URL` — die Basis-URL des Backends
-ohne abschließenden Schrägstrich.
+ohne abschließenden Schrägstrich, also z. B. `http://localhost:8001`. Fehlt der
+Wert, zeigt jeder Bildschirm „Failed to load"; das sieht nach einem Fehler in
+der App aus, ist aber nur die fehlende Einstellung.
+
+Alles mit `EXPO_PUBLIC_` wird in das App-Bundle kompiliert und ist für jeden
+lesbar, der die App installiert — dort gehört niemals ein Schlüssel hin.
 
 ## Prüfen
 
 ```bash
-cd frontend && yarn check       # tsc --noEmit + eslint
-cd backend  && flake8 --select=E9,F .
+cd frontend && yarn run check   # tsc --noEmit + eslint
+cd backend  && flake8 --select=E9,F . && pytest tests/offline -q
 ```
+
+`yarn check` ohne `run` ist ein **eingebauter Yarn-Befehl**, der das Skript
+verdeckt und unverwandte Fehler meldet. Immer `yarn run check`.
+
+Der Typecheck ist lokal strenger als in der CI. `app.json` setzt
+`typedRoutes`, aber die Routen-Typen (`.expo/types/router.d.ts`) entstehen erst
+beim Start des Dev-Servers und sind nicht eingecheckt. Wer die App einmal
+gestartet hat, sieht deshalb Fehler, die auf GitHub nie erscheinen — echte
+Fehler: ohne diese Typen prüft niemand, ob ein `router.push()` auf eine Route
+zeigt, die es gibt. **Vor dem Push einmal `yarn web` starten und dann
+`yarn run check`.**
 
 Beides läuft bei jedem Push über `.github/workflows/ci.yml`.
 

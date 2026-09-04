@@ -5,8 +5,10 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { useApp } from "@/src/contexts/AppContext";
 import { pickLang } from "@/src/i18n/pickLang";
+import { t } from "@/src/i18n/strings";
 import type { Place } from "@/src/data/places";
 import { palette, radii, shadow, spacing } from "@/src/theme";
+import { categoryIcon, hasOwnPhoto } from "@/src/utils/photo";
 
 type Props = {
   item: Place;
@@ -17,7 +19,10 @@ type Props = {
 
 export function AppCard({ item, large = false, onPress, testID }: Props) {
   const { lang, saved, toggleSave } = useApp();
-  const isSaved = saved.includes(item.id);
+  // A live record is addressed by its real id; the demo entries only have
+  // their numeric one.
+  const savedId = item.sourceId ?? String(item.id);
+  const isSaved = saved.includes(savedId);
 
   return (
     <TouchableOpacity
@@ -27,7 +32,21 @@ export function AppCard({ item, large = false, onPress, testID }: Props) {
       testID={testID ?? `place-card-${item.id}`}
     >
       <View style={[styles.imageWrap, large ? styles.imageLarge : styles.imageSmall]}>
-        <Image source={{ uri: item.image }} style={styles.image} />
+        {/* A photo is a claim. Where the record has none of its own — the
+            backend fills those with a category-generic stock image, and the
+            one for Culture is the Taj Mahal — draw a plain panel instead of
+            asserting something untrue about the place. */}
+        {hasOwnPhoto(item.image) ? (
+          <Image source={{ uri: item.image }} style={styles.image} />
+        ) : (
+          <View style={[styles.image, styles.noPhoto]}>
+            <Ionicons
+              name={categoryIcon(item.type) as keyof typeof Ionicons.glyphMap}
+              size={large ? 44 : 30}
+              color={palette.primaryDark}
+            />
+          </View>
+        )}
         <LinearGradient
           colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.55)"]}
           style={StyleSheet.absoluteFill}
@@ -39,7 +58,7 @@ export function AppCard({ item, large = false, onPress, testID }: Props) {
           accessibilityLabel="Toggle save"
           onPress={(e) => {
             e.stopPropagation();
-            toggleSave(item.id);
+            toggleSave(savedId);
           }}
           style={styles.saveBtn}
           hitSlop={8}
@@ -61,15 +80,25 @@ export function AppCard({ item, large = false, onPress, testID }: Props) {
               {pickLang(item.short, lang)}
             </Text>
             <View style={styles.largeMetaRow}>
+              {item.distanceKm !== undefined ? (
+                <View style={styles.metaPill}>
+                  <Ionicons name="location-outline" size={12} color="#fff" />
+                  <Text style={styles.metaPillText}>
+                    {item.distanceKm.toFixed(1)} km
+                  </Text>
+                </View>
+              ) : null}
+              {/* An event with no stated age says so, rather than borrowing
+                  the "0-99" that used to be printed for both cases. */}
               <View style={styles.metaPill}>
-                <Ionicons name="location-outline" size={12} color="#fff" />
+                <Ionicons
+                  name={item.ageStated === false ? "help-circle-outline" : "people-outline"}
+                  size={12}
+                  color="#fff"
+                />
                 <Text style={styles.metaPillText}>
-                  {item.distanceKm.toFixed(1)} km
+                  {item.ageStated === false ? t("ageNotStated", lang) : item.age}
                 </Text>
-              </View>
-              <View style={styles.metaPill}>
-                <Ionicons name="people-outline" size={12} color="#fff" />
-                <Text style={styles.metaPillText}>{item.age}</Text>
               </View>
               <View style={styles.metaPill}>
                 <Ionicons name="star" size={12} color="#FBBF24" />
@@ -92,7 +121,9 @@ export function AppCard({ item, large = false, onPress, testID }: Props) {
             <View style={styles.metaItem}>
               <Ionicons name="location-outline" size={12} color={palette.textSecondary} />
               <Text style={styles.metaText}>
-                {item.distanceKm.toFixed(1)} km · {item.town}
+                {item.distanceKm !== undefined
+                  ? `${item.distanceKm.toFixed(1)} km · ${item.town}`
+                  : item.town}
               </Text>
             </View>
             <View style={styles.metaItem}>
@@ -119,6 +150,11 @@ const styles = StyleSheet.create({
   imageLarge: { height: 240 },
   imageSmall: { height: 140 },
   image: { width: "100%", height: "100%" },
+  noPhoto: {
+    backgroundColor: palette.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   badge: {
     position: "absolute",
     top: 14,
