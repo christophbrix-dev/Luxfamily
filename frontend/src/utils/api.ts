@@ -3,6 +3,7 @@
 // requests to the FastAPI service.
 
 import { ApiError, describeHttpError, readBody } from "@/src/utils/apiError";
+import { buildEventQuery, type EventQuery } from "@/src/utils/eventQuery";
 import { storage } from "@/src/utils/storage";
 
 const RAW = process.env.EXPO_PUBLIC_BACKEND_URL ?? "";
@@ -209,6 +210,41 @@ export type Analytics = {
 
 export type AdminUser = { id: string; email: string; role: string; name?: string };
 
+/** The server's own cap. Asking for more is a 422, not a bigger page. */
+const PAGE = 200;
+
+/**
+ * How many pages we are ever willing to walk. Four is 800 events, comfortably
+ * more than the whole calendar holds today, and a ceiling that cannot turn a
+ * mis-specified filter into an unbounded loop.
+ */
+const MAX_PAGES = 4;
+
+/**
+ * Every event matching `query`, not just the first page of them.
+ *
+ * The app used to ask for `limit=200` once and filter what came back. The
+ * calendar has held more than 200 upcoming events since the crawlers were
+ * fixed, so a bit under half of it was invisible — and nothing looked wrong,
+ * because a truncated list is a perfectly good-looking list.
+ *
+ * Paging stops on a short page rather than on a total. `apiFetch` returns the
+ * parsed body and not the headers, so X-Total-Count is out of reach here, and
+ * "fewer rows than we asked for" means the same thing without needing it.
+ */
+async function fetchAllEvents(query?: EventQuery): Promise<ApiEventSummary[]> {
+  const filters = buildEventQuery(query);
+  const prefix = `/api/events${filters ? `${filters}&` : "?"}upcoming=true&limit=${PAGE}`;
+
+  const out: ApiEventSummary[] = [];
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const batch = await apiFetch<ApiEventSummary[]>(`${prefix}&skip=${page * PAGE}`);
+    out.push(...batch);
+    if (batch.length < PAGE) break;
+  }
+  return out;
+}
+
 export const api = {
   login: (email: string, password: string) =>
     apiFetch<{ access_token: string; user: AdminUser }>("/api/auth/login", {
@@ -239,7 +275,7 @@ export const api = {
   // events and not one of them in the future: an empty calendar, a "near you"
   // row of things that already happened, and no sign anything was wrong.
   // Every screen here asks "what is on", which is what this flag means.
-  publicEvents: () => apiFetch<ApiEventSummary[]>("/api/events?upcoming=true&limit=200"),
+  publicEvents: (query?: EventQuery) => fetchAllEvents(query),
   event: (id: string) => apiFetch<ApiEvent>(`/api/events/${id}`),
 
   /** The OSM taxonomy: group and category names in every language. */
