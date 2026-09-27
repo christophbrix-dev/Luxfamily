@@ -69,6 +69,27 @@ export const STRINGS: Dict = {
   },
   category: { en: "Category", de: "Kategorie", fr: "Catégorie" },
   date: { en: "Date", de: "Datum", fr: "Date" },
+  distance: { en: "Distance", de: "Entfernung", fr: "Distance" },
+  anywhere: { en: "Anywhere", de: "Überall", fr: "Partout" },
+  shareLocation: {
+    en: "Share my location",
+    de: "Standort teilen",
+    fr: "Partager ma position",
+  },
+  // A radius the app cannot apply must say so. The date chip used to be drawn,
+  // counted in the "active filters" badge and applied to nothing at all, and
+  // nobody could tell from the screen — a distance chip without a position
+  // would be the same bug wearing a different label.
+  distanceNeedsLocation: {
+    en: "A radius needs your position.",
+    de: "Für einen Umkreis brauchen wir deinen Standort.",
+    fr: "Un rayon nécessite votre position.",
+  },
+  distanceNoLocation: {
+    en: "Location is off, so the radius is not being applied.",
+    de: "Standort ist aus, der Umkreis wird nicht angewendet.",
+    fr: "La position est désactivée, le rayon n'est pas appliqué.",
+  },
   showResults: { en: "Show results", de: "Ergebnisse zeigen", fr: "Voir les résultats" },
   places: { en: "Places", de: "Orte", fr: "Lieux" },
   events: { en: "Events", de: "Events", fr: "Événements" },
@@ -418,6 +439,11 @@ const LB_OVERRIDES: Record<string, string> = {
   freeEntry:             "Fräien Entrée",
   category:              "Kategorie",
   date:                  "Datum",
+  distance:              "Distanz",
+  anywhere:              "Iwwerall",
+  shareLocation:         "Meng Positioun deelen",
+  distanceNeedsLocation: "Fir en Ëmkrees brauche mir deng Positioun.",
+  distanceNoLocation:    "D'Positioun ass aus, den Ëmkrees gëtt net ugewannt.",
   indoorOutdoor:         "Bannen / Baussen",
   showResults:           "Resultater weisen",
   itineraries:           "Wanderungen",

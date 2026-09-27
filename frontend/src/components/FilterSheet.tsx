@@ -3,7 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View 
 
 import { Chip } from "@/src/components/Chip";
 import { useApp } from "@/src/contexts/AppContext";
-import { AGE_OPTIONS, CATEGORIES, DATE_OPTIONS, TYPE_OPTIONS } from "@/src/data/places";
+import { AGE_OPTIONS, CATEGORIES, DATE_OPTIONS, DISTANCE_OPTIONS, TYPE_OPTIONS } from "@/src/data/places";
 import { t } from "@/src/i18n/strings";
 import { palette, radii, shadow, spacing } from "@/src/theme";
 
@@ -12,6 +12,8 @@ export type Filters = {
   type: string;
   category: string[];
   date: string;
+  /** One of DISTANCE_OPTIONS. "Anywhere" by default — see below. */
+  distance: string;
   wheelchair: boolean;
   sensoryFriendly: boolean;
   freeParking: boolean;
@@ -22,6 +24,10 @@ export const DEFAULT_FILTERS: Filters = {
   type: "All",
   category: [],
   date: "Anytime",
+  // Not a radius by default. Defaulting to "10 km" would mean the app either
+  // raises a location prompt nobody asked for on first launch, or silently
+  // shows an unfiltered list while a chip claims otherwise.
+  distance: "Anywhere",
   wheelchair: false,
   sensoryFriendly: false,
   freeParking: false,
@@ -32,10 +38,29 @@ type Props = {
   filters: Filters;
   onChange: (f: Filters) => void;
   onClose: () => void;
+  /**
+   * Whether the app knows where the user is, and how to ask.
+   *
+   * Passed in rather than read here so the sheet stays a presentational
+   * component and the screen keeps one source of position.
+   */
+  hasLocation?: boolean;
+  onRequestLocation?: () => void;
 };
 
-export function FilterSheet({ open, filters, onChange, onClose }: Props) {
+export function FilterSheet({
+  open,
+  filters,
+  onChange,
+  onClose,
+  hasLocation = false,
+  onRequestLocation,
+}: Props) {
   const { lang } = useApp();
+  // A radius that is chosen but cannot be applied. The chip stays lit — the
+  // user did choose it — and the sheet says plainly that it is not in effect,
+  // with the one button that would make it work.
+  const radiusIdle = filters.distance !== "Anywhere" && !hasLocation;
 
   return (
     <Modal
@@ -125,6 +150,37 @@ export function FilterSheet({ open, filters, onChange, onClose }: Props) {
             ))}
           </Section>
 
+          <Section label={t("distance", lang)}>
+            {DISTANCE_OPTIONS.map((d) => (
+              <Chip
+                key={d}
+                label={d === "Anywhere" ? t("anywhere", lang) : d}
+                active={filters.distance === d}
+                onPress={() => {
+                  onChange({ ...filters, distance: d });
+                  // Asking at the moment a radius is picked is the one point
+                  // where the prompt is obviously the user's own doing.
+                  if (d !== "Anywhere" && !hasLocation) onRequestLocation?.();
+                }}
+                testID={`filter-distance-${d}`}
+              />
+            ))}
+          </Section>
+
+          {radiusIdle ? (
+            <View style={styles.notice} testID="filter-distance-notice">
+              <Text style={styles.noticeTxt}>{t("distanceNoLocation", lang)}</Text>
+              {onRequestLocation ? (
+                <TouchableOpacity
+                  onPress={onRequestLocation}
+                  testID="filter-distance-share-location"
+                >
+                  <Text style={styles.noticeAction}>{t("shareLocation", lang)}</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : null}
+
           <Section label="Family needs">
             <Chip
               label="♿ Wheelchair"
@@ -211,6 +267,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  notice: {
+    marginTop: -spacing.xxl + 12,
+    marginBottom: spacing.xxl,
+    padding: 12,
+    borderRadius: radii.md,
+    backgroundColor: palette.surfaceMuted,
+    gap: 6,
+  },
+  noticeTxt: { fontSize: 13, color: palette.textSecondary, lineHeight: 18 },
+  noticeAction: { fontSize: 13, fontWeight: "700", color: palette.primary },
   cta: {
     backgroundColor: palette.primary,
     paddingVertical: 16,

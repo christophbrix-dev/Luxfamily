@@ -155,6 +155,15 @@ export type ApiPlace = {
   toilets: boolean;
   source_ref: string;
   source_license: string;
+  /**
+   * Kilometres from the position that was sent, present only when one was.
+   *
+   * The server ranked on this number, so the screen shows it rather than
+   * recomputing a second one from lat/lng. Both use the same haversine and
+   * would usually agree — and "usually" is how a list ends up ordered by one
+   * number and labelled with another.
+   */
+  distance_km?: number;
 };
 
 /** Group and category labels, translated by the backend taxonomy. */
@@ -285,7 +294,10 @@ export const api = {
    * OSM points of interest.
    *
    * Without a position the backend returns the highest-scoring entries; with
-   * one it filters by radius, which is what makes thousands of places usable.
+   * one it returns the nearest first, inside a real circle, each row carrying
+   * its `distance_km`. It used to return the best-scored entries in a square
+   * around the position, which meant a playground 200 m away could lose to a
+   * park 10 km away, and a "10 km" search could answer with 13 km.
    */
   osmPlaces: (opts: {
     group?: string;
