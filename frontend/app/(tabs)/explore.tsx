@@ -24,6 +24,7 @@ import { pickLang } from "@/src/i18n/pickLang";
 import { radii, type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { api, type ApiEventSummary } from "@/src/utils/api";
+import { ageWindow, dateWindow } from "@/src/utils/eventQuery";
 
 export default function Explore() {
   const { palette, shadow, effective } = useAppPalette();
@@ -35,19 +36,33 @@ export default function Explore() {
   const [query, setQuery] = useState("");
   const [canton, setCanton] = useState<Canton | null>(null);
 
-  // Live data from the API — the same 159 events as the Events tab.
   const [events, setEvents] = useState<ApiEventSummary[] | null>(null);
   const [loadError, setLoadError] = useState(false);
 
+  // The filter sheet goes to the server; canton and the search box stay here.
+  //
+  // Splitting them is deliberate. The canton pills carry a count each, and a
+  // count only means something when it is drawn from everything the other
+  // filters allow — ask the server for one canton and every pill shows its own
+  // selection. The search box would otherwise cost a request per keystroke,
+  // and it now searches a complete set rather than a truncated one, so there
+  // is nothing left for the server to add.
   const load = useCallback(async () => {
     setLoadError(false);
     try {
-      const data = await api.publicEvents();
-      setEvents(data);
+      setEvents(await api.publicEvents({
+        category: filters.category,
+        type: filters.type,
+        wheelchair: filters.wheelchair,
+        sensory: filters.sensoryFriendly,
+        freeParking: filters.freeParking,
+        ...ageWindow(filters.age),
+        ...dateWindow(filters.date),
+      }));
     } catch {
       setLoadError(true);
     }
-  }, []);
+  }, [filters]);
 
   useEffect(() => {
     load();
@@ -67,24 +82,18 @@ export default function Explore() {
     if (!events) return [];
     const q = query.trim().toLowerCase();
     return events.filter((e) => {
+      // Only the two the server was not asked for. Everything else has
+      // already been applied to the whole calendar rather than to a page of
+      // it — including the date chip, which used to be drawn, counted in the
+      // badge, and then never applied to anything at all.
       if (canton && e.canton !== canton) return false;
-      if (filters.type !== "All" && e.type !== filters.type) return false;
-      if (filters.age !== "All") {
-        const [min, max] = filters.age.split("-").map(Number);
-        if (!(e.age_min <= max && e.age_max >= min)) return false;
-      }
-      if (filters.category.length && !filters.category.some((c) => e.category.includes(c)))
-        return false;
-      if (filters.wheelchair && !e.accessibility_wheelchair) return false;
-      if (filters.sensoryFriendly && !e.sensory_friendly) return false;
-      if (filters.freeParking && !e.free_parking) return false;
       if (q) {
         const hay = `${pickLang(e.title, lang) ?? ""} ${pickLang(e.short, lang) ?? ""} ${e.town ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [events, canton, filters, query, lang]);
+  }, [events, canton, query, lang]);
 
   const activeFilterCount =
     (filters.age !== "All" ? 1 : 0) +

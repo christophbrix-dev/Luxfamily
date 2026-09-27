@@ -59,6 +59,12 @@ jobs:
       - name: Confirm dialogs
         run: yarn test-confirm
 
+      # The filter sheet is now a question for the server rather than a sieve
+      # over whatever arrived. The date chip in particular used to be drawn,
+      # counted in the badge, and never applied to anything.
+      - name: Event query
+        run: yarn test-event-query
+
       # Reports how much of the app speaks Luxembourgish. Never fails the
       # build — a missing translation is work in progress, not a broken commit.
       - name: Luxembourgish coverage

@@ -127,16 +127,23 @@ export default function EventsTab() {
     setFFreeParking(preset.freeParking);
   }, [userProfile, personalizationOn]);
 
+  // The three family-needs switches go to the server now. Personalisation
+  // still ranks here, and it ranks better for it: it used to order the first
+  // 200 events of a calendar that holds twice that, so "for you" meant "for
+  // you, out of whichever half arrived first".
   const load = useCallback(async () => {
     try {
       setError(null);
-      const data = await api.publicEvents();
-      setEvents(data);
+      setEvents(await api.publicEvents({
+        wheelchair: fWheelchair,
+        sensory: fSensory,
+        freeParking: fFreeParking,
+      }));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load events");
       setEvents([]);
     }
-  }, []);
+  }, [fWheelchair, fSensory, fFreeParking]);
 
   useEffect(() => {
     load();
@@ -148,15 +155,8 @@ export default function EventsTab() {
     setRefreshing(false);
   }, [load]);
 
-  const filtered = useMemo(() => {
-    if (!events) return [];
-    return events.filter((e) => {
-      if (fWheelchair && !e.accessibility_wheelchair) return false;
-      if (fSensory && !e.sensory_friendly) return false;
-      if (fFreeParking && !e.free_parking) return false;
-      return true;
-    });
-  }, [events, fWheelchair, fSensory, fFreeParking]);
+  // The server already applied the three switches, to the whole calendar.
+  const filtered = events ?? [];
 
   const { forYou, others, isPersonalized } = useMemo(() => {
     if (!personalizationOn) {
