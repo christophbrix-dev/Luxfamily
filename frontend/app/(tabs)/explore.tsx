@@ -23,14 +23,18 @@ import { t } from "@/src/i18n/strings";
 import { pickLang } from "@/src/i18n/pickLang";
 import { radii, type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
+import { useUserLocation } from "@/src/hooks/useUserLocation";
 import { api, type ApiEventSummary } from "@/src/utils/api";
-import { ageWindow, dateWindow } from "@/src/utils/eventQuery";
+import { ageWindow, dateWindow, radiusWindow } from "@/src/utils/eventQuery";
 
 export default function Explore() {
   const { palette, shadow, effective } = useAppPalette();
   const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const router = useRouter();
   const { lang } = useApp();
+  // Never prompts on mount — it picks up a permission granted earlier, and the
+  // prompt only ever follows the user pressing a radius chip.
+  const { coords, request: requestLocation } = useUserLocation();
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -58,11 +62,12 @@ export default function Explore() {
         freeParking: filters.freeParking,
         ...ageWindow(filters.age),
         ...dateWindow(filters.date),
+        ...radiusWindow(filters.distance, coords),
       }));
     } catch {
       setLoadError(true);
     }
-  }, [filters]);
+  }, [filters, coords]);
 
   useEffect(() => {
     load();
@@ -100,6 +105,10 @@ export default function Explore() {
     (filters.type !== "All" ? 1 : 0) +
     filters.category.length +
     (filters.date !== "Anytime" ? 1 : 0) +
+    // Counted only when it is actually in effect. Counting a radius the app
+    // cannot apply would put a number on the badge for a filter that narrows
+    // nothing — which is precisely what the date chip used to do.
+    (filters.distance !== "Anywhere" && coords ? 1 : 0) +
     (filters.wheelchair ? 1 : 0) +
     (filters.sensoryFriendly ? 1 : 0) +
     (filters.freeParking ? 1 : 0) +
@@ -275,6 +284,8 @@ export default function Explore() {
         filters={filters}
         onChange={setFilters}
         onClose={() => setOpen(false)}
+        hasLocation={coords !== null}
+        onRequestLocation={requestLocation}
       />
     </SafeAreaView>
   );

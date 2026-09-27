@@ -16,9 +16,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import type { Lang } from "@/src/data/places";
 import { useApp } from "@/src/contexts/AppContext";
 import { t } from "@/src/i18n/strings";
+import { DISTANCE_OPTIONS } from "@/src/data/places";
+import { needsLocation, radiusWindow } from "@/src/utils/eventQuery";
 import { baseLang, pickLang } from "@/src/i18n/pickLang";
 import { radii, type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
+import { useUserLocation } from "@/src/hooks/useUserLocation";
 import { api, ApiEventSummary } from "@/src/utils/api";
 import { needsToFilters, rankForProfile } from "@/src/utils/personalization";
 
@@ -106,6 +109,12 @@ export default function EventsTab() {
   const [fSensory, setFSensory] = useState(false);
   const [fFreeParking, setFFreeParking] = useState(false);
 
+  // How far the list may reach. "Anywhere" by default: an agenda that silently
+  // hides everything outside a radius nobody chose is worse than a long one.
+  const [distance, setDistance] = useState<string>("Anywhere");
+  // Never prompts on mount; the prompt only follows a press on a radius chip.
+  const { coords, request: requestLocation } = useUserLocation();
+
   // Personalization on/off — starts ON if the user has a profile, but the
   // user can flip it off with the "Show all" toggle at the top.
   const [personalizationOn, setPersonalizationOn] = useState(true);
@@ -138,12 +147,15 @@ export default function EventsTab() {
         wheelchair: fWheelchair,
         sensory: fSensory,
         freeParking: fFreeParking,
+        // Narrows only. The server keeps the date in charge, so a concert in
+        // three months two streets away does not climb over tomorrow's fete.
+        ...radiusWindow(distance, coords),
       }));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load events");
       setEvents([]);
     }
-  }, [fWheelchair, fSensory, fFreeParking]);
+  }, [fWheelchair, fSensory, fFreeParking, distance, coords]);
 
   useEffect(() => {
     load();
@@ -169,7 +181,12 @@ export default function EventsTab() {
     () => groupEvents(others, lang, t("alwaysOpen", lang)),
     [others, lang],
   );
-  const activeFilterCount = [fWheelchair, fSensory, fFreeParking].filter(Boolean).length;
+  // A radius is counted only when it is actually in effect: without a position
+  // it narrows nothing, and a badge that counts it would be claiming otherwise.
+  const radiusApplies = distance !== "Anywhere" && coords !== null;
+  const radiusIdle = needsLocation(distance, coords);
+  const activeFilterCount =
+    [fWheelchair, fSensory, fFreeParking, radiusApplies].filter(Boolean).length;
   const hasProfile = !!userProfile.persona && userProfile.persona !== "skipped";
 
   return (
@@ -190,8 +207,25 @@ export default function EventsTab() {
         </View>
       </View>
 
-      {events && events.length > 0 ? (
+      {/* Shown whenever the list has loaded, not only when it has rows. A
+          radius can empty the list, and hiding the chips at that moment would
+          leave no way to widen it again. */}
+      {events !== null && !error ? (
         <View style={styles.chipsWrap}>
+          {DISTANCE_OPTIONS.map((d) => (
+            <FilterChip
+              key={d}
+              label={d === "Anywhere" ? t("anywhere", lang) : d}
+              icon={d === "Anywhere" ? "globe-outline" : "navigate-outline"}
+              active={distance === d}
+              onPress={() => {
+                setDistance(d);
+                // The one moment where a location prompt is plainly the
+                // user's own doing.
+                if (d !== "Anywhere" && !coords) void requestLocation();
+              }}
+            />
+          ))}
           <FilterChip
             label={t("wheelchair", lang)}
             icon="accessibility-outline"
@@ -217,6 +251,7 @@ export default function EventsTab() {
                 setFWheelchair(false);
                 setFSensory(false);
                 setFFreeParking(false);
+                setDistance("Anywhere");
               }}
               testID="events-clear-filters"
             >
@@ -225,6 +260,23 @@ export default function EventsTab() {
             </TouchableOpacity>
           )}
         </View>
+      ) : null}
+
+      {/* A radius that is lit but cannot be applied says so. The date chip
+          spent months drawn, counted and connected to nothing; a distance chip
+          without a position is the same bug wearing a different label. */}
+      {radiusIdle ? (
+        <TouchableOpacity
+          style={styles.locationNotice}
+          onPress={() => void requestLocation()}
+          testID="events-distance-notice"
+        >
+          <Ionicons name="location-outline" size={14} color={palette.textSecondary} />
+          <Text style={styles.locationNoticeTxt}>
+            {t("distanceNoLocation", lang)}{" "}
+            <Text style={styles.locationNoticeAction}>{t("shareLocation", lang)}</Text>
+          </Text>
+        </TouchableOpacity>
       ) : null}
 
       {events === null && !error ? (
@@ -523,6 +575,19 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
     flexDirection: "row",
     alignItems: "center",
   },
+  locationNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: radii.md,
+    backgroundColor: palette.surfaceMuted,
+  },
+  locationNoticeTxt: { flex: 1, fontSize: 12, color: palette.textSecondary, lineHeight: 17 },
+  locationNoticeAction: { fontWeight: "700", color: palette.primary },
   chipsWrap: {
     paddingHorizontal: 20,
     paddingBottom: 12,

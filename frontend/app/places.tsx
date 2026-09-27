@@ -27,7 +27,7 @@ import { Chip } from "@/src/components/Chip";
 import { useApp } from "@/src/contexts/AppContext";
 import type { Lang } from "@/src/data/places";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
-import { distanceKm, useUserLocation } from "@/src/hooks/useUserLocation";
+import { useUserLocation } from "@/src/hooks/useUserLocation";
 import { t } from "@/src/i18n/strings";
 import { isOpenAt, openLabel } from "@/src/utils/openingHours";
 import { type Palette, radii, shadowFor } from "@/src/theme";
@@ -119,20 +119,15 @@ export default function Places() {
     }
   }, [more, exhausted, places, group, coords]);
 
-  /** Closest first once we know where the user is; otherwise the backend's order. */
-  const sorted = useMemo<(ApiPlace & { km?: number })[]>(() => {
-    if (!places) return [];
-    if (!coords) return places;
-    return places
-      .map((p) => ({
-        ...p,
-        km:
-          p.lat !== null && p.lng !== null
-            ? distanceKm(coords, { lat: p.lat, lng: p.lng })
-            : undefined,
-      }))
-      .sort((a, b) => (a.km ?? Infinity) - (b.km ?? Infinity));
-  }, [places, coords]);
+  /** The backend's order, which is closest-first once it has a position.
+   *
+   * This used to re-sort each loaded page by distance in the app, and that hid
+   * the real problem rather than solving it: the server ranked by family_score,
+   * so the nearest playground could be on the fifth page and sorting the first
+   * one only reordered the wrong sixty. The ranking now happens where the whole
+   * collection is, so re-sorting here would at best agree and at worst disagree.
+   */
+  const sorted = places ?? [];
 
   const groups = meta ? Object.entries(meta.groups) : [];
 
@@ -188,7 +183,7 @@ export default function Places() {
                 <Text style={styles.cardMeta} numberOfLines={1}>
                   {[
                     meta?.categories[p.kind] ? label(meta.categories[p.kind], lang) : p.kind,
-                    p.km !== undefined ? `${p.km.toFixed(1)} km` : null,
+                    p.distance_km !== undefined ? `${p.distance_km.toFixed(1)} km` : null,
                     p.opening_hours || null,
                   ].filter(Boolean).join(" · ")}
                 </Text>

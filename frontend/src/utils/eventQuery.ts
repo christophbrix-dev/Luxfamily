@@ -25,6 +25,14 @@ export type EventQuery = {
   dateFrom?: string | null;
   dateTo?: string | null;
   q?: string | null;
+  /**
+   * Where the user is. Both halves or neither — a latitude without a longitude
+   * is not half a position, it is no position, and the server reads it as "no
+   * filter" rather than guessing.
+   */
+  near?: { lat: number; lng: number } | null;
+  /** Kilometres. Only meaningful together with `near`. */
+  radiusKm?: number | null;
 };
 
 function iso(d: Date): string {
@@ -78,6 +86,32 @@ export function dateWindow(
   return {};
 }
 
+/**
+ * What one of the DISTANCE_OPTIONS chips means, given where the user is.
+ *
+ * Returns nothing when the chip is "Anywhere" *or* when there is no position,
+ * and the second case is the one that matters. A chip that is lit, counted in
+ * the "active filters" badge and applied to nothing is exactly what the date
+ * chip used to be — drawn, counted, and never sent anywhere. Here the screen
+ * asks `needsLocation` and says so instead of pretending.
+ */
+export function radiusWindow(
+  option: string,
+  coords: { lat: number; lng: number } | null,
+): { near?: { lat: number; lng: number }; radiusKm?: number } {
+  const km = /^(\d{1,3})\s*km$/i.exec(option.trim());
+  if (!km || !coords) return {};
+  return { near: coords, radiusKm: Number(km[1]) };
+}
+
+/** True when a radius is wanted and cannot be applied, so the screen can say so. */
+export function needsLocation(
+  option: string,
+  coords: { lat: number; lng: number } | null,
+): boolean {
+  return /^\d{1,3}\s*km$/i.test(option.trim()) && !coords;
+}
+
 /** "4-6" -> [4, 6]. "All" and anything unparseable -> nothing. */
 export function ageWindow(option: string): { ageMin?: number; ageMax?: number } {
   const match = /^(\d{1,2})-(\d{1,2})$/.exec(option.trim());
@@ -108,6 +142,15 @@ export function buildEventQuery(query: EventQuery = {}): string {
 
   if (query.dateFrom) params.append("date_from", query.dateFrom);
   if (query.dateTo) params.append("date_to", query.dateTo);
+
+  // Both halves or neither, and a radius alone is not a filter — sending
+  // `radius_km` without a position would read as though something had been
+  // narrowed when nothing had.
+  if (query.near && typeof query.radiusKm === "number") {
+    params.append("near_lat", String(query.near.lat));
+    params.append("near_lng", String(query.near.lng));
+    params.append("radius_km", String(query.radiusKm));
+  }
 
   const trimmed = query.q?.trim();
   if (trimmed) params.append("q", trimmed);

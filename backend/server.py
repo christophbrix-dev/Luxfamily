@@ -17,7 +17,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import bcrypt
 import httpx
@@ -49,6 +49,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 
 from check_family_safe import audit_family_safety
+from geo import MAX_RADIUS_KM, bounding_box, within_radius
 from geocode_events import geocode_pending
 from importers import run_all_active, run_source
 
@@ -1141,6 +1142,8 @@ def _events_query(
     date_to: Optional[str],
     q: Optional[str],
     upcoming: bool,
+    near: Optional[Tuple[float, float]] = None,
+    radius_km: float = 10.0,
 ) -> Dict[str, Any]:
     """The filter the list screens were applying by hand, in Mongo's language.
 
@@ -1161,6 +1164,12 @@ def _events_query(
       meet, which is `age_min <= wanted_max and age_max >= wanted_min`.
     """
     query: Dict[str, Any] = {"published": True}
+    if near is not None:
+        # Only the enclosing box goes into Mongo; the caller measures the real
+        # circle afterwards. See backend/geo.py for why the box alone is not
+        # good enough — its corners are 41 % further out than the radius asked
+        # for, which is how a place 13.2 km away came back from a 10 km search.
+        query.update(bounding_box(near[0], near[1], radius_km))
     if canton:
         query["canton"] = canton
     if category:
@@ -1231,6 +1240,9 @@ async def list_events(
     date_to: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     q: Optional[str] = Query(None, max_length=80),
     upcoming: bool = True,
+    near_lat: Optional[float] = Query(None, ge=-90, le=90),
+    near_lng: Optional[float] = Query(None, ge=-180, le=180),
+    radius_km: float = Query(25.0, gt=0, le=MAX_RADIUS_KM),
     limit: int = Query(100, ge=1, le=200),
     skip: int = Query(0, ge=0),
 ):
@@ -1240,28 +1252,55 @@ async def list_events(
     single `?limit=1000000` could force a full-collection scan and serialize the
     lot. The total goes out in X-Total-Count so clients can page — and paging
     is the point, because the cap is below the number of events we hold.
+
+    A position *narrows* the list and never reorders it. The date stays in
+    charge: sorting an agenda by distance would put a concert three months away
+    two streets from the door above tomorrow's village fete, and somebody
+    opening the events tab is asking what is on, not what is closest. Places
+    are the other way round, and are sorted by distance.
     """
+    near = None if near_lat is None or near_lng is None else (near_lat, near_lng)
+
     query = _events_query(
         canton=canton, category=category, type_=type,
         age_min=age_min, age_max=age_max,
         wheelchair=wheelchair, sensory=sensory, free_parking=free_parking,
         date_from=date_from, date_to=date_to, q=q, upcoming=upcoming,
+        near=near, radius_km=radius_km,
     )
 
-    # Featured first, then by start date — matches pub_featured_start /
-    # pub_canton_featured_start so Mongo walks the index instead of sorting.
-    cursor = (
+    if near is None:
+        # Featured first, then by start date — matches pub_featured_start /
+        # pub_canton_featured_start so Mongo walks the index instead of sorting.
+        cursor = (
+            db.events.find(query, SUMMARY_PROJECTION)
+            .sort([("featured", -1), ("start_date", 1)])
+            .skip(skip)
+            .limit(limit)
+        )
+        docs, total = await asyncio.gather(
+            cursor.to_list(length=limit),
+            db.events.count_documents(query),
+        )
+        response.headers["X-Total-Count"] = str(total)
+        return _summaries(docs)
+
+    # The exact circle has to be applied before the page is cut, or the count
+    # in X-Total-Count would promise rows that the corners of the box supplied
+    # and the circle then removed. Paging against a wrong total is how a list
+    # ends up repeating one event and never showing another.
+    #
+    # Reading the whole filtered set is affordable here and would not be for
+    # places: this collection holds 528 events, `upcoming` drops the past ones,
+    # and SUMMARY_PROJECTION is already the trimmed shape.
+    candidates = await (
         db.events.find(query, SUMMARY_PROJECTION)
         .sort([("featured", -1), ("start_date", 1)])
-        .skip(skip)
-        .limit(limit)
+        .to_list(length=None)
     )
-    docs, total = await asyncio.gather(
-        cursor.to_list(length=limit),
-        db.events.count_documents(query),
-    )
-    response.headers["X-Total-Count"] = str(total)
-    return _summaries(docs)
+    ranked = within_radius(candidates, near[0], near[1], radius_km, sort=False)
+    response.headers["X-Total-Count"] = str(len(ranked))
+    return _summaries([doc for _, doc in ranked[skip:skip + limit]])
 
 
 @app.get("/api/events/{event_id}", response_model=EventResponse)
@@ -1792,23 +1831,31 @@ async def places_meta():
 
 @app.get("/api/places")
 async def list_places(
+    response: Response,
     kind: Optional[str] = None,
     group: Optional[str] = None,
     min_score: int = 0,
     limit: int = 200,
-    # There are 8,354 places and this endpoint could return at most 200 of
+    # There are 7,856 places and this endpoint could return at most 200 of
     # them, with no way to ask for the next ones. The events list has had skip
     # since it was written; this one never did, so the app showed the first
     # page and stopped there.
     skip: int = 0,
-    near_lat: Optional[float] = None,
-    near_lng: Optional[float] = None,
-    radius_km: float = 10.0,
+    near_lat: Optional[float] = Query(None, ge=-90, le=90),
+    near_lng: Optional[float] = Query(None, ge=-180, le=180),
+    radius_km: float = Query(10.0, gt=0, le=MAX_RADIUS_KM),
 ):
     """Public list of OSM POIs with optional filters.
 
     Keeping the projection light — clients wanting `tags_raw` should hit the
     detail endpoint.
+
+    With a position, the answer is the nearest places first and nothing outside
+    the circle; each row carries the `distance_km` it was ranked by, so the app
+    shows the number the server actually sorted on rather than recomputing a
+    second, subtly different one. Without a position, nothing changes: the old
+    `family_score` ordering is still what a caller who did not ask about
+    distance gets.
     """
     query: Dict[str, Any] = {"family_score": {"$gte": min_score}}
     if kind:
@@ -1816,27 +1863,55 @@ async def list_places(
     if group:
         query["group"] = group
 
-    if near_lat is not None and near_lng is not None:
-        # ~1° lat ≈ 111 km; radius filter in degrees (rough but fast — good
-        # enough for tiny Luxembourg).
-        deg = radius_km / 111.0
-        query["lat"] = {"$gte": near_lat - deg, "$lte": near_lat + deg}
-        query["lng"] = {
-            "$gte": near_lng - deg * 1.5,
-            "$lte": near_lng + deg * 1.5,
-        }
-
     projection = {"_id": 0, "tags_raw": 0}
-    cursor = (
-        db.places.find(query, projection)
-        # family_score first, then id: without a tiebreak Mongo may order two
-        # equally scored places differently between calls, and with paging that
-        # means a place appearing on two pages while another appears on none.
-        .sort([("family_score", -1), ("id", 1)])
-        .skip(max(skip, 0))
-        .limit(min(max(limit, 1), 1000))
-    )
-    docs = await cursor.to_list(length=None)
+    limit = min(max(limit, 1), 1000)
+    skip = max(skip, 0)
+
+    if near_lat is None or near_lng is None:
+        cursor = (
+            db.places.find(query, projection)
+            # family_score first, then id: without a tiebreak Mongo may order
+            # two equally scored places differently between calls, and with
+            # paging that means a place appearing on two pages while another
+            # appears on none.
+            .sort([("family_score", -1), ("id", 1)])
+            .skip(skip)
+            .limit(limit)
+        )
+        docs, total = await asyncio.gather(
+            cursor.to_list(length=limit),
+            db.places.count_documents(query),
+        )
+        response.headers["X-Total-Count"] = str(total)
+        return docs
+
+    # The box is a prefilter the (lat, lng) index can walk; `within_radius`
+    # then measures properly and drops the corners. Ranking runs on id and
+    # coordinates alone — 412 KB for a 50 km box against 5,483 KB if whole
+    # documents were fetched for every candidate — and only the page that is
+    # actually returned is read in full.
+    query.update(bounding_box(near_lat, near_lng, radius_km))
+    candidates = await db.places.find(
+        query, {"_id": 0, "id": 1, "lat": 1, "lng": 1}
+    ).to_list(length=None)
+
+    ranked = within_radius(candidates, near_lat, near_lng, radius_km)
+    response.headers["X-Total-Count"] = str(len(ranked))
+
+    page = ranked[skip:skip + limit]
+    if not page:
+        return []
+
+    distances = {doc["id"]: distance for distance, doc in page}
+    docs = await db.places.find(
+        {"id": {"$in": list(distances)}}, projection
+    ).to_list(length=len(distances))
+
+    # `$in` answers in whatever order it likes; the ranking is the point here.
+    order = {doc["id"]: position for position, (_, doc) in enumerate(page)}
+    docs.sort(key=lambda doc: order[doc["id"]])
+    for doc in docs:
+        doc["distance_km"] = round(distances[doc["id"]], 1)
     return docs
 
 

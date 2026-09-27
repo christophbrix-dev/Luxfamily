@@ -572,3 +572,12 @@ export const CATEGORIES = [
 export const AGE_OPTIONS = ["0-3", "4-6", "7-12", "All"] as const;
 export const TYPE_OPTIONS = ["Indoor", "Outdoor", "All"] as const;
 export const DATE_OPTIONS = ["Today", "This weekend", "Next 7 days", "Anytime"] as const;
+
+// How far from the user the list may reach. "Anywhere" is the default, because
+// the app has to work for somebody who has not shared a position and for
+// somebody planning a day out in another canton.
+//
+// 10 / 25 / 50 in a country 82 km from end to end: 10 km is the neighbourhood,
+// 25 km is most of a working day's radius from the capital, and 50 km reaches
+// almost anywhere in Luxembourg from almost anywhere else.
+export const DISTANCE_OPTIONS = ["10 km", "25 km", "50 km", "Anywhere"] as const;
