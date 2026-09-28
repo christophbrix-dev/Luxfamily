@@ -65,6 +65,13 @@ jobs:
       - name: Event query
         run: yarn test-event-query
 
+      # 80.9 % of events carry only a town name, so hundreds share one
+      # coordinate. The map used to fan those into a ring at maximum zoom,
+      # drawing distinct places where there is one — the same failure as an age
+      # of "0". This keeps the ring gone.
+      - name: Map honesty
+        run: yarn test-map-honesty
+
       # Reports how much of the app speaks Luxembourgish. Never fails the
       # build — a missing translation is work in progress, not a broken commit.
       - name: Luxembourgish coverage

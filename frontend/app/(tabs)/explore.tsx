@@ -3,6 +3,8 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -152,6 +154,23 @@ export default function Explore() {
     [router],
   );
 
+  // Several events sharing one coordinate. The map used to fan these into a
+  // ring at maximum zoom, which drew distinct places where there is one — most
+  // of our events carry only a town name. Now the map says how many it holds
+  // and the list says which, without inventing positions for any of them.
+  const [atOneSpot, setAtOneSpot] = useState<ApiEventSummary[] | null>(null);
+
+  const onClusterTap = useCallback(
+    (ids: string[]) => {
+      const wanted = new Set(ids);
+      // Order as the list below has them, not as the map happened to hand them
+      // over: that order is MarkerCluster's internal one and means nothing.
+      const rows = filtered.filter((e) => wanted.has(e.id));
+      if (rows.length > 0) setAtOneSpot(rows);
+    },
+    [filtered],
+  );
+
   // Push the current effective theme down to Leaflet whenever it changes.
   useEffect(() => {
     if (!mapReady) return;
@@ -228,6 +247,7 @@ export default function Explore() {
             style={styles.mapInner}
             onReady={() => setMapReady(true)}
             onMarkerTap={onMarkerTap}
+            onClusterTap={onClusterTap}
           />
         </View>
 
@@ -287,6 +307,49 @@ export default function Explore() {
         hasLocation={coords !== null}
         onRequestLocation={requestLocation}
       />
+
+      {/* What used to be a ring of pins around a village. */}
+      <Modal
+        animationType="slide"
+        transparent
+        visible={atOneSpot !== null}
+        onRequestClose={() => setAtOneSpot(null)}
+        statusBarTranslucent
+      >
+        <Pressable style={styles.spotBackdrop} onPress={() => setAtOneSpot(null)} />
+        <View style={styles.spotSheet} testID="same-spot-sheet">
+          <View style={styles.spotHandle} />
+          <Text style={styles.spotTitle}>
+            {t("eventsAtThisSpot", lang)}
+            {atOneSpot ? ` (${atOneSpot.length})` : ""}
+          </Text>
+          <Text style={styles.spotNote}>{t("sameSpotNote", lang)}</Text>
+          <ScrollView style={styles.spotList} showsVerticalScrollIndicator={false}>
+            {(atOneSpot ?? []).map((e) => (
+              <TouchableOpacity
+                key={e.id}
+                style={styles.spotRow}
+                onPress={() => {
+                  setAtOneSpot(null);
+                  router.push(`/detail/${e.id}` as never);
+                }}
+                testID={`same-spot-${e.id}`}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.spotRowTitle} numberOfLines={2}>
+                    {pickLang(e.title, lang) ?? e.title.en}
+                  </Text>
+                  <Text style={styles.spotRowMeta}>
+                    {e.start_date}
+                    {e.town ? ` · ${e.town}` : ""}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -327,6 +390,49 @@ function CantonPill({
 }
 
 const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
+  // The sheet that replaced the ring of pins.
+  spotBackdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.45)" },
+  spotSheet: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    maxHeight: "70%",
+    backgroundColor: palette.surface,
+    borderTopLeftRadius: radii.xxl,
+    borderTopRightRadius: radii.xxl,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 28,
+    ...shadow.card,
+  },
+  spotHandle: {
+    width: 56,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: palette.border,
+    alignSelf: "center",
+    marginBottom: 14,
+  },
+  spotTitle: { fontSize: 18, fontWeight: "700", color: palette.textPrimary },
+  spotNote: {
+    fontSize: 12,
+    color: palette.textSecondary,
+    lineHeight: 17,
+    marginTop: 4,
+    marginBottom: 12,
+  },
+  spotList: { flexGrow: 0 },
+  spotRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: palette.border,
+  },
+  spotRowTitle: { fontSize: 15, fontWeight: "600", color: palette.textPrimary },
+  spotRowMeta: { fontSize: 12, color: palette.textSecondary, marginTop: 2 },
   safe: { flex: 1, backgroundColor: palette.background },
   headerSticky: {
     paddingHorizontal: 20,

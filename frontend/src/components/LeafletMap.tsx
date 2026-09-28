@@ -34,12 +34,20 @@ export type LeafletMapHandle = {
 
 type Props = {
   onMarkerTap?: (id: string) => void;
+  /**
+   * Several events on one coordinate were tapped.
+   *
+   * The map no longer fans them into a ring — see the note in leafletHtml.ts.
+   * It hands the ids over instead, and the screen shows them as a list, which
+   * is what a shared coordinate actually means.
+   */
+  onClusterTap?: (ids: string[]) => void;
   onReady?: () => void;
   style?: StyleProp<ViewStyle>;
 };
 
 const LeafletMap = forwardRef<LeafletMapHandle, Props>(function LeafletMap(
-  { onMarkerTap, onReady, style },
+  { onMarkerTap, onClusterTap, onReady, style },
   ref,
 ) {
   // Native WebView ref (only used on iOS / Android).
@@ -80,15 +88,30 @@ const LeafletMap = forwardRef<LeafletMapHandle, Props>(function LeafletMap(
     setTheme: (theme) => send({ type: "setTheme", theme }),
   }));
 
+  // The callbacks, always the current ones.
+  //
+  // The web listener below is attached once, on mount, and a listener attached
+  // once keeps the closure it was created with. `onClusterTap` is rebuilt
+  // whenever the event list changes, so the listener held the very first one —
+  // the one that closed over an empty list. The map posted its message, the
+  // bridge received it, the handler ran against nothing and opened nothing.
+  // Exactly the kind of wiring that looks right in every file and does nothing
+  // as a whole.
+  const handlers = useRef({ onMarkerTap, onClusterTap, onReady });
+  handlers.current = { onMarkerTap, onClusterTap, onReady };
+
   const handleMessage = (raw: string) => {
     try {
       const data = JSON.parse(raw);
       if (data.type === "ready") {
         readyRef.current = true;
-        onReady?.();
+        handlers.current.onReady?.();
         flush();
       } else if (data.type === "markerTap" && data.id) {
-        onMarkerTap?.(data.id);
+        handlers.current.onMarkerTap?.(data.id);
+      } else if (data.type === "clusterTap" && Array.isArray(data.ids)) {
+        const ids = data.ids.filter((id: unknown): id is string => typeof id === "string");
+        if (ids.length > 0) handlers.current.onClusterTap?.(ids);
       }
     } catch {
       // ignore malformed

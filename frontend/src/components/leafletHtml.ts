@@ -154,12 +154,51 @@ export const LEAFLET_HTML = `<!doctype html>
       document.body.style.background = theme === "dark" ? "#0B1120" : "#F0FDF4";
     }
 
+    // Spiderfying is off on purpose.
+    //
+    // 80.9 % of our events carry only a town name, so they are geocoded to the
+    // centre of that town and hundreds of them sit on an identical coordinate
+    // — 101 of them on one point in Esch-sur-Alzette. MarkerCluster's default
+    // answer at maximum zoom is to fan them into a ring, which draws nine
+    // distinct places where there is one. That is the same failure as an age
+    // of "0" or a price of "0.00 €": a number the data never supplied, shown
+    // as though it had been.
+    //
+    // A cluster that cannot be split by zooming now says how many it holds and
+    // hands the list to the app instead.
     const cluster = L.markerClusterGroup({
       showCoverageOnHover: false,
       maxClusterRadius: 45,
-      spiderfyOnMaxZoom: true,
+      spiderfyOnMaxZoom: false,
+      zoomToBoundsOnClick: false,   // handled below, so one spot can be told
+                                    // apart from several close-together ones
     });
     map.addLayer(cluster);
+
+    /** True when every marker in the cluster is on the very same coordinate. */
+    function isOneSpot(bounds) {
+      const ne = bounds.getNorthEast(), sw = bounds.getSouthWest();
+      // ~1e-5 degrees is about a metre — below any accuracy we hold.
+      return Math.abs(ne.lat - sw.lat) < 1e-5 && Math.abs(ne.lng - sw.lng) < 1e-5;
+    }
+
+    cluster.on("clusterclick", (e) => {
+      const bounds = e.layer.getBounds();
+      if (!isOneSpot(bounds)) {
+        // Genuinely several places close together — zooming separates them,
+        // which is what the default would have done.
+        map.fitBounds(bounds, { padding: [40, 40] });
+        return;
+      }
+      const children = e.layer.getAllChildMarkers();
+      const centre = bounds.getCenter();
+      postToHost({
+        type: "clusterTap",
+        ids: children.map((m) => m.__watEventId).filter(Boolean),
+        lat: centre.lat,
+        lng: centre.lng,
+      });
+    });
 
     // ------------------------------------------------------------------
     // Bridge between React Native / iframe host and the map.
@@ -242,6 +281,9 @@ export const LEAFLET_HTML = `<!doctype html>
       );
       valid.forEach((event) => {
         const m = L.marker([event.lat, event.lng], { icon: makeIcon(event) });
+        // The cluster handler reads this back to tell the app which events
+        // share the spot it was asked about.
+        m.__watEventId = event.id;
         m.bindPopup(makePopup(event), { autoPan: true });
         m.on("popupopen", (e) => {
           const btn = e.popup._contentNode.querySelector(".popup-btn");
