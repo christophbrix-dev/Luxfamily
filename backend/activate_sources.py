@@ -52,6 +52,25 @@ WORKING = {
     "Kulturfabrik Esch — Sitemap":          "1 event",
     "Echternach — Sitemap":                 "1 event",
     "Dudelange — Sitemap":                  "1 event",
+
+    # Added 2026-09-28, from a trial run over the 34 sources that had never been
+    # tried at all: 16 answered "this site has no sitemap", 10 had one and
+    # nothing in it, and 8 returned. Four of the eight carried events.
+    #
+    # All four are here, but only after the titles were fixed. Two of these
+    # sites sign every page with the commune's name, and among those pages were
+    # the news archives — "Actualités - Commune de Leudelange" carries a date
+    # and would have been stored as something happening on it. Both are handled
+    # in _build_event_doc now, so what arrives is the event's own name.
+    #
+    # A first reading of the trial said Käerjeng's titles were site names in 20
+    # of 24 cases and recommended leaving it off. That was a crude regex
+    # counting organisers: Handball Käerjeng, Kulturkommissioun, Käerjenger
+    # Musekschoul. Those are the evening's host and belong in the title.
+    "Pétange — Sitemap":                    "29 events, all in the future",
+    "Käerjeng (Bascharage) — Sitemap":      "24 events, 23 in the future",
+    "Casino Luxembourg (Contemporary Art) — Sitemap": "9 workshops, correctly categorised",
+    "Leudelange — Sitemap":                 "7 events, all in the future",
 }
 
 # Rockhal returned exactly the default budget of 20, which means the cap bound
