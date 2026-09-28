@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Linking } from "react-native";
+import { openMaps } from "@/src/utils/openMaps";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -219,9 +219,7 @@ export default function Explore() {
   // no detail screen for an OSM entry, and inventing one here would promise
   // information we do not hold.
   const onPlaceTap = useCallback((_id: string, lat: number, lng: number) => {
-    void Linking.openURL(
-      `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}`,
-    );
+    openMaps(lat, lng);
   }, []);
 
   // Fly to a canton whenever the pill selection changes.

@@ -29,6 +29,7 @@ import type { Lang } from "@/src/data/places";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { useUserLocation } from "@/src/hooks/useUserLocation";
 import { t } from "@/src/i18n/strings";
+import { openMaps } from "@/src/utils/openMaps";
 import { isOpenAt, openLabel } from "@/src/utils/openingHours";
 import { type Palette, radii, shadowFor } from "@/src/theme";
 import { api, type ApiPlace, type PlaceLabels, type PlacesMeta } from "@/src/utils/api";
@@ -207,7 +208,7 @@ export default function Places() {
               </View>
               {p.lat && p.lng ? (
                 <TouchableOpacity
-                  onPress={() => Linking.openURL(`https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lng}#map=17/${p.lat}/${p.lng}`)}
+                  onPress={() => openMaps(p.lat as number, p.lng as number, p.name)}
                   style={styles.mapBtn}
                   testID={`place-map-${p.id}`}
                 >

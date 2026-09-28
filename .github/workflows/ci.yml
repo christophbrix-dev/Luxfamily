@@ -72,6 +72,12 @@ jobs:
       - name: Map honesty
         run: yarn test-map-honesty
 
+      # Every "open in maps" button used to build the same openstreetmap.org
+      # pin link — a web page, even on a phone, with no route in it. This
+      # checks each platform gets the app its reader actually navigates with.
+      - name: Maps links
+        run: yarn test-open-maps
+
       # Reports how much of the app speaks Luxembourgish. Never fails the
       # build — a missing translation is work in progress, not a broken commit.
       - name: Luxembourgish coverage

@@ -3,6 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useMemo } from "react";
 import { Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { openMaps } from "@/src/utils/openMaps";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { MapPreview } from "@/src/components/MapPreview";
@@ -32,10 +33,7 @@ export default function Detail() {
   const savedId = place.sourceId ?? String(place.id);
   const isSaved = saved.includes(savedId);
 
-  const openMaps = () => {
-    const url = `https://www.openstreetmap.org/?mlat=${place.lat}&mlon=${place.lng}#map=16/${place.lat}/${place.lng}`;
-    Linking.openURL(url);
-  };
+  const openMapsHere = () => openMaps(place.lat, place.lng, pickLang(place.title, lang));
 
   return (
     <View style={styles.safe}>
@@ -124,7 +122,7 @@ export default function Detail() {
                 </Text>
               </View>
               <TouchableOpacity
-                onPress={openMaps}
+                onPress={openMapsHere}
                 style={styles.mapsBtn}
                 testID="detail-open-maps-btn"
               >
@@ -152,7 +150,7 @@ export default function Detail() {
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <TouchableOpacity
-          onPress={openMaps}
+          onPress={openMapsHere}
           style={styles.footerSecondary}
           testID="footer-open-maps-btn"
         >

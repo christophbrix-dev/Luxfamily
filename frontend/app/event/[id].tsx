@@ -18,6 +18,7 @@ import { MapPreview } from "@/src/components/MapPreview";
 import { useApp } from "@/src/contexts/AppContext";
 import { t } from "@/src/i18n/strings";
 import { pickLang } from "@/src/i18n/pickLang";
+import { openMaps } from "@/src/utils/openMaps";
 import { palette, radii, shadow } from "@/src/theme";
 import { api, ApiEvent } from "@/src/utils/api";
 
@@ -72,11 +73,7 @@ export default function EventDetail() {
   // across 1000 buckets produces around 39 colliding pairs, so saving one event
   // marked others as saved too.
   const isSaved = saved.includes(ev.id);
-  const openMaps = () => {
-    Linking.openURL(
-      `https://www.openstreetmap.org/?mlat=${ev.lat}&mlon=${ev.lng}#map=16/${ev.lat}/${ev.lng}`,
-    );
-  };
+  const openMapsHere = () => openMaps(ev.lat, ev.lng, pickLang(ev.title, lang) ?? ev.title.en);
 
   return (
     <View style={styles.wrap}>
@@ -214,7 +211,7 @@ export default function EventDetail() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-        <TouchableOpacity onPress={openMaps} style={styles.footerSecondary}>
+        <TouchableOpacity onPress={openMapsHere} style={styles.footerSecondary}>
           <Text style={styles.footerSecondaryTxt}>{t("openInMaps", lang)}</Text>
         </TouchableOpacity>
         <TouchableOpacity
