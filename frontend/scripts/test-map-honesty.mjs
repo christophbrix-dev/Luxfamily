@@ -92,6 +92,49 @@ for (const key of ["eventsAtThisSpot", "sameSpotNote"]) {
     new RegExp(`${key}:\\s+"`).test(strings), true);
 }
 
+// --- the map carries places too -------------------------------------------
+//
+// It used to carry events alone, and events are the half of our data with the
+// worse coordinates. Meanwhile 7,856 OpenStreetMap places sat unused — 1,383
+// playgrounds, the picnic spots, the PLOMM Kannermusée — each with a real
+// position. Zooming to a street showed an empty street: the tiles go to zoom
+// 19, and there was nothing on them.
+check("the map has a layer for places", /placeCluster/.test(html), true);
+check("places are a separate group from events",
+  /const placeCluster = L\.markerClusterGroup/.test(html), true);
+check("and the map can be given places", /function setPlaces/.test(html), true);
+check("a place pin can be told from an event pin",
+  /wat-pin place/.test(html), true);
+
+// Places have real coordinates, so zooming genuinely separates them — unlike
+// events, where it cannot.
+check("a cluster of places still zooms apart",
+  /placeCluster[\s\S]{0,400}zoomToBoundsOnClick:\s*true/.test(html), true);
+
+// The screen can only ask for the right places if it knows what is on screen.
+check("the map reports where it is looking", /type:\s*"viewChanged"/.test(html), true);
+check("and not on every pixel of a drag", /setTimeout\(\s*\(\)\s*=>\s*\{[\s\S]{0,400}viewChanged/.test(html), true);
+
+check("the bridge forwards viewChanged", /data\.type === "viewChanged"/.test(bridge), true);
+check("the bridge forwards placeTap", /data\.type === "placeTap"/.test(bridge), true);
+
+check("the screen asks for places when the view settles",
+  /onViewChanged=\{onViewChanged\}/.test(explore), true);
+check("but not for the whole country at once",
+  /PLACES_FROM_ZOOM/.test(explore), true);
+
+// A slow answer for a view the reader has already left must not replace the
+// pins for the one they are looking at.
+check("a stale answer is dropped",
+  /viewRef\.current !== view/.test(explore), true);
+
+// The taxonomy ships translated labels; the raw OSM tag ("playground") is not
+// a label, it is a key.
+check("a pin says Spillplaz, not playground",
+  /kindLabel\(p\.kind\)/.test(explore), true);
+check("and says nothing at all for a tag we do not know",
+  /if \(!entry\) return "";/.test(explore), true);
+
 console.log(failures === 0
   ? "  test-map-honesty: all checks passed"
   : `  test-map-honesty: ${failures} failure(s)`);

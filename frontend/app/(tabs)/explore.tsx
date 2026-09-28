@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { Linking } from "react-native";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -17,6 +18,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { DEFAULT_FILTERS, FilterSheet, Filters } from "@/src/components/FilterSheet";
 import LeafletMap, {
   type LeafletMapHandle,
+  type MapPlace,
+  type MapView,
   type MapEvent,
 } from "@/src/components/LeafletMap";
 import { useApp } from "@/src/contexts/AppContext";
@@ -26,7 +29,7 @@ import { pickLang } from "@/src/i18n/pickLang";
 import { radii, type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { useUserLocation } from "@/src/hooks/useUserLocation";
-import { api, type ApiEventSummary } from "@/src/utils/api";
+import { api, type ApiEventSummary, type ApiPlace, type PlaceLabels, type PlacesMeta } from "@/src/utils/api";
 import { ageWindow, dateWindow, radiusWindow } from "@/src/utils/eventQuery";
 
 export default function Explore() {
@@ -140,6 +143,87 @@ export default function Explore() {
     mapRef.current?.setEvents(markers);
   }, [filtered, mapReady, lang]);
 
+  // ---------------------------------------------------------------------
+  // Places on the map.
+  //
+  // The map carried only events, and events are the half of our data with the
+  // worse coordinates — 80.9 % of them know a town and nothing else. Meanwhile
+  // 7,856 OpenStreetMap places sat unused, each with a real position: 1,383
+  // playgrounds, the picnic spots, the PLOMM Kannermusée. Zooming to a street
+  // showed an empty street.
+  //
+  // They are fetched for whatever the map is looking at, and only once it is
+  // close enough to mean something: all 7,856 pins over the whole country
+  // would be a green smear, and it would cost a request that answers nothing.
+  // ---------------------------------------------------------------------
+  const PLACES_FROM_ZOOM = 11;
+  const [placeCount, setPlaceCount] = useState(0);
+  const viewRef = useRef<MapView | null>(null);
+
+  // The taxonomy's own translations, so a pin says "Spillplaz" rather than the
+  // raw OpenStreetMap tag `playground`.
+  const [placesMeta, setPlacesMeta] = useState<PlacesMeta | null>(null);
+  useEffect(() => {
+    api.placesMeta().then(setPlacesMeta).catch(() => setPlacesMeta(null));
+  }, []);
+
+  const kindLabel = useCallback(
+    (kind: string): string => {
+      const entry: PlaceLabels | undefined = placesMeta?.categories?.[kind];
+      if (!entry) return "";   // no invented label for a tag we do not know
+      if (lang === "lb") return entry.label_lb || entry.label_de;
+      if (lang === "de") return entry.label_de;
+      if (lang === "fr") return entry.label_fr;
+      return entry.label_en;
+    },
+    [placesMeta, lang],
+  );
+
+  const onViewChanged = useCallback(async (view: MapView) => {
+    viewRef.current = view;
+    if (view.zoom < PLACES_FROM_ZOOM) {
+      setPlaceCount(0);
+      mapRef.current?.setPlaces([]);
+      return;
+    }
+    try {
+      const rows = await api.osmPlaces({
+        near: { lat: view.lat, lng: view.lng },
+        // A little wider than the view, so a small drag does not blank the
+        // edges before the next request lands.
+        radiusKm: Math.min(Math.max(view.radiusKm * 1.3, 2), 100),
+        limit: 300,
+      });
+      // A slow answer for a view the user has already left must not overwrite
+      // the pins for the view they are actually looking at.
+      if (viewRef.current !== view) return;
+      const pins: MapPlace[] = rows
+        .filter((p: ApiPlace) => p.lat !== null && p.lng !== null)
+        .map((p: ApiPlace) => ({
+          id: p.id,
+          lat: p.lat as number,
+          lng: p.lng as number,
+          name: p.name,
+          group: p.group,
+          kindLabel: kindLabel(p.kind),
+          btnLabel: t("openInMaps", lang),
+        }));
+      setPlaceCount(pins.length);
+      mapRef.current?.setPlaces(pins);
+    } catch {
+      // Keep whatever is on the map; a failed request is not an empty country.
+    }
+  }, [lang, kindLabel]);
+
+  // Tapping a place opens it where the rest of the app opens places — there is
+  // no detail screen for an OSM entry, and inventing one here would promise
+  // information we do not hold.
+  const onPlaceTap = useCallback((_id: string, lat: number, lng: number) => {
+    void Linking.openURL(
+      `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}`,
+    );
+  }, []);
+
   // Fly to a canton whenever the pill selection changes.
   useEffect(() => {
     if (!mapReady) return;
@@ -248,6 +332,8 @@ export default function Explore() {
             onReady={() => setMapReady(true)}
             onMarkerTap={onMarkerTap}
             onClusterTap={onClusterTap}
+            onPlaceTap={onPlaceTap}
+            onViewChanged={onViewChanged}
           />
         </View>
 

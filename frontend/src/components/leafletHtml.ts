@@ -48,6 +48,16 @@ export const LEAFLET_HTML = `<!doctype html>
       font-size: 16px;
     }
     /* Featured / sponsored variant */
+    /* Places, not events: a calmer blue so the two kinds of pin are told apart
+       at a glance. Slightly smaller, because there are far more of them. */
+    .wat-pin.place {
+      width: 30px;
+      height: 30px;
+      background: linear-gradient(135deg, #38BDF8 0%, #0284C7 100%);
+      border-width: 2px;
+      font-size: 14px;
+    }
+
     .wat-pin.featured {
       background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
     }
@@ -182,6 +192,25 @@ export const LEAFLET_HTML = `<!doctype html>
       return Math.abs(ne.lat - sw.lat) < 1e-5 && Math.abs(ne.lng - sw.lng) < 1e-5;
     }
 
+    // Places get their own layer.
+    //
+    // The map carried only events, and events are the half of our data with
+    // the worse coordinates: 80.9 % of them know a town and nothing more. The
+    // 7,856 places from OpenStreetMap — 1,383 playgrounds among them — each
+    // have a real position, and none of them were drawn. Zooming to a street
+    // showed an empty street.
+    //
+    // A separate group so the two never merge into one count: "3 events and a
+    // playground" is not a number anybody wants.
+    const placeCluster = L.markerClusterGroup({
+      showCoverageOnHover: false,
+      maxClusterRadius: 60,
+      spiderfyOnMaxZoom: false,
+      zoomToBoundsOnClick: true,   // places have real coordinates, so zooming
+                                   // genuinely separates them
+    });
+    map.addLayer(placeCluster);
+
     cluster.on("clusterclick", (e) => {
       const bounds = e.layer.getBounds();
       if (!isOneSpot(bounds)) {
@@ -302,6 +331,76 @@ export const LEAFLET_HTML = `<!doctype html>
       }
     }
 
+    const PLACE_ICONS = {
+      play:    "🛝",
+      nature:  "🌳",
+      picnic:  "🧺",
+      hike:    "🥾",
+      animals: "🐾",
+      culture: "🏛",
+      sport:   "🏊",
+    };
+
+    function placeIcon(place) {
+      const emoji = PLACE_ICONS[place.group] || "📍";
+      return L.divIcon({
+        html: '<div class="wat-pin place">' + emoji + "</div>",
+        className: "",
+        iconSize:    [30, 30],
+        iconAnchor:  [15, 15],
+        popupAnchor: [0, -16],
+      });
+    }
+
+    function placePopup(place) {
+      const sub = place.kindLabel ? '<div class="popup-meta">' + escapeHtml(place.kindLabel) + "</div>" : "";
+      return (
+        '<div class="popup-title">' + escapeHtml(place.name || "") + "</div>" + sub +
+        '<span class="popup-btn" data-place-id="' + escapeHtml(place.id) + '">' +
+          escapeHtml(place.btnLabel || "Open") +
+        "</span>"
+      );
+    }
+
+    function setPlaces(places) {
+      placeCluster.clearLayers();
+      (places || []).forEach((place) => {
+        if (typeof place.lat !== "number" || typeof place.lng !== "number") return;
+        if (place.lat === 0 && place.lng === 0) return;
+        const m = L.marker([place.lat, place.lng], { icon: placeIcon(place) });
+        m.bindPopup(placePopup(place), { autoPan: true });
+        m.on("popupopen", (e) => {
+          const btn = e.popup._contentNode.querySelector(".popup-btn");
+          if (btn) {
+            btn.addEventListener("click", () => {
+              postToHost({ type: "placeTap", id: place.id, lat: place.lat, lng: place.lng });
+            });
+          }
+        });
+        placeCluster.addLayer(m);
+      });
+    }
+
+    // The host decides which places to ask for, so it needs to know what is on
+    // screen. Sent on settle rather than on every pixel of a drag.
+    let viewTimer = null;
+    function reportView() {
+      clearTimeout(viewTimer);
+      viewTimer = setTimeout(() => {
+        const c = map.getCenter();
+        const b = map.getBounds();
+        postToHost({
+          type: "viewChanged",
+          lat: c.lat,
+          lng: c.lng,
+          zoom: map.getZoom(),
+          // Half the diagonal, in kilometres — the radius that covers the view.
+          radiusKm: b.getNorthWest().distanceTo(b.getSouthEast()) / 2000,
+        });
+      }, 350);
+    }
+    map.on("moveend zoomend", reportView);
+
     // ------------------------------------------------------------------
     // Canton centroids for the "flyToCanton" command.
     // ------------------------------------------------------------------
@@ -325,6 +424,8 @@ export const LEAFLET_HTML = `<!doctype html>
         const data = typeof msg === "string" ? JSON.parse(msg) : msg;
         if (data.type === "setEvents") {
           setEvents(data.events || []);
+        } else if (data.type === "setPlaces") {
+          setPlaces(data.places || []);
         } else if (data.type === "focus") {
           map.flyTo([data.lat, data.lng], data.zoom ?? 15, { duration: 0.8 });
         } else if (data.type === "flyToCanton") {
