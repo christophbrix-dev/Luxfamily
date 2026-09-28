@@ -154,13 +154,55 @@ check("the bridge carries route shapes", /pathParts\?: number\[\]\[\]\[\]/.test(
 // before it ever reached the map.
 check("the screen keeps places that have a shape but no point",
   /p\.lat !== null && p\.lng !== null\) \|\| p\.path_parts\?\.length/.test(explore), true);
-check("and asks the server for the shapes", /geometry: true/.test(explore), true);
+// Was `geometry: true` until the layer switches arrived; now it is asked for
+// only when something draws it. The check below covers the rest.
+check("and asks the server for the shapes when they are drawn",
+  /geometry: wantsRoutes/.test(explore), true);
 
 // Route shapes were 70 KB of a 331 KB answer for 39 rows out of 300. Only the
 // map draws them, so only the map should pay for them.
 const api = readFileSync("src/utils/api.ts", "utf8");
 check("geometry is off unless asked for",
   /if \(opts\.geometry\) q\.set\("geometry", "true"\)/.test(api), true);
+
+// --- what the map draws is the reader's choice ----------------------------
+//
+// The map carries four things now, and 4,772 of the 7,856 places are nature
+// and picnic spots. Somebody looking for a bike ride does not want the
+// country's every bench drawn over it.
+check("the screen has layer switches", /const \[layers, setLayers\]/.test(explore), true);
+check("all four are switchable",
+  /"events", "places", "hiking", "cycling"/.test(explore), true);
+
+// Sieving happens in the screen, so flipping a switch redraws without a round
+// trip — and the request is made once for every combination.
+check("routes are sorted by kind, not by group",
+  /kind === "cycle_route"/.test(explore) && /kind === "hiking_route"/.test(explore), true);
+
+// Route shapes were 70 KB of a 331 KB answer. With both route layers off,
+// nobody draws them.
+check("geometry is only asked for when a route layer is on",
+  /geometry: wantsRoutes/.test(explore), true);
+check("and wantsRoutes is exactly that",
+  /const wantsRoutes = layers\.hiking \|\| layers\.cycling/.test(explore), true);
+
+// A switch is not a new viewport, so the map's own moveend never fires.
+check("flipping a switch redraws",
+  /if \(viewRef\.current\) void onViewChanged\(viewRef\.current\)/.test(explore), true);
+check("and the event layer answers to its switch",
+  /setEvents\(layers\.events \? markers : \[\]\)/.test(explore), true);
+
+// The choice is remembered per reader. Stored as the names that are on, so a
+// layer added later does not arrive switched off for everyone who was here.
+check("the choice is kept", /storage\.setItem\(\s*LAYERS_KEY/.test(explore), true);
+check("as names rather than a fixed shape",
+  /ALL_LAYERS\.filter\(\(k\) => next\[k\]\)\.join\(","\)/.test(explore), true);
+
+// Labels, in every language the app speaks.
+for (const key of ["onTheMap", "hikingTrails", "cycleRoutes"]) {
+  check(`${key} is defined`, new RegExp(`${key}:\\s*\\{`).test(strings), true);
+  check(`${key} has Luxembourgish`, new RegExp(`${key}:\\s+"`).test(strings), true);
+}
 
 console.log(failures === 0
   ? "  test-map-honesty: all checks passed"
