@@ -33,6 +33,14 @@ export type MapPlace = {
   group?: string;
   kindLabel?: string;
   btnLabel?: string;
+  /**
+   * A route's shape, one polyline per member way.
+   *
+   * Present only for hiking and cycle routes, and only when the screen asked
+   * the server for geometry. A place with this is drawn as a line rather than
+   * pinned: a trail is not anywhere in particular, and a pin would claim it is.
+   */
+  pathParts?: number[][][];
 };
 
 /** Where the map is looking, so the screen can ask for the right places. */

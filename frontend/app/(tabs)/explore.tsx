@@ -187,6 +187,8 @@ export default function Explore() {
     try {
       const rows = await api.osmPlaces({
         near: { lat: view.lat, lng: view.lng },
+        // The map is the only screen that draws route shapes.
+        geometry: true,
         // A little wider than the view, so a small drag does not blank the
         // edges before the next request lands.
         radiusKm: Math.min(Math.max(view.radiusKm * 1.3, 2), 100),
@@ -196,15 +198,17 @@ export default function Explore() {
       // the pins for the view they are actually looking at.
       if (viewRef.current !== view) return;
       const pins: MapPlace[] = rows
-        .filter((p: ApiPlace) => p.lat !== null && p.lng !== null)
+        // A route has no coordinate at all; it is drawn from its shape.
+        .filter((p: ApiPlace) => (p.lat !== null && p.lng !== null) || p.path_parts?.length)
         .map((p: ApiPlace) => ({
           id: p.id,
-          lat: p.lat as number,
-          lng: p.lng as number,
+          lat: (p.lat ?? 0) as number,
+          lng: (p.lng ?? 0) as number,
           name: p.name,
           group: p.group,
           kindLabel: kindLabel(p.kind),
           btnLabel: t("openInMaps", lang),
+          pathParts: p.path_parts,
         }));
       mapRef.current?.setPlaces(pins);
     } catch {
