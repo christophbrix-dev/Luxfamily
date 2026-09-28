@@ -379,6 +379,76 @@ _PAGE_BUILDER = re.compile(
 _WHITESPACE = re.compile(r"[\s\u00a0\u200b\ufeff]+")
 
 
+# A page's <title> is not an event's name.
+#
+# Four sources that had never been tried turned out to carry events, and two of
+# them carried the commune's own name on every one: "Journée de la
+# commémoration nationale - Commune de Leudelange". 20 of Käerjeng's 24 titles
+# and 7 of Leudelange's 7 looked like that. On a card in the app it reads as
+# though the app could not tell what it was showing.
+#
+# Only an identity is removed, and only from the end. "Plogging – Pick up and
+# run" keeps its tail, and so does "Trikot Party – Handball Käerjeng", where
+# the tail is the club that is holding it. The rule is deliberately narrow:
+# over-trimming costs the reader the event's actual name, which is worse than
+# leaving a suffix on.
+_SITE_TAIL = re.compile(
+    r"\s*[-–—|]\s*(?:"
+    r"(?:administration\s+)?commune\s+de\s+[\w'’\- ]+"
+    r"|ville\s+d[eu]\s*[\w'’\- ]*"
+    r"|gemeng\s+[\w'’\- ]+"
+    r"|stad\s+[\w'’\- ]+"
+    r")\s*$",
+    re.IGNORECASE,
+)
+
+# Titles that are a section of a website rather than something happening.
+# "Archives des Actualités - Käerjeng" is a news archive; it has a date on the
+# page and would otherwise be stored as an event on that date.
+_NOT_AN_EVENT = re.compile(
+    r"^(?:archives?(?:\s+des?)?\s+)?(?:actualit[ée]s?|news|agenda|archives?|"
+    r"veranstaltungen|manifestations|events?)\s*$",
+    re.IGNORECASE,
+)
+
+
+def site_identity(source: Dict[str, Any]) -> Optional[str]:
+    """The name a source's own website signs its pages with.
+
+    "Käerjeng (Bascharage) — Sitemap" signs with "Käerjeng", not with
+    "Bascharage": the commune's name, not the town the events happen in. Taking
+    it from the source record rather than from the event's town is the
+    difference between removing that tail and leaving it on.
+    """
+    name = str(source.get("name") or "")
+    head = re.split(r"\s[—–-]\s|\s\(", name, maxsplit=1)[0].strip()
+    return head or None
+
+
+def strip_site_tail(title: str, site: Optional[str] = None) -> str:
+    """Remove a trailing site identity, leaving the event's own name.
+
+    `site` is the source's own town or commune, and it is only removed when the
+    tail is *exactly* that word. "Archives des Actualités - Käerjeng" loses it;
+    "Trikot Party – Handball Käerjeng" does not, because there the tail is the
+    club holding the evening and the reader wants to know.
+    """
+    cleaned = _SITE_TAIL.sub("", title or "").strip()
+    if site:
+        bare = re.compile(
+            r"\s*[-–—|]\s*" + re.escape(site.strip()) + r"\s*$", re.IGNORECASE
+        )
+        cleaned = bare.sub("", cleaned).strip()
+    # Never hand back nothing: a title that *is* only the commune's name is
+    # left as it was, for the caller above to judge.
+    return cleaned or (title or "").strip()
+
+
+def is_not_an_event(title: str, site: Optional[str] = None) -> bool:
+    """True for a page that is a section of a website, not something happening."""
+    return bool(_NOT_AN_EVENT.match(strip_site_tail(title or "", site)))
+
+
 def _normalise_text(text: str) -> str:
     """Collapse padding to single spaces and trim the ends."""
     if not text:
@@ -496,6 +566,22 @@ def _build_event_doc(
     # these descriptions are markup end to end, and an empty description is
     # more honest than a wall of shortcodes — the title carries the meaning.
     title = _normalise_text(title)
+
+    # A page's <title> is not an event's name: several municipal sites sign
+    # every page with the commune, and some of those pages are the news archive
+    # rather than anything happening. Both are decided here, once, rather than
+    # in each importer — the sitemap crawler is only where it was noticed.
+    site = site_identity(source)
+    if is_not_an_event(title, site):
+        # Warning rather than info, and deliberately: the caller counts every
+        # None as `blocked`, whose summary line says "refused as not
+        # family-safe". That summary cannot tell the two apart, so the reason
+        # has to be legible here or it is not legible anywhere.
+        logger.warning("Source %s: not an event, refused: %s",
+                       source.get("name"), title[:60])
+        return None
+    title = strip_site_tail(title, site)
+
     description = _normalise_text(_strip_page_builder(description)) or title
 
     verdict = content_filter.assess(title, description)
@@ -1819,8 +1905,14 @@ async def run_source(source: Dict[str, Any], db) -> Dict[str, Any]:
                 # work nobody can see is a filter nobody can correct — and the
                 # cost of a wrong rule here is a village festival that quietly
                 # stops appearing.
+                #
+                # "refused" and not "refused as not family-safe": _build_event_doc
+                # returns None for two different reasons, and this count cannot
+                # tell them apart. It said the wrong one for a while — two
+                # municipal news archives were reported as unsafe for families.
+                # Each refusal logs its own reason as it happens.
                 logger.warning(
-                    "Source %s: %d event(s) refused as not family-safe",
+                    "Source %s: %d event(s) refused (see the lines above for why)",
                     source.get("name"), blocked,
                 )
             if empty_runs >= EMPTY_RUNS_BEFORE_WARNING:
