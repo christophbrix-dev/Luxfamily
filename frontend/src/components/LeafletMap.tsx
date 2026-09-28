@@ -24,8 +24,29 @@ export type MapEvent = {
   btnLabel?: string;
 };
 
+/** One OpenStreetMap place as the map needs it. */
+export type MapPlace = {
+  id: string;
+  lat: number;
+  lng: number;
+  name: string;
+  group?: string;
+  kindLabel?: string;
+  btnLabel?: string;
+};
+
+/** Where the map is looking, so the screen can ask for the right places. */
+export type MapView = {
+  lat: number;
+  lng: number;
+  zoom: number;
+  /** Half the diagonal of the visible area. */
+  radiusKm: number;
+};
+
 export type LeafletMapHandle = {
   setEvents: (events: MapEvent[]) => void;
+  setPlaces: (places: MapPlace[]) => void;
   focus: (lat: number, lng: number, zoom?: number) => void;
   flyToCanton: (canton: string) => void;
   flyToCountry: () => void;
@@ -34,12 +55,24 @@ export type LeafletMapHandle = {
 
 type Props = {
   onMarkerTap?: (id: string) => void;
+  /**
+   * Several events on one coordinate were tapped.
+   *
+   * The map no longer fans them into a ring — see the note in leafletHtml.ts.
+   * It hands the ids over instead, and the screen shows them as a list, which
+   * is what a shared coordinate actually means.
+   */
+  onClusterTap?: (ids: string[]) => void;
+  /** A place pin's button was pressed. */
+  onPlaceTap?: (id: string, lat: number, lng: number) => void;
+  /** The map settled somewhere new — sent on moveend/zoomend, debounced. */
+  onViewChanged?: (view: MapView) => void;
   onReady?: () => void;
   style?: StyleProp<ViewStyle>;
 };
 
 const LeafletMap = forwardRef<LeafletMapHandle, Props>(function LeafletMap(
-  { onMarkerTap, onReady, style },
+  { onMarkerTap, onClusterTap, onPlaceTap, onViewChanged, onReady, style },
   ref,
 ) {
   // Native WebView ref (only used on iOS / Android).
@@ -77,18 +110,40 @@ const LeafletMap = forwardRef<LeafletMapHandle, Props>(function LeafletMap(
     focus: (lat, lng, zoom) => send({ type: "focus", lat, lng, zoom }),
     flyToCanton: (canton) => send({ type: "flyToCanton", canton }),
     flyToCountry: () => send({ type: "flyToCountry" }),
+    setPlaces: (places) => send({ type: "setPlaces", places }),
     setTheme: (theme) => send({ type: "setTheme", theme }),
   }));
+
+  // The callbacks, always the current ones.
+  //
+  // The web listener below is attached once, on mount, and a listener attached
+  // once keeps the closure it was created with. `onClusterTap` is rebuilt
+  // whenever the event list changes, so the listener held the very first one —
+  // the one that closed over an empty list. The map posted its message, the
+  // bridge received it, the handler ran against nothing and opened nothing.
+  // Exactly the kind of wiring that looks right in every file and does nothing
+  // as a whole.
+  const handlers = useRef({ onMarkerTap, onClusterTap, onPlaceTap, onViewChanged, onReady });
+  handlers.current = { onMarkerTap, onClusterTap, onPlaceTap, onViewChanged, onReady };
 
   const handleMessage = (raw: string) => {
     try {
       const data = JSON.parse(raw);
       if (data.type === "ready") {
         readyRef.current = true;
-        onReady?.();
+        handlers.current.onReady?.();
         flush();
       } else if (data.type === "markerTap" && data.id) {
-        onMarkerTap?.(data.id);
+        handlers.current.onMarkerTap?.(data.id);
+      } else if (data.type === "clusterTap" && Array.isArray(data.ids)) {
+        const ids = data.ids.filter((id: unknown): id is string => typeof id === "string");
+        if (ids.length > 0) handlers.current.onClusterTap?.(ids);
+      } else if (data.type === "placeTap" && data.id) {
+        handlers.current.onPlaceTap?.(data.id, data.lat, data.lng);
+      } else if (data.type === "viewChanged" && typeof data.zoom === "number") {
+        handlers.current.onViewChanged?.({
+          lat: data.lat, lng: data.lng, zoom: data.zoom, radiusKm: data.radiusKm,
+        });
       }
     } catch {
       // ignore malformed

@@ -70,6 +70,19 @@ export const STRINGS: Dict = {
   category: { en: "Category", de: "Kategorie", fr: "Catégorie" },
   date: { en: "Date", de: "Datum", fr: "Date" },
   distance: { en: "Distance", de: "Entfernung", fr: "Distance" },
+  // Shown over the list of events that share one coordinate. "Here" rather
+  // than a street: the coordinate is a town centre for 80.9 % of our events,
+  // and naming a street would be a precision the data does not have.
+  eventsAtThisSpot: {
+    en: "Events at this place",
+    de: "Events an diesem Ort",
+    fr: "Événements à cet endroit",
+  },
+  sameSpotNote: {
+    en: "These share one location — the sources give no street address.",
+    de: "Diese teilen sich einen Ort — die Quellen nennen keine Adresse.",
+    fr: "Ils partagent un lieu — les sources n'indiquent pas d'adresse.",
+  },
   anywhere: { en: "Anywhere", de: "Überall", fr: "Partout" },
   shareLocation: {
     en: "Share my location",
@@ -440,6 +453,8 @@ const LB_OVERRIDES: Record<string, string> = {
   category:              "Kategorie",
   date:                  "Datum",
   distance:              "Distanz",
+  eventsAtThisSpot:      "Eventer op dëser Plaz",
+  sameSpotNote:          "Déi deelen sech eng Plaz — d'Quelle ginn keng Adress un.",
   anywhere:              "Iwwerall",
   shareLocation:         "Meng Positioun deelen",
   distanceNeedsLocation: "Fir en Ëmkrees brauche mir deng Positioun.",

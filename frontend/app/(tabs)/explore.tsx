@@ -1,8 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
+import { openMaps } from "@/src/utils/openMaps";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,6 +18,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { DEFAULT_FILTERS, FilterSheet, Filters } from "@/src/components/FilterSheet";
 import LeafletMap, {
   type LeafletMapHandle,
+  type MapPlace,
+  type MapView,
   type MapEvent,
 } from "@/src/components/LeafletMap";
 import { useApp } from "@/src/contexts/AppContext";
@@ -24,7 +29,7 @@ import { pickLang } from "@/src/i18n/pickLang";
 import { radii, type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { useUserLocation } from "@/src/hooks/useUserLocation";
-import { api, type ApiEventSummary } from "@/src/utils/api";
+import { api, type ApiEventSummary, type ApiPlace, type PlaceLabels, type PlacesMeta } from "@/src/utils/api";
 import { ageWindow, dateWindow, radiusWindow } from "@/src/utils/eventQuery";
 
 export default function Explore() {
@@ -138,6 +143,82 @@ export default function Explore() {
     mapRef.current?.setEvents(markers);
   }, [filtered, mapReady, lang]);
 
+  // ---------------------------------------------------------------------
+  // Places on the map.
+  //
+  // The map carried only events, and events are the half of our data with the
+  // worse coordinates — 80.9 % of them know a town and nothing else. Meanwhile
+  // 7,856 OpenStreetMap places sat unused, each with a real position: 1,383
+  // playgrounds, the picnic spots, the PLOMM Kannermusée. Zooming to a street
+  // showed an empty street.
+  //
+  // They are fetched for whatever the map is looking at, and only once it is
+  // close enough to mean something: all 7,856 pins over the whole country
+  // would be a green smear, and it would cost a request that answers nothing.
+  // ---------------------------------------------------------------------
+  const PLACES_FROM_ZOOM = 11;
+  const viewRef = useRef<MapView | null>(null);
+
+  // The taxonomy's own translations, so a pin says "Spillplaz" rather than the
+  // raw OpenStreetMap tag `playground`.
+  const [placesMeta, setPlacesMeta] = useState<PlacesMeta | null>(null);
+  useEffect(() => {
+    api.placesMeta().then(setPlacesMeta).catch(() => setPlacesMeta(null));
+  }, []);
+
+  const kindLabel = useCallback(
+    (kind: string): string => {
+      const entry: PlaceLabels | undefined = placesMeta?.categories?.[kind];
+      if (!entry) return "";   // no invented label for a tag we do not know
+      if (lang === "lb") return entry.label_lb || entry.label_de;
+      if (lang === "de") return entry.label_de;
+      if (lang === "fr") return entry.label_fr;
+      return entry.label_en;
+    },
+    [placesMeta, lang],
+  );
+
+  const onViewChanged = useCallback(async (view: MapView) => {
+    viewRef.current = view;
+    if (view.zoom < PLACES_FROM_ZOOM) {
+      mapRef.current?.setPlaces([]);
+      return;
+    }
+    try {
+      const rows = await api.osmPlaces({
+        near: { lat: view.lat, lng: view.lng },
+        // A little wider than the view, so a small drag does not blank the
+        // edges before the next request lands.
+        radiusKm: Math.min(Math.max(view.radiusKm * 1.3, 2), 100),
+        limit: 300,
+      });
+      // A slow answer for a view the user has already left must not overwrite
+      // the pins for the view they are actually looking at.
+      if (viewRef.current !== view) return;
+      const pins: MapPlace[] = rows
+        .filter((p: ApiPlace) => p.lat !== null && p.lng !== null)
+        .map((p: ApiPlace) => ({
+          id: p.id,
+          lat: p.lat as number,
+          lng: p.lng as number,
+          name: p.name,
+          group: p.group,
+          kindLabel: kindLabel(p.kind),
+          btnLabel: t("openInMaps", lang),
+        }));
+      mapRef.current?.setPlaces(pins);
+    } catch {
+      // Keep whatever is on the map; a failed request is not an empty country.
+    }
+  }, [lang, kindLabel]);
+
+  // Tapping a place opens it where the rest of the app opens places — there is
+  // no detail screen for an OSM entry, and inventing one here would promise
+  // information we do not hold.
+  const onPlaceTap = useCallback((_id: string, lat: number, lng: number) => {
+    openMaps(lat, lng);
+  }, []);
+
   // Fly to a canton whenever the pill selection changes.
   useEffect(() => {
     if (!mapReady) return;
@@ -150,6 +231,23 @@ export default function Explore() {
       router.push(`/detail/${id}` as never);
     },
     [router],
+  );
+
+  // Several events sharing one coordinate. The map used to fan these into a
+  // ring at maximum zoom, which drew distinct places where there is one — most
+  // of our events carry only a town name. Now the map says how many it holds
+  // and the list says which, without inventing positions for any of them.
+  const [atOneSpot, setAtOneSpot] = useState<ApiEventSummary[] | null>(null);
+
+  const onClusterTap = useCallback(
+    (ids: string[]) => {
+      const wanted = new Set(ids);
+      // Order as the list below has them, not as the map happened to hand them
+      // over: that order is MarkerCluster's internal one and means nothing.
+      const rows = filtered.filter((e) => wanted.has(e.id));
+      if (rows.length > 0) setAtOneSpot(rows);
+    },
+    [filtered],
   );
 
   // Push the current effective theme down to Leaflet whenever it changes.
@@ -228,6 +326,9 @@ export default function Explore() {
             style={styles.mapInner}
             onReady={() => setMapReady(true)}
             onMarkerTap={onMarkerTap}
+            onClusterTap={onClusterTap}
+            onPlaceTap={onPlaceTap}
+            onViewChanged={onViewChanged}
           />
         </View>
 
@@ -287,6 +388,49 @@ export default function Explore() {
         hasLocation={coords !== null}
         onRequestLocation={requestLocation}
       />
+
+      {/* What used to be a ring of pins around a village. */}
+      <Modal
+        animationType="slide"
+        transparent
+        visible={atOneSpot !== null}
+        onRequestClose={() => setAtOneSpot(null)}
+        statusBarTranslucent
+      >
+        <Pressable style={styles.spotBackdrop} onPress={() => setAtOneSpot(null)} />
+        <View style={styles.spotSheet} testID="same-spot-sheet">
+          <View style={styles.spotHandle} />
+          <Text style={styles.spotTitle}>
+            {t("eventsAtThisSpot", lang)}
+            {atOneSpot ? ` (${atOneSpot.length})` : ""}
+          </Text>
+          <Text style={styles.spotNote}>{t("sameSpotNote", lang)}</Text>
+          <ScrollView style={styles.spotList} showsVerticalScrollIndicator={false}>
+            {(atOneSpot ?? []).map((e) => (
+              <TouchableOpacity
+                key={e.id}
+                style={styles.spotRow}
+                onPress={() => {
+                  setAtOneSpot(null);
+                  router.push(`/detail/${e.id}` as never);
+                }}
+                testID={`same-spot-${e.id}`}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.spotRowTitle} numberOfLines={2}>
+                    {pickLang(e.title, lang) ?? e.title.en}
+                  </Text>
+                  <Text style={styles.spotRowMeta}>
+                    {e.start_date}
+                    {e.town ? ` · ${e.town}` : ""}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -327,6 +471,49 @@ function CantonPill({
 }
 
 const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
+  // The sheet that replaced the ring of pins.
+  spotBackdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.45)" },
+  spotSheet: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    maxHeight: "70%",
+    backgroundColor: palette.surface,
+    borderTopLeftRadius: radii.xxl,
+    borderTopRightRadius: radii.xxl,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 28,
+    ...shadow.card,
+  },
+  spotHandle: {
+    width: 56,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: palette.border,
+    alignSelf: "center",
+    marginBottom: 14,
+  },
+  spotTitle: { fontSize: 18, fontWeight: "700", color: palette.textPrimary },
+  spotNote: {
+    fontSize: 12,
+    color: palette.textSecondary,
+    lineHeight: 17,
+    marginTop: 4,
+    marginBottom: 12,
+  },
+  spotList: { flexGrow: 0 },
+  spotRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: palette.border,
+  },
+  spotRowTitle: { fontSize: 15, fontWeight: "600", color: palette.textPrimary },
+  spotRowMeta: { fontSize: 12, color: palette.textSecondary, marginTop: 2 },
   safe: { flex: 1, backgroundColor: palette.background },
   headerSticky: {
     paddingHorizontal: 20,
