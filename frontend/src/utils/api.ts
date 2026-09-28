@@ -156,6 +156,13 @@ export type ApiPlace = {
   source_ref: string;
   source_license: string;
   /**
+   * A route's shape, one polyline per member way — hiking and cycle routes
+   * only, and only when `geometry` was asked for. 865 of the places are these,
+   * and they carry no lat/lng at all: a trail is a line, and the distance to it
+   * is the distance to its nearest point.
+   */
+  path_parts?: number[][][];
+  /**
    * Kilometres from the position that was sent, present only when one was.
    *
    * The server ranked on this number, so the screen shows it rather than
@@ -303,6 +310,9 @@ export const api = {
     group?: string;
     near?: { lat: number; lng: number };
     radiusKm?: number;
+    /** Ask for route shapes too. Only the map draws them — they were 70 KB of
+     *  a 331 KB answer, for 39 rows out of 300. */
+    geometry?: boolean;
     limit?: number;
     skip?: number;
   } = {}) => {
@@ -313,6 +323,7 @@ export const api = {
       q.set("near_lng", String(opts.near.lng));
       q.set("radius_km", String(opts.radiusKm ?? 10));
     }
+    if (opts.geometry) q.set("geometry", "true");
     q.set("limit", String(opts.limit ?? 60));
     if (opts.skip) q.set("skip", String(opts.skip));
     return apiFetch<ApiPlace[]>(`/api/places?${q.toString()}`);

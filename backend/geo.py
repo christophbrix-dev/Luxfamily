@@ -80,6 +80,103 @@ def bounding_box(lat: float, lng: float, radius_km: float) -> Dict[str, Any]:
     }
 
 
+def distance_to_path_km(
+    lat: float,
+    lng: float,
+    parts: Iterable[Iterable[Iterable[float]]],
+) -> Optional[float]:
+    """Distance to the nearest point *on* a line, not to a point standing in for it.
+
+    871 of our places are hiking and cycle routes. A route is a line — the
+    Mosel-Radweg runs the length of the country — and the obvious repair, a pin
+    somewhere in the middle, would be the same invented precision as an age of
+    "0": it would answer "12 km" to somebody the route passes two kilometres
+    from, and "12 km" again to somebody sixty kilometres from its far end.
+
+    So the distance is measured to the nearest point of the nearest *segment*,
+    which is the only number that is true. Nearest *vertex* would have been
+    less code and wrong by up to half a segment: simplification leaves a
+    straight five-kilometre stretch as two points, and a walker standing beside
+    the middle of it would be told two and a half kilometres.
+
+    `parts` is a list of polylines, one per member way, rather than one long
+    line: a route's ways are not necessarily contiguous or in order, and
+    joining them would invent a segment across whatever lies between.
+    """
+    best: Optional[float] = None
+    for part in parts:
+        points = [(float(p[0]), float(p[1])) for p in part if len(p) >= 2]
+        if not points:
+            continue
+        if len(points) == 1:
+            d = haversine_km(lat, lng, points[0][0], points[0][1])
+            best = d if best is None else min(best, d)
+            continue
+        for a, b in zip(points, points[1:]):
+            d = _distance_to_segment_km(lat, lng, a, b)
+            if best is None or d < best:
+                best = d
+    return best
+
+
+def _distance_to_segment_km(
+    lat: float, lng: float,
+    a: Tuple[float, float], b: Tuple[float, float],
+) -> float:
+    """Distance from a point to a segment, on a flat local approximation.
+
+    Over a segment of a few hundred metres in Luxembourg the earth's curvature
+    is far below the accuracy of anything we hold, so the projection is done in
+    kilometres on a local plane — longitude scaled by cos(latitude), the same
+    correction `bounding_box` makes. The result is then a plain 2-D distance,
+    and the caller never sees the difference.
+    """
+    lat0 = math.radians((a[0] + b[0]) / 2)
+    kx = _KM_PER_DEGREE_LAT * math.cos(lat0)
+    ky = _KM_PER_DEGREE_LAT
+
+    px, py = (lng - a[1]) * kx, (lat - a[0]) * ky
+    bx, by = (b[1] - a[1]) * kx, (b[0] - a[0]) * ky
+
+    length_sq = bx * bx + by * by
+    if length_sq == 0:
+        return math.hypot(px, py)
+
+    # How far along the segment the closest point lies, clamped to its ends:
+    # without the clamp the "nearest point" could sit off the end of the line.
+    t = max(0.0, min(1.0, (px * bx + py * by) / length_sq))
+    return math.hypot(px - t * bx, py - t * by)
+
+
+def near_query(lat: float, lng: float, radius_km: float) -> Dict[str, Any]:
+    """The Mongo fragment that finds both points and lines near here.
+
+    `bounding_box` alone looks at `lat`/`lng`, which a route does not have: 865
+    of our places are lines, and they fell through the prefilter before they
+    ever reached the arithmetic. A route matches when the box it lies in
+    overlaps the box we are searching — two boxes overlap unless one is
+    entirely past an edge of the other, which is four plain comparisons and
+    something Mongo can answer from an index.
+
+    Still a prefilter, and still generous: a route whose box overlaps may yet
+    be outside the circle, and `within_radius` is what decides.
+    """
+    box = bounding_box(lat, lng, radius_km)
+    south, north = box["lat"]["$gte"], box["lat"]["$lte"]
+    west, east = box["lng"]["$gte"], box["lng"]["$lte"]
+    return {
+        "$or": [
+            box,
+            {
+                "bbox_south": {"$lte": north},
+                "bbox_north": {"$gte": south},
+                "bbox_west": {"$lte": east},
+                "bbox_east": {"$gte": west},
+            },
+        ]
+    }
+
+
 def within_radius(
     docs: Iterable[Dict[str, Any]],
     lat: float,
@@ -94,21 +191,38 @@ def within_radius(
     date leads and nearness is only a filter. A concert three months away two
     streets from the door does not belong above tomorrow's village fete.
 
-    A document without usable coordinates is dropped rather than placed at
-    zero distance — 911 of our 7,856 places (11.6 %) have none, and putting
-    them at the user's feet would make them the first thing on the screen.
+    A document carrying `path_parts` is a line rather than a point — a hiking
+    or cycle route — and is measured to its nearest point. 866 of our places
+    are these, and until they had geometry they fell out of every question
+    about distance: named, well scored, and invisible on any map.
+
+    A document with neither a coordinate nor a path is dropped rather than
+    placed at zero distance. Putting it at the user's feet would make it the
+    first thing on the screen, which is the loudest possible way to be wrong.
     """
     out: List[Tuple[float, Dict[str, Any]]] = []
     for doc in docs:
-        point = _coords(doc)
-        if point is None:
-            continue
-        distance = haversine_km(lat, lng, point[0], point[1])
-        if distance <= radius_km:
+        distance = distance_of(doc, lat, lng)
+        if distance is not None and distance <= radius_km:
             out.append((distance, doc))
     if sort:
         out.sort(key=lambda pair: pair[0])
     return out
+
+
+def distance_of(doc: Dict[str, Any], lat: float, lng: float) -> Optional[float]:
+    """How far this document is, whether it is a point or a line.
+
+    None when it is neither — which is not the same as zero, and the caller
+    must keep the two apart.
+    """
+    parts = doc.get("path_parts")
+    if parts:
+        return distance_to_path_km(lat, lng, parts)
+    point = _coords(doc)
+    if point is None:
+        return None
+    return haversine_km(lat, lng, point[0], point[1])
 
 
 def _coords(doc: Dict[str, Any]) -> Optional[Tuple[float, float]]:

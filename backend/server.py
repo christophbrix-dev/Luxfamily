@@ -49,7 +49,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 
 from check_family_safe import audit_family_safety
-from geo import MAX_RADIUS_KM, bounding_box, within_radius
+from geo import MAX_RADIUS_KM, bounding_box, near_query, within_radius
 from geocode_events import geocode_pending
 from importers import run_all_active, run_source
 
@@ -703,6 +703,11 @@ async def lifespan(_: FastAPI):
     await db.places.create_index("kind")
     await db.places.create_index("group")
     await db.places.create_index([("lat", 1), ("lng", 1)])
+    # Routes are lines and have no lat/lng; they are found by the box they lie
+    # in instead. Two of the four comparisons are ranges, so the index earns
+    # its keep on the leading field and the rest is a cheap filter.
+    await db.places.create_index([("bbox_south", 1), ("bbox_north", 1)], sparse=True)
+    await db.places.create_index([("bbox_west", 1), ("bbox_east", 1)], sparse=True)
     await db.places.create_index("family_score")
     # Google Auth session storage
     await db.user_sessions.create_index("session_token", unique=True)
@@ -1844,6 +1849,7 @@ async def list_places(
     near_lat: Optional[float] = Query(None, ge=-90, le=90),
     near_lng: Optional[float] = Query(None, ge=-180, le=180),
     radius_km: float = Query(10.0, gt=0, le=MAX_RADIUS_KM),
+    geometry: bool = False,
 ):
     """Public list of OSM POIs with optional filters.
 
@@ -1863,7 +1869,12 @@ async def list_places(
     if group:
         query["group"] = group
 
-    projection = {"_id": 0, "tags_raw": 0}
+    projection: Dict[str, Any] = {"_id": 0, "tags_raw": 0}
+    if not geometry:
+        # A route carries up to 200 points, and 39 routes among 300 places were
+        # 70 KB of a 331 KB answer. The list screens draw a row and a distance
+        # and have no use for the shape; only the map does, and it asks.
+        projection["path_parts"] = 0
     limit = min(max(limit, 1), 1000)
     skip = max(skip, 0)
 
@@ -1890,9 +1901,13 @@ async def list_places(
     # coordinates alone — 412 KB for a 50 km box against 5,483 KB if whole
     # documents were fetched for every candidate — and only the page that is
     # actually returned is read in full.
-    query.update(bounding_box(near_lat, near_lng, radius_km))
+    # near_query rather than bounding_box: 865 of our places are hiking and
+    # cycle routes, which are lines and have no lat/lng at all. They matched
+    # nothing here and so never reached the arithmetic that would have found
+    # them — named, well scored, and absent from every question about distance.
+    query.update(near_query(near_lat, near_lng, radius_km))
     candidates = await db.places.find(
-        query, {"_id": 0, "id": 1, "lat": 1, "lng": 1}
+        query, {"_id": 0, "id": 1, "lat": 1, "lng": 1, "path_parts": 1}
     ).to_list(length=None)
 
     ranked = within_radius(candidates, near_lat, near_lng, radius_km)

@@ -362,9 +362,50 @@ export const LEAFLET_HTML = `<!doctype html>
       );
     }
 
+    // Routes are drawn, not pinned.
+    //
+    // 865 of our places are hiking and cycle trails. A pin in the middle of one
+    // says "this is here", and a route is not anywhere in particular — the
+    // Sauer-Radweg runs through Echternach and 40 km from Esch at the same
+    // time. Drawing the line says what the data actually holds, and it is the
+    // same reason the ring of pins had to go.
+    const routeLayer = L.layerGroup();
+    map.addLayer(routeLayer);
+
+    function setRoutes(places) {
+      routeLayer.clearLayers();
+      (places || []).forEach((place) => {
+        const parts = place.pathParts;
+        if (!Array.isArray(parts) || parts.length === 0) return;
+        const lines = parts.filter((p) => Array.isArray(p) && p.length >= 2);
+        if (!lines.length) return;
+        const line = L.polyline(lines, {
+          color: place.group === "hike" ? "#0284C7" : "#0EA5E9",
+          weight: 4,
+          opacity: 0.75,
+          // A trail is wider than four pixels to tap, and a line is hard to hit.
+          bubblingMouseEvents: false,
+        });
+        line.bindPopup(placePopup(place), { autoPan: true });
+        line.on("popupopen", (e) => {
+          const btn = e.popup._contentNode.querySelector(".popup-btn");
+          if (btn) {
+            btn.addEventListener("click", () => {
+              postToHost({ type: "placeTap", id: place.id, lat: place.lat, lng: place.lng });
+            });
+          }
+        });
+        routeLayer.addLayer(line);
+      });
+    }
+
     function setPlaces(places) {
       placeCluster.clearLayers();
+      setRoutes((places || []).filter((p) => Array.isArray(p.pathParts) && p.pathParts.length));
       (places || []).forEach((place) => {
+        // A route is a line and was drawn above; a pin for it would be the
+        // invented point this whole change exists to avoid.
+        if (Array.isArray(place.pathParts) && place.pathParts.length) return;
         if (typeof place.lat !== "number" || typeof place.lng !== "number") return;
         if (place.lat === 0 && place.lng === 0) return;
         const m = L.marker([place.lat, place.lng], { icon: placeIcon(place) });

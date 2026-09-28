@@ -135,6 +135,33 @@ check("a pin says Spillplaz, not playground",
 check("and says nothing at all for a tag we do not know",
   /if \(!entry\) return "";/.test(explore), true);
 
+// --- routes are drawn, not pinned -----------------------------------------
+//
+// 865 of the places are hiking and cycle trails. A pin in the middle of one
+// says "this is here", and a route is not anywhere in particular: the
+// Sauer-Radweg runs through Echternach and 40 km from Esch at the same time.
+// Measured against the real data, a pin in the middle of it would have told
+// somebody in Echternach "8.3 km" for a trail 100 metres away.
+check("routes get their own layer", /const routeLayer = L\.layerGroup/.test(html), true);
+check("and are drawn as a line", /L\.polyline\(/.test(html), true);
+check("a place with a shape is not also pinned",
+  /Array\.isArray\(place\.pathParts\) && place\.pathParts\.length\) return;/.test(html), true);
+check("a line can be tapped like a pin", /line\.bindPopup/.test(html), true);
+
+check("the bridge carries route shapes", /pathParts\?: number\[\]\[\]\[\]/.test(bridge), true);
+
+// A route has no coordinate at all — the old filter would have dropped it
+// before it ever reached the map.
+check("the screen keeps places that have a shape but no point",
+  /p\.lat !== null && p\.lng !== null\) \|\| p\.path_parts\?\.length/.test(explore), true);
+check("and asks the server for the shapes", /geometry: true/.test(explore), true);
+
+// Route shapes were 70 KB of a 331 KB answer for 39 rows out of 300. Only the
+// map draws them, so only the map should pay for them.
+const api = readFileSync("src/utils/api.ts", "utf8");
+check("geometry is off unless asked for",
+  /if \(opts\.geometry\) q\.set\("geometry", "true"\)/.test(api), true);
+
 console.log(failures === 0
   ? "  test-map-honesty: all checks passed"
   : `  test-map-honesty: ${failures} failure(s)`);
