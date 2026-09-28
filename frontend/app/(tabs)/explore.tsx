@@ -157,7 +157,6 @@ export default function Explore() {
   // would be a green smear, and it would cost a request that answers nothing.
   // ---------------------------------------------------------------------
   const PLACES_FROM_ZOOM = 11;
-  const [placeCount, setPlaceCount] = useState(0);
   const viewRef = useRef<MapView | null>(null);
 
   // The taxonomy's own translations, so a pin says "Spillplaz" rather than the
@@ -182,7 +181,6 @@ export default function Explore() {
   const onViewChanged = useCallback(async (view: MapView) => {
     viewRef.current = view;
     if (view.zoom < PLACES_FROM_ZOOM) {
-      setPlaceCount(0);
       mapRef.current?.setPlaces([]);
       return;
     }
@@ -208,7 +206,6 @@ export default function Explore() {
           kindLabel: kindLabel(p.kind),
           btnLabel: t("openInMaps", lang),
         }));
-      setPlaceCount(pins.length);
       mapRef.current?.setPlaces(pins);
     } catch {
       // Keep whatever is on the map; a failed request is not an empty country.
