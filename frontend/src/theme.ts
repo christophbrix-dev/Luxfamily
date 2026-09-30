@@ -17,6 +17,8 @@ export type Palette = {
   primary: string;
   primaryDark: string;
   primaryLight: string;
+  primarySoft: string;
+  primaryBorder: string;
   textPrimary: string;
   textSecondary: string;
   textMuted: string;
@@ -37,7 +39,8 @@ export type Palette = {
  * follow the reader's choice, because those are the three the accent owns.
  * Letting a choice move `red` would take "something went wrong" with it.
  */
-type Neutrals = Omit<Palette, "primary" | "primaryDark" | "primaryLight">;
+type Neutrals = Omit<Palette,
+  "primary" | "primaryDark" | "primaryLight" | "primarySoft" | "primaryBorder">;
 
 const LIGHT_NEUTRALS: Neutrals = {
   background:    "#F7F8FA",

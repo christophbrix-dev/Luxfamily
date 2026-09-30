@@ -59,6 +59,11 @@ export type LeafletMapHandle = {
   flyToCanton: (canton: string) => void;
   flyToCountry: () => void;
   setTheme: (theme: "light" | "dark") => void;
+  /** The three accent colours the map draws with. It has its own stylesheet. */
+  setAccent: (
+    accent: string, accentDark: string, soft: string,
+    place: string, placeDark: string,
+  ) => void;
 };
 
 type Props = {
@@ -120,6 +125,8 @@ const LeafletMap = forwardRef<LeafletMapHandle, Props>(function LeafletMap(
     flyToCountry: () => send({ type: "flyToCountry" }),
     setPlaces: (places) => send({ type: "setPlaces", places }),
     setTheme: (theme) => send({ type: "setTheme", theme }),
+    setAccent: (accent, accentDark, soft, place, placeDark) =>
+      send({ type: "setAccent", accent, accentDark, soft, place, placeDark }),
   }));
 
   // The callbacks, always the current ones.
@@ -214,7 +221,10 @@ const LeafletMap = forwardRef<LeafletMapHandle, Props>(function LeafletMap(
 });
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, overflow: "hidden", backgroundColor: "#F0FDF4" },
+  // The ground the iframe sits on while it loads. A neutral, not the accent:
+  // the map paints its own once it is up, and a wrong flash of colour for a
+  // moment is worse than a plain one.
+  wrap: { flex: 1, overflow: "hidden", backgroundColor: "#F1F5F9" },
   web:  { flex: 1, backgroundColor: "transparent" },
 });
 

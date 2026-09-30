@@ -29,7 +29,7 @@ export const LEAFLET_HTML = `<!doctype html>
       padding: 0;
       width: 100%;
       height: 100%;
-      background: #F0FDF4;
+      background: var(--wat-soft, #F0FDF4);
       font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
     }
     /* Custom emerald pin */
@@ -37,7 +37,7 @@ export const LEAFLET_HTML = `<!doctype html>
       width: 34px;
       height: 34px;
       border-radius: 50%;
-      background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+      background: linear-gradient(135deg, var(--wat-accent, #10B981) 0%, var(--wat-accent-dark, #059669) 100%);
       border: 3px solid #FFFFFF;
       box-shadow: 0 4px 10px rgba(15, 23, 42, 0.25);
       display: flex;
@@ -53,7 +53,7 @@ export const LEAFLET_HTML = `<!doctype html>
     .wat-pin.place {
       width: 30px;
       height: 30px;
-      background: linear-gradient(135deg, #38BDF8 0%, #0284C7 100%);
+      background: linear-gradient(135deg, var(--wat-place, #38BDF8) 0%, var(--wat-place-dark, #0284C7) 100%);
       border-width: 2px;
       font-size: 14px;
     }
@@ -70,7 +70,7 @@ export const LEAFLET_HTML = `<!doctype html>
     .marker-cluster-small div,
     .marker-cluster-medium div,
     .marker-cluster-large div {
-      background-color: #10B981;
+      background-color: var(--wat-accent, #10B981);
       color: #ffffff;
       font-weight: 700;
     }
@@ -97,7 +97,7 @@ export const LEAFLET_HTML = `<!doctype html>
     .popup-btn {
       display: inline-block;
       padding: 6px 12px;
-      background: #10B981;
+      background: var(--wat-accent, #10B981);
       color: white;
       border-radius: 8px;
       text-decoration: none;
@@ -154,6 +154,19 @@ export const LEAFLET_HTML = `<!doctype html>
     });
     tiles.addTo(map);
 
+    function setAccent(accent, accentDark, soft, place, placeDark) {
+      const root = document.documentElement.style;
+      if (accent)     root.setProperty("--wat-accent", accent);
+      if (accentDark) root.setProperty("--wat-accent-dark", accentDark);
+      if (soft)       root.setProperty("--wat-soft", soft);
+      if (place)      root.setProperty("--wat-place", place);
+      if (placeDark)  root.setProperty("--wat-place-dark", placeDark);
+      // Route lines are drawn on a canvas, not styled by CSS, so they are
+      // redrawn rather than restyled.
+      routeColour = place || routeColour;
+      if (lastPlaces) setPlaces(lastPlaces);
+    }
+
     function applyTheme(theme) {
       // Dark mode is a filter over the same tiles rather than a second
       // provider, so there is one source to keep working instead of two. Only
@@ -161,7 +174,9 @@ export const LEAFLET_HTML = `<!doctype html>
       // their own panes and must keep their colours.
       document.body.classList.toggle("dark", theme === "dark");
       // Match body colour so the initial white flash disappears.
-      document.body.style.background = theme === "dark" ? "#0B1120" : "#F0FDF4";
+      document.body.style.background = theme === "dark"
+        ? "#0B1120"
+        : getComputedStyle(document.documentElement).getPropertyValue("--wat-soft").trim() || "#F0FDF4";
     }
 
     // Spiderfying is off on purpose.
@@ -372,6 +387,9 @@ export const LEAFLET_HTML = `<!doctype html>
     const routeLayer = L.layerGroup();
     map.addLayer(routeLayer);
 
+    let routeColour = "#0284C7";
+    let lastPlaces = null;
+
     function setRoutes(places) {
       routeLayer.clearLayers();
       (places || []).forEach((place) => {
@@ -380,7 +398,7 @@ export const LEAFLET_HTML = `<!doctype html>
         const lines = parts.filter((p) => Array.isArray(p) && p.length >= 2);
         if (!lines.length) return;
         const line = L.polyline(lines, {
-          color: place.group === "hike" ? "#0284C7" : "#0EA5E9",
+          color: routeColour,
           weight: 4,
           opacity: 0.75,
           // A trail is wider than four pixels to tap, and a line is hard to hit.
@@ -400,6 +418,7 @@ export const LEAFLET_HTML = `<!doctype html>
     }
 
     function setPlaces(places) {
+      lastPlaces = places;
       placeCluster.clearLayers();
       setRoutes((places || []).filter((p) => Array.isArray(p.pathParts) && p.pathParts.length));
       (places || []).forEach((place) => {
@@ -474,6 +493,12 @@ export const LEAFLET_HTML = `<!doctype html>
           if (c) map.flyTo(c, 12, { duration: 0.8 });
         } else if (data.type === "flyToCountry") {
           map.flyTo([49.7867, 6.0938], 9, { duration: 0.6 });
+        } else if (data.type === "setAccent") {
+          // The map is its own document with its own stylesheet, so it cannot
+          // read the app's palette. It is told, the same way it is told about
+          // light and dark — and the event pins follow the reader's colour
+          // instead of staying emerald on a blue app.
+          setAccent(data.accent, data.accentDark, data.soft, data.place, data.placeDark);
         } else if (data.type === "setTheme") {
           applyTheme(data.theme);
         }

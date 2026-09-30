@@ -577,7 +577,7 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
   },
   cardActive: {
     borderColor: palette.primary,
-    backgroundColor: "#F0FDF4",
+    backgroundColor: palette.primarySoft,
   },
   cardIcon: {
     width: 44,

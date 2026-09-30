@@ -4,11 +4,13 @@ import React, { useEffect, useState } from "react";
 import { StyleSheet, Text } from "react-native";
 
 import { useApp } from "@/src/contexts/AppContext";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { pickLang } from "@/src/i18n/pickLang";
 import { fetchLuxembourgWeather, WeatherSnapshot, WEATHER_DESCRIPTIONS } from "@/src/utils/weather";
 
 export function WeatherWidget({ testID }: { testID?: string }) {
   const { lang } = useApp();
+  const { gradient } = useAppPalette();
   const [snap, setSnap] = useState<WeatherSnapshot | null>(null);
 
   useEffect(() => {
@@ -27,7 +29,7 @@ export function WeatherWidget({ testID }: { testID?: string }) {
 
   return (
     <LinearGradient
-      colors={["#10B981", "#059669"]}
+      colors={gradient}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.wrap}

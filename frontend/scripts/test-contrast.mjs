@@ -18,8 +18,18 @@ import { readFileSync } from "node:fs";
 // accents.ts imports nothing, which is what makes it testable from plain node
 // — the same reason eventQuery.ts and mapsUrl.ts are shaped that way. theme.ts
 // does import it, so theme.ts is checked as text further down rather than run.
-import { ACCENTS, DEFAULT_ACCENT, accentById, contrast, hsl, shadesFor, DARK_SURFACE, LIGHT_SURFACE }
+import { ACCENTS, DEFAULT_ACCENT, accentById, contrast, gradientFor, hsl, placeColourFor, shadesFor, DARK_SURFACE, LIGHT_SURFACE }
   from "../src/accents.ts";
+
+
+/** How saturated a hex colour is, 0 to 1 — a neutral is near zero. */
+function saturationOf(hex) {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  if (max === min) return 0;
+  const l = (max + min) / 2;
+  return (max - min) / (l > 0.5 ? 2 - max - min : max + min);
+}
 
 let failures = 0;
 function check(name, actual, expected) {
@@ -74,12 +84,33 @@ for (const accent of ACCENTS) {
   atLeast(`${accent.id}: a badge icon on its badge`,
     contrast(light.primary, light.primaryLight), 3.0);
 
+  // The two pale shades carry text as well — a section ground with a heading
+  // on it, and a tinted card inside a hairline border.
+  atLeast(`${accent.id}: accent text on the soft ground`,
+    contrast(light.primaryDark, light.primarySoft), 4.5);
+  atLeast(`${accent.id}: the border is visible against the soft ground`,
+    contrast(light.primaryBorder, light.primarySoft), 1.2);
+  atLeast(`${accent.id}: body text on the soft ground`,
+    contrast("#0F172A", light.primarySoft), 4.5);
+
   atLeast(`${accent.id}: accent on the dark surface`,
     contrast(dark.primary, DARK_SURFACE), 4.5);
+  // The emphatic shade has to be visibly different from the base, or a pressed
+  // button looks exactly like an unpressed one. Deriving it from a contrast
+  // threshold produced the same value twice for meadow.
+  atLeast(`${accent.id}: the dark emphatic shade differs from the base`,
+    contrast(dark.primaryDark, dark.primary), 1.3);
+  atLeast(`${accent.id}: and still reads on the surface`,
+    contrast(dark.primaryDark, DARK_SURFACE), 4.5);
+
   atLeast(`${accent.id}: dark badge text on its badge`,
     contrast(dark.primary, dark.primaryLight), 4.5);
   atLeast(`${accent.id}: dark badge icon on its badge`,
     contrast(dark.primary, dark.primaryLight), 3.0);
+  atLeast(`${accent.id}: dark accent text on the soft ground`,
+    contrast(dark.primary, dark.primarySoft), 4.5);
+  atLeast(`${accent.id}: dark border against the soft ground`,
+    contrast(dark.primaryBorder, dark.primarySoft), 1.15);
 
   // A dark-mode button is filled with the accent and takes dark text, not
   // white — the same way the app already draws chips on dark.
@@ -97,7 +128,10 @@ const theme = readFileSync("src/theme.ts", "utf8");
 check("the palette is built from an accent",
   /export function paletteFor\(accentId: string, mode: "light" \| "dark"\): Palette/.test(theme), true);
 check("the neutrals are separate from the accent",
-  /type Neutrals = Omit<Palette, "primary" \| "primaryDark" \| "primaryLight">/.test(theme), true);
+  /type Neutrals = Omit<Palette,[\s\S]{0,120}"primaryBorder">/.test(theme), true);
+check("and every accent shade is excluded from them",
+  ["primary", "primaryDark", "primaryLight", "primarySoft", "primaryBorder"]
+    .every((k) => new RegExp(`"${k}"`).test(theme.slice(theme.indexOf("type Neutrals"), theme.indexOf("type Neutrals") + 200))), true);
 check("and the accent fills only those three",
   /\{ \.\.\.neutrals, \.\.\.shadesFor\(hue, mode\) \}/.test(theme), true);
 
@@ -119,6 +153,58 @@ check("DARK_PALETTE too",
   /export const DARK_PALETTE: Palette = paletteFor\(DEFAULT_ACCENT, "dark"\)/.test(theme), true);
 
 // --- the default ----------------------------------------------------------
+// Places on the map must never be the accent's colour.
+//
+// Blue was fixed here until an accent picker existed; choosing blue then made
+// events and places the same colour on the map. Half a turn away is the only
+// rule that holds whatever the reader picks, because every hue is on the list.
+for (const mode of ["light", "dark"]) {
+  for (const accent of ACCENTS) {
+    const [place] = placeColourFor(accent.hue, mode);
+    const own = shadesFor(accent.hue, mode).primary;
+    check(`${accent.id}/${mode}: places are a different colour from the accent`,
+      place !== own, true);
+    // A neutral rather than a rotated hue. Rotating away from the accent was
+    // the first idea: it cannot clear every accent and both semantic colours
+    // at once, because the accents cover the wheel. Half a turn from blue is
+    // 34°, all but the amber the map draws featured events with.
+    check(`${accent.id}/${mode}: places are a neutral, whatever the accent`,
+      place, placeColourFor(ACCENTS[0].hue, mode)[0]);
+    atLeast(`${accent.id}/${mode}: and clearly not the accent`,
+      Math.max(saturationOf(own) - saturationOf(place), 0), 0.25);
+    // Still a pin on a map, so it has to be visible against the tiles — and
+    // the tiles are not the same in both modes. Dark mode inverts the tile
+    // pane with a CSS filter (leafletHtml.ts), so the ground a pin sits on
+    // there is dark. Measuring both against a pale ground failed violet and
+    // pink in dark mode, which was the test not knowing what the map does.
+    const tiles = mode === "light" ? "#F2EFE9" : "#2A2C33";
+    atLeast(`${accent.id}/${mode}: a place pin reads against the tiles`,
+      contrast(place, tiles), 2.0);
+  }
+}
+
+// The map is told; it cannot read the palette.
+const map = readFileSync("src/components/leafletHtml.ts", "utf8");
+check("the map takes its accent as a message", /type === "setAccent"/.test(map), true);
+check("and its place colour with it", /--wat-place/.test(map), true);
+check("route lines are redrawn, not restyled",
+  /if \(lastPlaces\) setPlaces\(lastPlaces\)/.test(map), true);
+check("no emerald is left hard-coded in the pins",
+  /background: linear-gradient\(135deg, #10B981/.test(map), false);
+
+// The gradients, which two headers draw with.
+for (const mode of ["light", "dark"]) {
+  for (const accent of ACCENTS) {
+    const stops = gradientFor(accent.hue, mode);
+    check(`${accent.id}/${mode}: the gradient has three stops`, stops.length, 3);
+    check(`${accent.id}/${mode}: every stop is a colour`,
+      stops.every((c) => /^#[0-9A-F]{6}$/.test(c)), true);
+    // White text sits on these headers, so the palest stop still has to carry it.
+    atLeast(`${accent.id}/${mode}: white on the palest stop`,
+      Math.min(...stops.map((c) => contrast("#FFFFFF", c))), 4.5);
+  }
+}
+
 check("the default is in the list", ACCENTS.some((a) => a.id === DEFAULT_ACCENT), true);
 check("the default is the warmer green", DEFAULT_ACCENT, "meadow");
 check("an unknown id falls back rather than crashing",

@@ -122,29 +122,72 @@ function lightestOver(hue: number, saturation: number, over: string, target: num
 }
 
 /**
- * The dimmest shade that still reads on a dark surface.
+ * The accent shades a palette needs, for one mode.
  *
- * The other direction, and inverted for the same reason: on a dark screen the
- * brightest passing colour glares, and an app people open in the evening
- * should not.
+ * Five and not three: the app was already using five, four of them as literals
+ * scattered through the screens. Naming them is what lets a chosen accent
+ * reach the pale section grounds and the hairline borders, instead of leaving
+ * an emerald tint behind on a blue app.
  */
-function dimmestOver(hue: number, saturation: number, over: string, target: number): string {
-  for (let l = 52; l <= 92; l += 1) {
-    const candidate = hsl(hue, l, saturation);
-    if (contrast(candidate, over) >= target) return candidate;
-  }
-  return hsl(hue, 92, saturation);
-}
-
-/** The three accent shades a palette needs, for one mode. */
 export type AccentShades = {
   /** Button fills and active states. Carries white text in light mode. */
   primary: string;
-  /** Pressed states, and accent-coloured text on a pale ground. */
+  /** Accent text on a pale ground; in dark mode the emphatic, brighter shade. */
   primaryDark: string;
   /** Badge and chip backgrounds. */
   primaryLight: string;
+  /** The palest tint: section grounds, gradients' far end. */
+  primarySoft: string;
+  /** Hairline borders around tinted areas. */
+  primaryBorder: string;
 };
+
+/**
+ * The colour the map draws places with — playgrounds, picnic spots, routes.
+ *
+ * Derived from the accent by rotating half a turn, so it is as far from it as
+ * a hue can be whatever the reader chose. A fixed colour could not do that:
+ * every hue is on the list, so any fixed choice collides with one of them.
+ * Blue was the fixed choice until now, and choosing blue made events and
+ * places the same colour on the map.
+ *
+ * Saturation is held below the accent's so the accent stays the louder of the
+ * two: places are the backdrop a reader scans, events are what they came for.
+ */
+/**
+ * The colour the map draws places with — playgrounds, picnic spots, routes.
+ *
+ * A slate, and deliberately not a hue related to the accent.
+ *
+ * Rotating away from the accent was the first idea and it does not survive
+ * contact with the palette: for a blue app the opposite third lands among the
+ * warm hues, where the map's amber (featured events) and the app's red
+ * (errors) already live. Half a turn from blue is 34°, all but that amber.
+ * There is no rotation that clears every accent and both semantic colours,
+ * because the accents cover the wheel.
+ *
+ * A neutral clears all of them at once, and it is the better design anyway:
+ * places are the backdrop a reader scans across, events are what they came
+ * for. The accent should be the loudest thing on the map.
+ */
+export function placeColourFor(_hue: number, mode: "light" | "dark"): [string, string] {
+  return mode === "light"
+    ? ["#64748B", "#475569"]   // slate-500 / slate-600
+    : ["#94A3B8", "#CBD5E1"];  // slate-400 / slate-300, against inverted tiles
+}
+
+/**
+ * A gradient in the accent, from the fill towards its darker end.
+ *
+ * Two headers use one — the language picker and the weather strip — and both
+ * had it written out as three emerald literals.
+ */
+export function gradientFor(hue: number, mode: "light" | "dark"): [string, string, string] {
+  const s = shadesFor(hue, mode);
+  return mode === "light"
+    ? [s.primary, s.primaryDark, hsl(hue, 22, 74)]
+    : [s.primaryLight, hsl(hue, 22, 50), hsl(hue, 14, 45)];
+}
 
 /** Surfaces the shades are measured against, from the palettes below. */
 export const LIGHT_SURFACE = "#FFFFFF";
@@ -158,13 +201,34 @@ export function shadesFor(hue: number, mode: "light" | "dark"): AccentShades {
       // the lower threshold is a floor rather than a comfortable place to sit.
       primaryDark:  lightestOver(hue, 74, LIGHT_SURFACE, 7.0),
       primaryLight: hsl(hue, 93, 70),
+      primarySoft:  hsl(hue, 97, 65),
+      primaryBorder: hsl(hue, 84, 62),
     };
   }
+  // The base: dimmest that still reads on the surface. Measured against the
+  // surface rather than the background because the surface is the lighter of
+  // the two, so passing there passes on both.
+  const saturation = 70;
+  let baseL = 52;
+  while (baseL < 92 && contrast(hsl(hue, baseL, saturation), DARK_SURFACE) < 4.5) baseL += 1;
+  const primary = hsl(hue, baseL, saturation);
+
+  // The emphatic shade, walked upward *from the base*.
+  //
+  // In dark mode "darker" is the wrong idea — the ground is already dark, so
+  // the emphatic shade is the brighter one. Two earlier attempts got this
+  // wrong in different ways: deriving it from a 7 : 1 threshold gave meadow
+  // the same value twice, and searching from a fixed lightness handed violet
+  // a *darker* shade that happened to sit far enough from the base. Starting
+  // at baseL + 1 is the only version that can only go up.
+  let brightL = baseL + 1;
+  while (brightL < 95 && contrast(hsl(hue, brightL, saturation), primary) < 1.35) brightL += 1;
+
   return {
-    // Measured against the surface, not the background: the surface is the
-    // lighter of the two, so passing there passes on both.
-    primary:      dimmestOver(hue, 70, DARK_SURFACE, 4.5),
-    primaryDark:  dimmestOver(hue, 70, DARK_SURFACE, 7.0),
+    primary,
+    primaryDark:  hsl(hue, brightL, saturation),
     primaryLight: hsl(hue, 15, 45),
+    primarySoft:  hsl(hue, 11, 40),
+    primaryBorder: hsl(hue, 24, 45),
   };
 }

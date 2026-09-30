@@ -33,7 +33,7 @@ const LANGS: Option[] = [
 ];
 
 export default function PickLanguage() {
-  const { palette, shadow } = useAppPalette();
+  const { palette, shadow, gradient } = useAppPalette();
   const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const router = useRouter();
   const { setLang, markLangPicked } = useApp();
@@ -51,7 +51,9 @@ export default function PickLanguage() {
   return (
     <SafeAreaView style={styles.safe}>
       <LinearGradient
-        colors={["#10B981", "#059669", "#065F46"]}
+        // Was three emerald literals; now the chosen accent, so the very first
+        // screen of the app is already in the reader's colour.
+        colors={gradient}
         style={styles.hero}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
