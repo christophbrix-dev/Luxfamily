@@ -10,6 +10,7 @@ import React, {
 import type { Lang } from "@/src/data/places";
 import type { PersonaId } from "@/src/data/onboarding";
 import { storage } from "@/src/utils/storage";
+import { accentById, DEFAULT_ACCENT } from "@/src/accents";
 import {
   fetchCurrentUser,
   googleLogout,
@@ -27,6 +28,7 @@ const USER_KEY = "lux.user";
 const BOOKINGS_KEY = "lux.bookings";
 const PREFS_KEY = "lux.prefs";
 const THEME_KEY = "lux.theme";
+const ACCENT_KEY = "lux.accent";
 const PROFILE_KEY = "lux.profile";
 const ONBOARDED_KEY = "lux.onboarded";
 
@@ -99,6 +101,9 @@ type Ctx = {
   setPreferences: (p: Preferences) => void;
   theme: ThemeMode;
   setTheme: (t: ThemeMode) => void;
+  /** The chosen accent's id. Everything about it is derived from this one word. */
+  accent: string;
+  setAccent: (id: string) => void;
   userProfile: UserProfile;
   setUserProfile: (p: UserProfile) => void;
   hasOnboarded: boolean;
@@ -119,6 +124,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [preferences, setPreferencesState] = useState<Preferences>(DEFAULT_PREFS);
   const [theme, setThemeState] = useState<ThemeMode>("light");
+  const [accent, setAccentState] = useState<string>(DEFAULT_ACCENT);
   const [userProfile, setUserProfileState] = useState<UserProfile>(DEFAULT_PROFILE);
   const [hasOnboarded, setHasOnboarded] = useState(false);
   const [langPicked, setLangPickedState] = useState(false);
@@ -161,6 +167,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setPreferencesState({ ...DEFAULT_PREFS, ...JSON.parse(storedPrefs) });
         } catch {}
       }
+      // accentById rather than the stored string: an id that no longer exists —
+      // a colour removed in a later version — must land on the default rather
+      // than on a palette built from a hue of NaN.
+      const storedAccent = await storage.getItem<string>(ACCENT_KEY, DEFAULT_ACCENT);
+      setAccentState(accentById(storedAccent).id);
+
       const storedTheme = await storage.getItem<string>(THEME_KEY, "light");
       if (storedTheme === "dark" || storedTheme === "system" || storedTheme === "light") {
         setThemeState(storedTheme);
@@ -234,6 +246,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setPreferences = useCallback((p: Preferences) => {
     setPreferencesState(p);
     storage.setItem(PREFS_KEY, JSON.stringify(p));
+  }, []);
+
+  const setAccent = useCallback((id: string) => {
+    const safe = accentById(id).id;
+    setAccentState(safe);
+    void storage.setItem(ACCENT_KEY, safe);
   }, []);
 
   const setTheme = useCallback((t: ThemeMode) => {
@@ -336,6 +354,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setPreferences,
       theme,
       setTheme,
+      accent,
+      setAccent,
       userProfile,
       setUserProfile,
       hasOnboarded,
@@ -345,7 +365,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       langPicked,
       markLangPicked,
     }),
-    [ready, lang, setLang, user, signIn, signInGuest, signOutUser, saved, toggleSave, bookings, addBooking, preferences, setPreferences, theme, setTheme, userProfile, setUserProfile, hasOnboarded, markOnboarded, resetOnboarding, signInWithGoogle, langPicked, markLangPicked],
+    [ready, lang, setLang, user, signIn, signInGuest, signOutUser, saved, toggleSave, bookings, addBooking, preferences, setPreferences, theme, setTheme, accent, setAccent, userProfile, setUserProfile, hasOnboarded, markOnboarded, resetOnboarding, signInWithGoogle, langPicked, markLangPicked],
   );
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
