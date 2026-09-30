@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp } from "@/src/contexts/AppContext";
 import { CANTONS } from "@/src/data/places";
 import { t } from "@/src/i18n/strings";
+import { AccentPicker } from "@/src/components/AccentPicker";
 import { radii, type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 
@@ -110,6 +111,12 @@ export default function Preferences() {
               );
             })}
           </View>
+        </Section>
+
+        {/* The same picker as the onboarding step, so changing the colour
+            later feels like the same decision rather than a new one. */}
+        <Section title={t("colour", lang)} styles={styles}>
+          <AccentPicker />
         </Section>
 
         <Section title={t("notifications", lang)} styles={styles}>

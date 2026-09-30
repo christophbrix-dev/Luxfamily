@@ -78,6 +78,15 @@ jobs:
       - name: Maps links
         run: yarn test-open-maps
 
+      # The accent colour is the reader's choice now, so the same mistake could
+      # be made eight times over. `primary` was #10B981 for as long as the app
+      # existed: 2.54 : 1 against white, where AA asks 4.5. Every shade is
+      # derived from a hue and every one is measured here. Unlike the
+      # Luxembourgish report this fails the build — a missing translation is
+      # work in progress, an unreadable button is a defect.
+      - name: Contrast
+        run: yarn test-contrast
+
       # Reports how much of the app speaks Luxembourgish. Never fails the
       # build — a missing translation is work in progress, not a broken commit.
       - name: Luxembourgish coverage

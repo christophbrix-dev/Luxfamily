@@ -24,10 +24,12 @@ import {
 } from "@/src/data/onboarding";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { pickLang } from "@/src/i18n/pickLang";
+import { t } from "@/src/i18n/strings";
 import { ConfirmDialog } from "@/src/components/ConfirmDialog";
+import { AccentPicker } from "@/src/components/AccentPicker";
 import { type Palette, shadowFor } from "@/src/theme";
 
-type Step = "welcome" | "persona" | "ages" | "interests" | "needs" | "cantons" | "budget" | "done";
+type Step = "welcome" | "persona" | "ages" | "interests" | "needs" | "cantons" | "budget" | "colour" | "done";
 
 export default function OnboardingScreen() {
   const { palette, shadow } = useAppPalette();
@@ -47,9 +49,9 @@ export default function OnboardingScreen() {
 
   const stepOrder: Step[] = useMemo(() => {
     if (selectedPersona?.askChildAges) {
-      return ["welcome", "persona", "ages", "interests", "needs", "cantons", "budget", "done"];
+      return ["welcome", "persona", "ages", "interests", "needs", "cantons", "budget", "colour", "done"];
     }
-    return ["welcome", "persona", "interests", "needs", "cantons", "budget", "done"];
+    return ["welcome", "persona", "interests", "needs", "cantons", "budget", "colour", "done"];
   }, [selectedPersona]);
 
   const currentStepIdx = stepOrder.indexOf(step);
@@ -394,6 +396,17 @@ export default function OnboardingScreen() {
                 );
               })}
             </View>
+          </View>
+        )}
+
+        {step === "colour" && (
+          <View>
+            {/* The one answer that changes the app the reader is looking at
+                while they give it — so it is asked with the app on screen. */}
+            <AccentPicker
+              title={t("accentQuestion", lang)}
+              hint={t("accentHint", lang)}
+            />
           </View>
         )}
 

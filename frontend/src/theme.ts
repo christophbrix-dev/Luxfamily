@@ -7,6 +7,8 @@
 // gradually migrated screens to consume the runtime palette via
 // `useAppPalette()` (see /src/hooks/useAppPalette.ts).
 
+import { accentById, DEFAULT_ACCENT, shadesFor } from "@/src/accents";
+
 export type Palette = {
   background: string;
   backgroundAlt: string;
@@ -27,14 +29,21 @@ export type Palette = {
   shadowStrong: string;
 };
 
-export const LIGHT_PALETTE: Palette = {
+/**
+ * A palette with the accent still to be filled in.
+ *
+ * Everything that is not the accent — grounds, text, borders, the semantic
+ * red and amber — is fixed. Only `primary`, `primaryDark` and `primaryLight`
+ * follow the reader's choice, because those are the three the accent owns.
+ * Letting a choice move `red` would take "something went wrong" with it.
+ */
+type Neutrals = Omit<Palette, "primary" | "primaryDark" | "primaryLight">;
+
+const LIGHT_NEUTRALS: Neutrals = {
   background:    "#F7F8FA",
   backgroundAlt: "#EEF2F7",
   surface:       "#FFFFFF",
   surfaceMuted:  "#F1F5F9",
-  primary:       "#10B981",
-  primaryDark:   "#059669",
-  primaryLight:  "#D1FAE5",
   textPrimary:   "#0F172A",
   textSecondary: "#64748B",
   textMuted:     "#94A3B8",
@@ -49,14 +58,11 @@ export const LIGHT_PALETTE: Palette = {
 
 // Dark palette tuned for a family app — high contrast on charcoal, keeps
 // the emerald brand hue but drops saturation on surfaces to reduce glare.
-export const DARK_PALETTE: Palette = {
+const DARK_NEUTRALS: Neutrals = {
   background:    "#0B1120",   // near-black navy
   backgroundAlt: "#111827",
   surface:       "#1F2937",   // slate-800
   surfaceMuted:  "#111827",   // slate-900
-  primary:       "#34D399",   // emerald-400 (bumped for contrast on dark)
-  primaryDark:   "#10B981",
-  primaryLight:  "#064E3B",   // dark emerald bg for badges
   textPrimary:   "#F1F5F9",   // slate-100
   textSecondary: "#CBD5E1",   // slate-300
   textMuted:     "#94A3B8",   // slate-400
@@ -68,6 +74,19 @@ export const DARK_PALETTE: Palette = {
   shadow:        "rgba(0, 0, 0, 0.55)",
   shadowStrong:  "rgba(0, 0, 0, 0.75)",
 };
+
+/** The palette for one accent in one mode. */
+export function paletteFor(accentId: string, mode: "light" | "dark"): Palette {
+  const { hue } = accentById(accentId);
+  const neutrals = mode === "dark" ? DARK_NEUTRALS : LIGHT_NEUTRALS;
+  return { ...neutrals, ...shadesFor(hue, mode) };
+}
+
+// The two that most of the app asks for. Built from the default accent, so a
+// screen that has not been told about the reader's choice still gets a palette
+// that passes the contrast test rather than the old #10B981.
+export const LIGHT_PALETTE: Palette = paletteFor(DEFAULT_ACCENT, "light");
+export const DARK_PALETTE: Palette = paletteFor(DEFAULT_ACCENT, "dark");
 
 // Legacy static export — always the LIGHT palette so screens that still
 // import { palette } behave identically to before.  Migrated screens
