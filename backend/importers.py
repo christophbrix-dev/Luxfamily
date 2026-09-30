@@ -480,8 +480,17 @@ def _sitemaps_from_robots(robots_txt: str) -> List[str]:
     return found
 
 
-async def _find_sitemap(source_url: str, origin: str) -> Tuple[str, str]:
+async def _find_sitemap(
+    source_url: str, origin: str, deadline: Optional[float] = None,
+) -> Tuple[str, str]:
     """(url, xml) of the first sitemap that answers. Raises when none does.
+
+    `deadline` is the caller's fetch budget, and it belongs here as much as in
+    the page loop: finding the file can cost five requests — the configured
+    URL, robots.txt, and three guessed paths — each under whatever crawl delay
+    the site asks for. Ville de Luxembourg spent ten minutes in this function
+    and in the index expansion below it, while the budget that was supposed to
+    cap the source at 160 seconds had not been created yet.
 
     A configured URL is tried first and usually wins. It is not trusted to be
     right, though, and that is the point of this function: every one of these
@@ -502,6 +511,9 @@ async def _find_sitemap(source_url: str, origin: str) -> Tuple[str, str]:
     async def attempt(url: str):
         """The sitemap at `url`, or None. Never asks the same host twice."""
         if not url or url in tried:
+            return None
+        if deadline is not None and _monotonic() > deadline:
+            errors.append(f"{url} (out of time)")
             return None
         tried.append(url)
         try:
@@ -532,7 +544,16 @@ async def _find_sitemap(source_url: str, origin: str) -> Tuple[str, str]:
         if xml is not None:
             return url, xml
 
-    raise RuntimeError("No sitemap found. Tried: " + "; ".join(errors))
+    # "ran out of time" and "this site has no sitemap" are different findings,
+    # and the message is the only place anybody sees which. Sixteen of the
+    # inactive sources genuinely have no sitemap; a source cut short by the
+    # budget would look exactly like them under one wording.
+    ran_out = any("out of time" in e for e in errors)
+    raise RuntimeError(
+        ("No sitemap found before the fetch budget ran out. Tried: "
+         if ran_out else "No sitemap found. Tried: ")
+        + "; ".join(errors)
+    )
 
 
 def _build_event_doc(
@@ -1362,7 +1383,12 @@ async def _import_sitemap(source: Dict[str, Any], db) -> Tuple[int, int]:
     parsed = urlparse(source["url"])
     origin = f"{parsed.scheme}://{parsed.netloc}"
 
-    sitemap_url, xml = await _find_sitemap(source["url"], origin)
+    # The clock starts before the first request, not after the candidate list
+    # exists. Everything below spends it: finding the file, expanding an index
+    # of sub-sitemaps, and only then the pages themselves.
+    deadline = _fetch_deadline()
+
+    sitemap_url, xml = await _find_sitemap(source["url"], origin, deadline)
 
     all_entries = _collect_sitemap_entries(xml, base=origin)
     all_urls = [u for u, _ in all_entries]
@@ -1377,7 +1403,9 @@ async def _import_sitemap(source: Dict[str, Any], db) -> Tuple[int, int]:
     nested = [u for u in all_urls if _looks_like_sitemap(u)]
     if nested and len(all_urls) < 30:
         expanded: List[Tuple[str, str]] = []
-        for nested_url in nested[:10]:
+        for position, nested_url in enumerate(nested[:10]):
+            if _out_of_time(deadline, f"[sitemap index] {source['name']}", position):
+                break
             try:
                 sub_xml = await _fetch_text(nested_url)
                 expanded.extend(_collect_sitemap_entries(sub_xml, base=origin))
@@ -1415,7 +1443,6 @@ async def _import_sitemap(source: Dict[str, Any], db) -> Tuple[int, int]:
     skipped = 0
     blocked = 0   # refused by content_filter, never stored
     today = datetime.now(timezone.utc).date()
-    deadline = _fetch_deadline()
 
     for position, page_url in enumerate(candidates):
         # Out of time, not out of pages. Everything so far is already in the

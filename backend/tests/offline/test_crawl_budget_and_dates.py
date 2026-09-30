@@ -148,7 +148,9 @@ class TestTheSitemapImporterHonoursBothOfThose:
         return f'<?xml version="1.0"?><urlset>{urls}</urlset>'
 
     def _wire(self, importers, monkeypatch, *, pages, sitemap_size):
-        async def _find(source_url, origin):
+        # The budget reaches this function now: finding the file can cost five
+        # requests under a crawl delay, and it used to happen before any clock.
+        async def _find(source_url, origin, deadline=None):
             return "https://example.invalid/sitemap.xml", self._sitemap(sitemap_size)
 
         monkeypatch.setattr(importers, "_find_sitemap", _find)
@@ -196,7 +198,9 @@ class TestTheFetchBudget:
             for i in range(pages)
         )
 
-        async def _find(source_url, origin):
+        # The budget reaches this function now: finding the file can cost five
+        # requests under a crawl delay, and it used to happen before any clock.
+        async def _find(source_url, origin, deadline=None):
             return "s.xml", f'<?xml version="1.0"?><urlset>{urls}</urlset>'
 
         fetched = []
