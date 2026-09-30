@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Svg, { Defs, LinearGradient, Path, Stop } from "react-native-svg";
 
 import type { Canton } from "@/src/data/places";
-import { palette } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
+import { type Palette } from "@/src/theme";
 
 const VIEW_W = 240;
 const VIEW_H = 340;
@@ -36,6 +37,10 @@ type Props = {
 };
 
 export function LuxembourgMap({ selected, counts, onSelect }: Props) {
+  // Was the static `palette` export — always light, always the default accent.
+  // The outline and its tint follow the reader's colour now.
+  const { palette } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   return (
     <View style={styles.wrap}>
       <Svg
@@ -46,8 +51,8 @@ export function LuxembourgMap({ selected, counts, onSelect }: Props) {
       >
         <Defs>
           <LinearGradient id="lux-bg" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor="#ECFDF5" />
-            <Stop offset="1" stopColor="#D1FAE5" />
+            <Stop offset="0" stopColor={palette.primarySoft} />
+            <Stop offset="1" stopColor={palette.primaryLight} />
           </LinearGradient>
         </Defs>
 
@@ -113,7 +118,7 @@ export function LuxembourgMap({ selected, counts, onSelect }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette) => StyleSheet.create({
   wrap: {
     width: "100%",
     height: VIEW_H,

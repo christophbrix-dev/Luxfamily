@@ -23,6 +23,7 @@ import LeafletMap, {
   type MapEvent,
 } from "@/src/components/LeafletMap";
 import { useApp } from "@/src/contexts/AppContext";
+import { accentById, placeColourFor } from "@/src/accents";
 import { storage } from "@/src/utils/storage";
 import { CANTONS, type Canton } from "@/src/data/places";
 import { t } from "@/src/i18n/strings";
@@ -37,7 +38,7 @@ export default function Explore() {
   const { palette, shadow, effective } = useAppPalette();
   const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const router = useRouter();
-  const { lang } = useApp();
+  const { lang, accent } = useApp();
   // Never prompts on mount — it picks up a permission granted earlier, and the
   // prompt only ever follows the user pressing a radius chip.
   const { coords, request: requestLocation } = useUserLocation();
@@ -326,7 +327,17 @@ export default function Explore() {
   useEffect(() => {
     if (!mapReady) return;
     mapRef.current?.setTheme(effective);
-  }, [effective, mapReady]);
+    // The map has its own stylesheet and cannot read the palette, so it is
+    // told — otherwise the event pins stay emerald on an app the reader has
+    // turned blue.
+    // Places get a colour half a turn from the accent, so the two are as far
+    // apart as hues can be whatever the reader chose. Blue used to be fixed
+    // here, which made events and places identical for anyone choosing blue.
+    const [place, placeDark] = placeColourFor(accentById(accent).hue, effective);
+    mapRef.current?.setAccent(
+      palette.primary, palette.primaryDark, palette.primarySoft, place, placeDark,
+    );
+  }, [effective, mapReady, accent, palette.primary, palette.primaryDark, palette.primarySoft]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>

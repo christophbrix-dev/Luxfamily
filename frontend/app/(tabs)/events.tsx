@@ -318,7 +318,7 @@ export default function EventsTab() {
             <View style={styles.forYouWrap}>
               <View style={styles.forYouHeader}>
                 <View style={styles.forYouBadge}>
-                  <Ionicons name="sparkles" size={12} color="#065F46" />
+                  <Ionicons name="sparkles" size={12} color={palette.primaryDark} />
                   <Text style={styles.forYouBadgeTxt}>{t("forYou", lang)}</Text>
                 </View>
                 <TouchableOpacity
@@ -550,7 +550,7 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
     alignItems: "center",
   },
   venueBox: {
-    backgroundColor: "#ECFDF5",
+    backgroundColor: palette.primarySoft,
   },
   dateDay: { fontSize: 18, fontWeight: "800", color: palette.primaryDark },
   dateMonth: {
@@ -636,9 +636,9 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
     marginBottom: 12,
     padding: 14,
     borderRadius: 20,
-    backgroundColor: "#F0FDF4",
+    backgroundColor: palette.primarySoft,
     borderWidth: 1,
-    borderColor: "#A7F3D0",
+    borderColor: palette.primaryBorder,
   },
   forYouHeader: {
     flexDirection: "row",
@@ -653,18 +653,18 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
-    backgroundColor: "#D1FAE5",
+    backgroundColor: palette.primaryLight,
   },
   forYouBadgeTxt: {
     fontSize: 10,
     fontWeight: "800",
-    color: "#065F46",
+    color: palette.primaryDark,
     letterSpacing: 0.5,
   },
   forYouLink: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#065F46",
+    color: palette.primaryDark,
   },
   forYouSub: {
     fontSize: 12,
@@ -677,9 +677,9 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
     marginBottom: 8,
     padding: 10,
     borderRadius: 12,
-    backgroundColor: "#F0FDF4",
+    backgroundColor: palette.primarySoft,
     borderWidth: 1,
-    borderColor: "#A7F3D0",
+    borderColor: palette.primaryBorder,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -688,6 +688,6 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
   enableBannerTxt: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#065F46",
+    color: palette.primaryDark,
   },
 });

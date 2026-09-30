@@ -11,6 +11,7 @@ import { useMemo } from "react";
 import { useColorScheme } from "react-native";
 
 import { useApp } from "@/src/contexts/AppContext";
+import { accentById, gradientFor } from "@/src/accents";
 import { type Palette, paletteFor, shadowFor } from "@/src/theme";
 
 export type EffectiveTheme = "light" | "dark";
@@ -19,6 +20,8 @@ export function useAppPalette(): {
   palette: Palette;
   effective: EffectiveTheme;
   shadow: ReturnType<typeof shadowFor>;
+  /** Three stops in the accent, for the two headers that are drawn as one. */
+  gradient: readonly [string, string, string];
 } {
   const { theme, accent } = useApp();
   const sys = useColorScheme();
@@ -28,5 +31,9 @@ export function useAppPalette(): {
   // a palette exists for every accent without anybody typing one.
   const palette = useMemo(() => paletteFor(accent, effective), [accent, effective]);
   const shadow  = useMemo(() => shadowFor(effective), [effective]);
-  return { palette, effective, shadow };
+  const gradient = useMemo(
+    () => gradientFor(accentById(accent).hue, effective),
+    [accent, effective],
+  );
+  return { palette, effective, shadow, gradient };
 }
