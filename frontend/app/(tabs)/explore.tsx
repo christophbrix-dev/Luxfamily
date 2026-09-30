@@ -23,6 +23,7 @@ import LeafletMap, {
   type MapEvent,
 } from "@/src/components/LeafletMap";
 import { useApp } from "@/src/contexts/AppContext";
+import { storage } from "@/src/utils/storage";
 import { CANTONS, type Canton } from "@/src/data/places";
 import { t } from "@/src/i18n/strings";
 import { pickLang } from "@/src/i18n/pickLang";
@@ -120,6 +121,57 @@ export default function Explore() {
     (canton ? 1 : 0);
 
   // ---------------------------------------------------------------------
+  // What the map is showing.
+  //
+  // The map carries four different things now — events, places, hiking trails
+  // and cycle routes — and 4,772 of the places are nature and picnic spots.
+  // Somebody looking for a bike ride does not want the country's every bench
+  // drawn over it, and somebody planning a Saturday does not want 375 cycle
+  // routes across their events.
+  //
+  // Switches, not a filter sheet: this is about what is drawn, and the answer
+  // belongs one tap away from the drawing.
+  // ---------------------------------------------------------------------
+  type LayerKey = "events" | "places" | "hiking" | "cycling";
+  const ALL_LAYERS: LayerKey[] = ["events", "places", "hiking", "cycling"];
+  const LAYERS_KEY = "lux.map.layers";
+
+  const [layers, setLayers] = useState<Record<LayerKey, boolean>>({
+    events: true, places: true, hiking: true, cycling: true,
+  });
+
+  // Stored as the names that are on, comma separated — the storage helper
+  // takes only a string, a number or a boolean, and a list of names survives
+  // a layer being added later without turning it off for everyone.
+  useEffect(() => {
+    storage.getItem(LAYERS_KEY, "").then((saved) => {
+      if (!saved) return;
+      const on = new Set(String(saved).split(","));
+      setLayers((current) => {
+        const next = { ...current };
+        for (const key of ALL_LAYERS) if (on.has(key) !== next[key]) next[key] = on.has(key);
+        return next;
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const toggleLayer = useCallback((key: LayerKey) => {
+    setLayers((current) => {
+      const next = { ...current, [key]: !current[key] };
+      void storage.setItem(
+        LAYERS_KEY,
+        ALL_LAYERS.filter((k) => next[k]).join(","),
+      );
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Routes carry a shape; asking for shapes nobody draws is 70 KB wasted. */
+  const wantsRoutes = layers.hiking || layers.cycling;
+
+  // ---------------------------------------------------------------------
   // Map: push filtered events as markers whenever they change.
   // ---------------------------------------------------------------------
   const mapRef = useRef<LeafletMapHandle | null>(null);
@@ -140,8 +192,8 @@ export default function Explore() {
         featured: e.featured,
         btnLabel: t("openDetails", lang),
       }));
-    mapRef.current?.setEvents(markers);
-  }, [filtered, mapReady, lang]);
+    mapRef.current?.setEvents(layers.events ? markers : []);
+  }, [filtered, mapReady, lang, layers.events]);
 
   // ---------------------------------------------------------------------
   // Places on the map.
@@ -187,8 +239,9 @@ export default function Explore() {
     try {
       const rows = await api.osmPlaces({
         near: { lat: view.lat, lng: view.lng },
-        // The map is the only screen that draws route shapes.
-        geometry: true,
+        // Only when a route layer is on. With both off the shapes are 70 KB
+        // nobody draws.
+        geometry: wantsRoutes,
         // A little wider than the view, so a small drag does not blank the
         // edges before the next request lands.
         radiusKm: Math.min(Math.max(view.radiusKm * 1.3, 2), 100),
@@ -197,7 +250,16 @@ export default function Explore() {
       // A slow answer for a view the user has already left must not overwrite
       // the pins for the view they are actually looking at.
       if (viewRef.current !== view) return;
+      // Sieved here rather than asked for per layer: one request answers every
+      // combination of switches, and flipping one redraws without a round trip.
+      const wanted = (p: ApiPlace) => {
+        if (p.kind === "hiking_route" || p.kind === "nature_trail") return layers.hiking;
+        if (p.kind === "cycle_route") return layers.cycling;
+        return layers.places;
+      };
+
       const pins: MapPlace[] = rows
+        .filter(wanted)
         // A route has no coordinate at all; it is drawn from its shape.
         .filter((p: ApiPlace) => (p.lat !== null && p.lng !== null) || p.path_parts?.length)
         .map((p: ApiPlace) => ({
@@ -214,7 +276,7 @@ export default function Explore() {
     } catch {
       // Keep whatever is on the map; a failed request is not an empty country.
     }
-  }, [lang, kindLabel]);
+  }, [lang, kindLabel, layers, wantsRoutes]);
 
   // Tapping a place opens it where the rest of the app opens places — there is
   // no detail screen for an OSM entry, and inventing one here would promise
@@ -222,6 +284,12 @@ export default function Explore() {
   const onPlaceTap = useCallback((_id: string, lat: number, lng: number) => {
     openMaps(lat, lng);
   }, []);
+
+  // A switch flipped is not a new view, so onViewChanged does not fire by
+  // itself. Re-asking with the view we last saw redraws with the new choice.
+  useEffect(() => {
+    if (viewRef.current) void onViewChanged(viewRef.current);
+  }, [layers, onViewChanged]);
 
   // Fly to a canton whenever the pill selection changes.
   useEffect(() => {
@@ -320,6 +388,35 @@ export default function Explore() {
             />
           ))}
         </ScrollView>
+
+        {/* What the map draws. Above it, because it is about the drawing. */}
+        <View style={styles.layerRow}>
+          <Text style={styles.layerLabel}>{t("onTheMap", lang)}</Text>
+          <View style={styles.layerChips}>
+            {([
+              ["events", t("events", lang)],
+              ["places", t("places", lang)],
+              ["hiking", t("hikingTrails", lang)],
+              ["cycling", t("cycleRoutes", lang)],
+            ] as [LayerKey, string][]).map(([key, label]) => (
+              <TouchableOpacity
+                key={key}
+                onPress={() => toggleLayer(key)}
+                activeOpacity={0.8}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: layers[key] }}
+                accessibilityLabel={label}
+                style={[styles.layerChip, layers[key] && styles.layerChipOn]}
+                testID={`map-layer-${key}`}
+              >
+                <View style={[styles.layerDot, layers[key] && styles.layerDotOn]} />
+                <Text style={[styles.layerChipTxt, layers[key] && styles.layerChipTxtOn]}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
 
         {/* ------------------------------------------------------------ */}
         {/* Real interactive map — pinch/scroll to street-level zoom.    */}
@@ -475,6 +572,28 @@ function CantonPill({
 }
 
 const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
+  // The map's layer switches. A dot rather than a tick: it is the colour the
+  // layer draws with, so the row doubles as the map's legend.
+  layerRow: { paddingHorizontal: 20, paddingBottom: 10, gap: 8 },
+  layerLabel: {
+    fontSize: 12, fontWeight: "700", letterSpacing: 0.6,
+    textTransform: "uppercase", color: palette.textMuted,
+  },
+  layerChips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  layerChip: {
+    flexDirection: "row", alignItems: "center", gap: 7,
+    paddingVertical: 7, paddingHorizontal: 12,
+    borderRadius: 999, borderWidth: 1,
+    borderColor: palette.border, backgroundColor: palette.surface,
+  },
+  layerChipOn: { borderColor: palette.primary, backgroundColor: palette.primaryLight },
+  layerDot: {
+    width: 9, height: 9, borderRadius: 999,
+    backgroundColor: palette.border,
+  },
+  layerDotOn: { backgroundColor: palette.primary },
+  layerChipTxt: { fontSize: 13, color: palette.textSecondary },
+  layerChipTxtOn: { color: palette.primaryDark, fontWeight: "700" },
   // The sheet that replaced the ring of pins.
   spotBackdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.45)" },
   spotSheet: {
