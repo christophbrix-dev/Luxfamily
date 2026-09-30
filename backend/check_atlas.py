@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """Before anything moves: does this connection string actually work?
 
-The migration has Emergent copy a live database into a cluster nobody has ever
-written to. If the user has the wrong password, or forgot to open network
-access, or gave the database user read-only rights, that is discovered in the
-middle of a paid run — and the failure looks like a broken migration rather
-than a setup that was never finished.
+Written for the move to Atlas, when a live database was about to be copied
+into a cluster nobody had ever written to. If the user has the wrong password,
+or forgot to open network access, or gave the database user read-only rights,
+that is discovered in the middle of a paid run — and the failure looks like a
+broken migration rather than a setup that was never finished.
+
+The move happened on 2026-09-27, so the cluster is no longer empty, and the
+script is now what it should have been called all along: a check that a machine
+can reach the shared database before it is pointed at it. What it advises at
+the end therefore depends on what it finds — see `closing_advice`.
 
 This asks the four questions that can be asked beforehand, in order, and stops
 at the first no:
@@ -44,6 +49,44 @@ REAL_COLLECTIONS = ("events", "places", "sources", "users")
 def _fail(what: str, advice: str) -> None:
     log.error("  ✗ %s\n\n    %s", what, advice)
     sys.exit(1)
+
+
+def closing_advice(filled: dict[str, int]) -> list[str]:
+    """What to do next — not the same thing on an empty and on a filled target.
+
+    This used to be one fixed line at the end of the run: the next step is
+    `copy_database.py --write`. That was true on the day of the move, when the
+    cluster was empty and the container held the only copy of the data.
+
+    It is false now, and false in the direction that costs data. Atlas is the
+    stock — a thousand events, eight thousand places, crawled three times a
+    day — and Emergent's container has been standing still since August. An
+    agent that reads this tool's closing line and follows it would copy the
+    smaller database over the larger one. `copy_database.py` refuses a filled
+    collection on its own, so it takes a `--replace` to do the damage; the
+    point is that the tool should not be the thing that suggests it.
+
+    So the closing advice asks what it can actually observe: whether anything
+    is already there.
+    """
+    if not filled:
+        return [
+            "Alles bereit. Der nächste Schritt ist der Umzug:",
+            "    python3 copy_database.py --write && python3 copy_database.py --verify",
+        ]
+    return [
+        "Verbindung steht — aber der Umzug steht hier nicht an: im Ziel liegen",
+        "schon Daten. Kopieren wäre nur dann richtig, wenn diese Seite die",
+        "jüngere von beiden ist, und das kann dieses Skript nicht wissen.",
+        "",
+        "Wenn du nur umschalten willst, ist das der ganze Schritt:",
+        "    MONGO_URL und DB_NAME in backend/.env auf dieses Ziel setzen,",
+        "    dann den Backend-Dienst neu starten.",
+        "",
+        "Kein copy_database.py --replace, solange nicht geklärt ist, welche",
+        "Seite den aktuellen Bestand hält — --replace leert die Zielsammlung,",
+        "bevor es schreibt.",
+    ]
 
 
 def main() -> None:
@@ -101,13 +144,15 @@ def main() -> None:
             log.warning("        %-10s %d Dokumente", coll, n)
         log.warning(
             "\n    Das ist kein Fehler, aber prüfe den Namen. copy_database.py\n"
-            "    überspringt volle Sammlungen, es wird also nichts überschrieben."
+            "    überspringt volle Sammlungen ohne --replace, es wird also nichts\n"
+            "    überschrieben."
         )
     else:
         log.info("  ✓ Zieldatenbank ist leer, bereit für den Umzug")
 
-    log.info("\nAlles bereit. Der nächste Schritt läuft bei Emergent:")
-    log.info("    python3 copy_database.py --write && python3 copy_database.py --verify")
+    log.info("")
+    for line in closing_advice(filled):
+        log.info("%s", line)
 
 
 if __name__ == "__main__":
