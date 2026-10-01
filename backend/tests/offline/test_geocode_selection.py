@@ -85,12 +85,15 @@ class TestImportersSayWhereTheCoordinateCameFrom:
 
 
 class TestItRunsAfterEveryImport:
+    """The run moved out of server.py into importer_run, so that launchd can
+    call it without a server being alive. These read the new home."""
+
     def test_the_scheduled_job_geocodes(self):
         """Left as a manual script it was never run at all."""
         import inspect
 
-        import server
-        src = inspect.getsource(server._run_importers_once)
+        import importer_run
+        src = inspect.getsource(importer_run.run_once)
         assert "geocode_pending" in src
         # After the crawl: geocoding has nothing to do until something arrives.
         assert src.index("run_all_active") < src.index("geocode_pending")
@@ -99,10 +102,19 @@ class TestItRunsAfterEveryImport:
         """Two workers must not resolve the same events at once."""
         import inspect
 
+        import importer_run
+        src = inspect.getsource(importer_run.run_once)
+        assert src.index("acquire_lease") < src.index("geocode_pending")
+        assert src.index("geocode_pending") < src.index("release_lease")
+
+    def test_the_server_still_schedules_it(self):
+        """Extracting it must not have left the server with nothing to call."""
+        import inspect
+
+        import importer_run
         import server
-        src = inspect.getsource(server._run_importers_once)
-        assert src.index("_acquire_importer_lease") < src.index("geocode_pending")
-        assert src.index("geocode_pending") < src.index("_release_importer_lease")
+        assert server.run_once is importer_run.run_once
+        assert "run_once" in inspect.getsource(server.lifespan)
 
 
 class TestTheScheduledBatch:

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template, not a working file. The paths below are machine-specific, so this
+  is never installed directly — ops/install-launchagent.sh fills in the
+  placeholders from wherever the repository actually sits and writes the result
+  to ~/Library/LaunchAgents/.
+
+  Every placeholder below must be one the installer knows about, and none may
+  appear anywhere else in this file — not even in a comment, because the
+  installer refuses to write a file that still contains the marker form and
+  cannot tell prose from a value. tests/offline/test_launchagent_template.py
+  checks both halves agree. A placeholder nobody substitutes yields a
+  LaunchAgent pointing at a file that does not exist, which then fails three
+  times a day in silence.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>lu.luxfamily.importers</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__PYTHON__</string>
+    <string>__SCRIPT__</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__WORKDIR__</string>
+
+  <!--
+    05:00, 12:00 and 18:00 — the same three times the server's own scheduler
+    used, so switching between the two does not change when crawling happens.
+
+    This is the whole reason the schedule lives in launchd: unlike cron, a
+    calendar interval that passes while the machine is asleep is not skipped.
+    launchd runs the job when the machine next wakes, and several missed times
+    collapse into a single run. On a laptop that is the difference between a
+    crawler that works and one that only works on the days it is lucky.
+  -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>5</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>12</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>18</integer><key>Minute</key><integer>0</integer></dict>
+  </array>
+
+  <!--
+    Not at login. A missed interval is already caught up on wake, so RunAtLoad
+    would only add a crawl every time the machine starts — and crawling is
+    somebody else's bandwidth, not a thing to do for no reason.
+  -->
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>__LOG__</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG__</string>
+
+  <!-- A crawler must never be the reason the machine feels slow. -->
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>LowPriorityIO</key>
+  <true/>
+  <key>Nice</key>
+  <integer>5</integer>
+</dict>
+</plist>

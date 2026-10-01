@@ -153,13 +153,20 @@ def test_one_failing_source_does_not_abort_the_run(importers, db, run, monkeypat
 
 
 def test_only_one_worker_may_hold_the_importer_lease(app_module, run):
-    """Every uvicorn worker starts its own scheduler; only one may crawl."""
+    """Every scheduler takes its own turn; only one may crawl.
+
+    Since the lease moved into importer_run there are three kinds of caller,
+    not two: uvicorn workers, a container's scheduler, and the launchd job on
+    a laptop. They never coordinate with each other — this is the only thing
+    that stops them crawling the same feeds at the same time.
+    """
+    import importer_run
 
     async def _go():
-        first = await app_module._acquire_importer_lease(app_module.db)
-        second = await app_module._acquire_importer_lease(app_module.db)
-        await app_module._release_importer_lease(app_module.db)
-        third = await app_module._acquire_importer_lease(app_module.db)
+        first = await importer_run.acquire_lease(app_module.db)
+        second = await importer_run.acquire_lease(app_module.db)
+        await importer_run.release_lease(app_module.db)
+        third = await importer_run.acquire_lease(app_module.db)
         return first, second, third
 
     assert run(_go()) == (True, False, True)
