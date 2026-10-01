@@ -39,7 +39,7 @@ from fastapi import (
 from fastapi.security import OAuth2PasswordBearer
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field, ValidationError, field_validator
-from pymongo.errors import DuplicateKeyError, OperationFailure
+from pymongo.errors import OperationFailure
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -48,9 +48,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 
-from check_family_safe import audit_family_safety
 from geo import MAX_RADIUS_KM, bounding_box, near_query, within_radius
-from geocode_events import geocode_pending
+from importer_run import (
+    acquire_lease,
+    release_lease,
+    run_once,
+)
 from importers import run_all_active, run_source
 
 # ---------------------------------------------------------------------------
@@ -541,102 +544,9 @@ async def require_admin(current: Dict[str, Any] = Depends(get_current_user)) -> 
 # ---------------------------------------------------------------------------
 # Lifespan: indexes + seed admin
 # ---------------------------------------------------------------------------
-IMPORTER_LOCK_ID = "importers"
-IMPORTER_LEASE_MINUTES = 60
-WORKER_ID = str(uuid.uuid4())
-
-
-async def _acquire_importer_lease(db_) -> bool:
-    """Claim the right to run the importers for the next lease window.
-
-    Uvicorn runs several workers and the deployment may run several replicas —
-    each starts its own APScheduler, so every scheduled tick crawled every feed
-    N times over. This takes a short lease in Mongo so exactly one of them does
-    the work; the lease expires on its own if a worker dies mid-run.
-    """
-    now = datetime.now(timezone.utc)
-    try:
-        await db_.locks.insert_one({"_id": IMPORTER_LOCK_ID, "lease_until": now})
-    except DuplicateKeyError:
-        pass  # lock document already exists, which is the normal case
-    result = await db_.locks.update_one(
-        {"_id": IMPORTER_LOCK_ID, "lease_until": {"$lte": now}},
-        {
-            "$set": {
-                "lease_until": now + timedelta(minutes=IMPORTER_LEASE_MINUTES),
-                "holder": WORKER_ID,
-                "acquired_at": now,
-            }
-        },
-    )
-    return result.modified_count == 1
-
-
-async def _release_importer_lease(db_) -> None:
-    await db_.locks.update_one(
-        {"_id": IMPORTER_LOCK_ID, "holder": WORKER_ID},
-        {"$set": {"lease_until": datetime.now(timezone.utc)}},
-    )
-
-
-async def _run_importers_once() -> None:
-    """Scheduled entry point: crawl every active source, then place what arrived.
-
-    Geocoding runs here rather than as a separate job because it only has work
-    to do once an import has produced some. Left as a manual script it was
-    never run at all, and 122 of 304 events sat on the same generic point for
-    Luxembourg City.
-
-    It runs under the same lease as the import and after it, so two workers
-    cannot both be resolving the same events, and a batch is capped — each
-    unresolved event may cost a request to the geoportal, which is somebody
-    else's service.
-    """
-    if not await _acquire_importer_lease(db):
-        logger.info("Importer run skipped — another worker holds the lease")
-        return
-    try:
-        results = await run_all_active(db)
-        logger.info("Importer run finished for %d sources", len(results))
-    except Exception:
-        logger.exception("Scheduled importer run failed")
-
-    try:
-        # Synchronous, with its own connection: resolve() and the geocoders all
-        # work against pymongo. A worker thread is cheaper than teaching two
-        # database drivers about each other.
-        counts = await asyncio.to_thread(geocode_pending)
-        if counts:
-            logger.info(
-                "Geocoded %d events (%s)",
-                sum(counts.values()),
-                ", ".join(f"{k}={v}" for k, v in sorted(counts.items())),
-            )
-    except Exception:
-        # A geocoding failure must not make the import look failed: the events
-        # are already stored, they simply keep the coordinate they arrived with.
-        logger.exception("Scheduled geocoding failed")
-
-    try:
-        # Ask the family-safety question of the whole database, not just of
-        # what arrived. The import filter cannot see events stored before it
-        # existed, or an entry an importer wrote without asking, or a source
-        # that changed what it publishes after we first read it.
-        #
-        # Findings are hidden, never deleted: a hit is a question for a person,
-        # and an entry that is gone cannot be looked at to decide whether the
-        # rule was right. Nothing is expected to turn up — the point is the day
-        # something does.
-        hidden = await audit_family_safety(db)
-        if hidden:
-            logger.warning(
-                "Family-safety audit hid %d stored entr(ies) — review family_flag",
-                hidden,
-            )
-    except Exception:
-        logger.exception("Family-safety audit failed")
-    finally:
-        await _release_importer_lease(db)
+# The lease and the run itself live in importer_run, because a second caller
+# needs them: run_importers.py, the one-shot command launchd invokes. See the
+# module docstring there for why an in-process scheduler was not enough.
 
 
 async def _ensure_index(collection, keys, **opts) -> None:
@@ -776,8 +686,9 @@ async def lifespan(_: FastAPI):
 
         scheduler = AsyncIOScheduler(timezone="Europe/Luxembourg")
         scheduler.add_job(
-            _run_importers_once,
+            run_once,
             CronTrigger(hour="5,12,18", minute=0, timezone="Europe/Luxembourg"),
+            args=[db],
             id="importers",
             replace_existing=True,
             max_instances=1,
@@ -1710,7 +1621,7 @@ async def admin_run_all(
     import carried on regardless. Progress shows up on each source's
     last_run_at / last_status, which the sources screen already polls.
     """
-    if not await _acquire_importer_lease(db):
+    if not await acquire_lease(db):
         raise HTTPException(409, "An import is already running")
 
     async def _run() -> None:
@@ -1719,7 +1630,7 @@ async def admin_run_all(
         except Exception:
             logger.exception("Manual run-all failed")
         finally:
-            await _release_importer_lease(db)
+            await release_lease(db)
 
     background.add_task(_run)
     return {"status": "started"}
