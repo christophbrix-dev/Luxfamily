@@ -1,5 +1,35 @@
 # Eine Datenbank statt zwei
 
+> **Stand 30.09.2026 — die Schritte unten sind erledigt, aber nicht in dieser
+> Reihenfolge.** Lies „Was tatsächlich passiert ist" gleich darunter, bevor du
+> einen Befehl von hier ausführst. Vor allem: **Schritt 3 darf nicht mehr
+> ausgeführt werden.** Er kopiert in die Richtung, die heute die falsche ist.
+
+## Was tatsächlich passiert ist
+
+Der Plan sah vor, dass **Emergent** kopiert, weil dort der größere Bestand lag
+— 558 Events gegen 528 hier. Emergents Guthaben war leer, also lief die Kopie
+**von der lokalen Datenbank** aus, und ein vollständiger Crawl direkt danach
+holte Atlas von 528 auf 868 Events. Die Lücke war damit zu, ohne Emergent.
+
+Und **mein Rechner hat zuerst umgeschaltet, nicht zuletzt** — Schritt 5 vor
+Schritt 4. In `backend/.env` hier zeigt `MONGO_URL` auf Atlas, die alten Werte
+stehen als datierte Kommentarzeilen daneben, der Rückweg ist also eine Zeile.
+**Emergent ist unverändert** und liest weiter seinen eigenen Container.
+
+Daraus folgt das Wichtige an dieser Notiz: **Atlas ist inzwischen der Bestand**
+— 1.010 Events, 7.856 Orte, dreimal täglich gecrawlt — und Emergents Container
+steht seit August still. Eine Kopie von dort nach Atlas würde die kleinere
+Datenbank über die größere legen. `copy_database.py` verweigert eine gefüllte
+Sammlung von sich aus, es bräuchte also ein ausdrückliches `--replace`; Schritt
+3 unten steht trotzdem nur noch als Beschreibung dessen, was gedacht war.
+
+Für Emergent steht allein Schritt 4 aus — zwei Zeilen und ein Neustart. Der
+Prompt dafür liegt in `EMERGENT_PROMPT.md`, das absichtlich nicht eingecheckt
+ist: Arbeitsmaterial, das auf Christophs Rechner bleibt.
+
+## Wie es gedacht war
+
 Heute gibt es zwei, die nichts voneinander wissen: eine lokale MongoDB auf dem
 Mac und eine in Emergents Container. Deshalb steht in jedem Bericht eine andere
 Zahl — 528 Events hier, 558 dort — und jede Aussage muss doppelt gelesen werden.
@@ -81,7 +111,12 @@ wieder — `events`, `places` und `sources` fasst es nicht an.
 
 Wenn dort dreimal ein Haken steht, kann Emergent loslegen.
 
-## 3 — Kopieren und prüfen (macht Emergent)
+## 3 — Kopieren und prüfen (erledigt am 27.09. — nicht mehr ausführen)
+
+**Diese Schritte sind Geschichte.** Sie liefen von der lokalen Datenbank
+aus, nicht bei Emergent, und sie dürfen heute nicht wiederholt werden:
+Atlas hält den Bestand, `--replace` würde ihn leeren. Der Text bleibt
+stehen, weil er erklärt, warum `--verify` ein eigener Befehl ist.
 
 Emergents Datenbank ist die Wahrheit, nicht meine lokale: Dort laufen die
 Crawler, dort steht der aktuelle Bestand. Also wird von dort kopiert.
@@ -107,7 +142,7 @@ gemeldet, ohne dass das zweite stimmte.
 
 **Erst wenn `--verify` überall gleiche Zahlen zeigt, geht es weiter.**
 
-## 4 — Umschalten (macht Emergent)
+## 4 — Umschalten (macht Emergent — steht noch aus)
 
 In Emergents `backend/.env` die `MONGO_URL` durch die Atlas-Zeichenkette
 ersetzen und `DB_NAME` auf `luxfamily` setzen, dann `supervisorctl restart
@@ -119,7 +154,7 @@ Danach die App im Browser öffnen und schauen, ob Events erscheinen.
 neu starten. Die alte Datenbank wurde nur gelesen, nie verändert — sie steht
 vollständig da, als wäre nichts gewesen.
 
-## 5 — Mein Rechner kommt dazu (machst du)
+## 5 — Mein Rechner kommt dazu (erledigt am 27.09.2026)
 
 In `backend/.env` hier dieselben zwei Zeilen eintragen. `.env` ist in
 `.gitignore` und war noch nie im Repository — das habe ich geprüft.
