@@ -50,12 +50,17 @@ async def acquire_lease(db) -> bool:
     each starts its own scheduler, so every scheduled tick crawled every feed
     N times over. This takes a short lease in Mongo so exactly one of them does
     the work; the lease expires on its own if a worker dies mid-run.
+
+    Taking the lease also reports on the *previous* holder, because a run that
+    dies mid-crawl is otherwise completely silent — see `_note_if_predecessor_died`.
     """
     now = datetime.now(timezone.utc)
     try:
-        await db.locks.insert_one({"_id": LOCK_ID, "lease_until": now})
+        await db.locks.insert_one({"_id": LOCK_ID, "lease_until": now, "released": True})
     except DuplicateKeyError:
         pass  # lock document already exists, which is the normal case
+
+    previous = await db.locks.find_one({"_id": LOCK_ID})
     result = await db.locks.update_one(
         {"_id": LOCK_ID, "lease_until": {"$lte": now}},
         {
@@ -63,16 +68,53 @@ async def acquire_lease(db) -> bool:
                 "lease_until": now + timedelta(minutes=LEASE_MINUTES),
                 "holder": WORKER_ID,
                 "acquired_at": now,
+                # Cleared again by release_lease. While this is False, a run is
+                # either in progress or was killed without getting to release.
+                "released": False,
             }
         },
     )
-    return result.modified_count == 1
+    took_it = result.modified_count == 1
+    if took_it:
+        _note_if_predecessor_died(previous)
+    return took_it
+
+
+def _note_if_predecessor_died(previous: dict | None) -> None:
+    """Say so when the last holder never finished.
+
+    A killed run leaves no trace of its own. On 2026-10-02 one started at
+    12:00:25 and simply stopped existing — no summary, no error, nothing. The
+    laptop had been shut while it crawled. The design handled it correctly: the
+    lease expired on its own an hour later and the next run went ahead. But
+    nobody could have known it happened, and it only came to light a week later
+    while counting log lines by hand.
+
+    So the next run says it. This is the only moment the information exists:
+    whoever takes the lease can still see how the last holder left it, and
+    afterwards that record is overwritten.
+    """
+    if not previous or previous.get("released", True):
+        return
+    started = previous.get("acquired_at")
+    logger.warning(
+        "The previous importer run (started %s) never finished — it was killed "
+        "mid-crawl, most likely by sleep or shutdown. Its lease expired on its "
+        "own; nothing is stuck.",
+        started.isoformat() if hasattr(started, "isoformat") else started,
+    )
 
 
 async def release_lease(db) -> None:
+    """Hand the lease back, and mark that this run got to the end.
+
+    `released` is what lets the next run tell "finished" from "killed". It has
+    to be set in the same write that frees the lease, or a crash between the
+    two would look exactly like the thing it is meant to detect.
+    """
     await db.locks.update_one(
         {"_id": LOCK_ID, "holder": WORKER_ID},
-        {"$set": {"lease_until": datetime.now(timezone.utc)}},
+        {"$set": {"lease_until": datetime.now(timezone.utc), "released": True}},
     )
 
 

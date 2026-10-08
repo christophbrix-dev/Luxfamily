@@ -205,7 +205,20 @@ export type ApiSource = {
   last_run_at?: string | null;
   // "no_events": the run succeeded and parsed nothing at all. Distinct from
   // "ok" with zero imports, which happens whenever a calendar is simply quiet.
-  last_status?: "ok" | "no_events" | "error" | "blocked_by_robots" | null;
+  //
+  // "blocked_by_robots" and "robots_unreadable" are also a pair that looks
+  // like one thing: in both the source was not crawled, which is correct. But
+  // the first means the site told us not to, and the second means its
+  // robots.txt timed out and we never got to ask. One has to be dropped from
+  // the list, the other retried — and for a week both read "robots.txt says
+  // no" on the admin screen, which claimed two communes had refused us.
+  last_status?:
+    | "ok"
+    | "no_events"
+    | "error"
+    | "blocked_by_robots"
+    | "robots_unreadable"
+    | null;
   last_error?: string | null;
   last_imported_count?: number | null;
   last_skipped_count?: number | null;

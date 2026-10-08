@@ -202,8 +202,18 @@ export default function AdminSources() {
                       {(s.empty_runs ?? 0) >= 3 ? " · check the page" : ""}
                     </Text>
                   )}
+                  {/* A refusal is final and needs no action: muted. */}
                   {s.last_status === "blocked_by_robots" && (
                     <Text style={{ color: palette.textMuted }}>robots.txt says no</Text>
+                  )}
+                  {/* Not a refusal — we never managed to ask. Amber, because
+                      unlike the line above this one is worth doing something
+                      about: usually the address, sometimes just a bad night
+                      for the connection. */}
+                  {s.last_status === "robots_unreadable" && (
+                    <Text style={{ color: palette.amber }}>
+                      ⚠ Could not read robots.txt — not crawled, check the address
+                    </Text>
                   )}
                   {s.last_status === "error" && (
                     <Text style={{ color: palette.red }}>✗ Error: {s.last_error}</Text>

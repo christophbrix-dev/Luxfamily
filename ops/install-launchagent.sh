@@ -55,10 +55,15 @@ status() {
   say "Log:     $LOG"
   say ""
   if launchctl print "$DOMAIN/$LABEL" >/dev/null 2>&1; then
-    # The three lines worth having: is it loaded, did the last run fail, and
-    # when is the next one. Everything else in `launchctl print` is noise here.
+    # The three lines worth having: is it loaded, how often has it run, did the
+    # last run fail. Everything else in `launchctl print` is noise here.
+    #
+    # Anchored to a single leading tab on purpose. The job's own keys sit at
+    # that depth; deeper down there are nested "state = active" lines for the
+    # endpoints, and an unanchored grep printed those too — so the status said
+    # "not running" and then "active" twice, which reads like a contradiction.
     launchctl print "$DOMAIN/$LABEL" \
-      | grep -E "state = |last exit code = |runs = " \
+      | grep -E "^\t(state|runs|last exit code) = " \
       | sed 's/^[[:space:]]*/  /' || true
   else
     say "  NICHT geladen."
