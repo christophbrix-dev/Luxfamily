@@ -1948,10 +1948,21 @@ async def run_source(source: Dict[str, Any], db) -> Dict[str, Any]:
                     source.get("name"), empty_runs,
                 )
         except RobotsBlocked as rb:
-            logger.warning("Source %s blocked by robots.txt: %s", source.get("name"), rb)
+            # Two different outcomes, and for a week they shared one label.
+            # "blocked_by_robots" reads as "the site refused us"; a robots.txt
+            # that timed out means we never got to ask. Not crawling is right
+            # either way — what differs is what a person should do next, and
+            # the status is the only place that can say it.
+            if rb.unreadable:
+                logger.warning(
+                    "Source %s: robots.txt could not be read, not crawled: %s",
+                    source.get("name"), rb,
+                )
+            else:
+                logger.warning("Source %s blocked by robots.txt: %s", source.get("name"), rb)
             result = {
                 "last_run_at": started,
-                "last_status": "blocked_by_robots",
+                "last_status": "robots_unreadable" if rb.unreadable else "blocked_by_robots",
                 "last_error": str(rb)[:300],
                 "last_imported_count": 0,
             }

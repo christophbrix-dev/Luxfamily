@@ -52,7 +52,22 @@ ACCEPT_HEADERS = {
 
 
 class RobotsBlocked(Exception):
-    """Raised when robots.txt disallows the target URL, or could not be read."""
+    """Raised when robots.txt disallows the target URL, or could not be read.
+
+    `unreadable` separates the two, because the refusal is the same and the
+    answer is not. A site that forbids us has to be dropped from the list. A
+    site whose robots.txt timed out has to be tried again — and calling that
+    one "blocked" tells the reader a commune refused permission when in truth
+    we never managed to ask.
+
+    The message said which kind it was from early on. The status stored on the
+    source did not, and the admin screen rendered both as "robots.txt says no";
+    two communes sat there for a week looking like they had said no.
+    """
+
+    def __init__(self, message: str, *, unreadable: bool = False) -> None:
+        super().__init__(message)
+        self.unreadable = unreadable
 
 
 class _RobotsEntry:
@@ -230,7 +245,8 @@ def _check_allowed(entry: _RobotsEntry, url: str) -> None:
         raise RobotsBlocked(
             f"could not read robots.txt for {_host_of(url)} ({entry.unreadable}); "
             f"treating the host as disallowed — the site may be fine, "
-            f"check the address"
+            f"check the address",
+            unreadable=True,
         )
     if not entry.parser.can_fetch(USER_AGENT, url):
         raise RobotsBlocked(f"robots.txt disallows {url} for {USER_AGENT}")

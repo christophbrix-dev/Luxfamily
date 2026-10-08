@@ -33,6 +33,7 @@ import argparse
 import asyncio
 import logging
 import sys
+import time
 from datetime import date, datetime, timezone
 
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -89,6 +90,36 @@ async def _snapshot(db) -> dict[str, int]:
 
 KEYS = ("events", "upcoming", "without_coordinates")
 
+# Below this, the gap between the two clocks is rounding and not worth a word.
+PAUSE_WORTH_MENTIONING_MINUTES = 1.0
+
+
+def _duration(wall_seconds: float, awake_seconds: float) -> str:
+    """How long the run took — in the two senses that can differ by hours.
+
+    The first week of launchd runs reported durations from 5.8 to 241.9
+    minutes, and the long ones were all the 05:00 and 18:00 slots. Nothing was
+    slow. The laptop fell asleep mid-crawl, macOS suspended the process, and
+    it carried on at the next wake — so the wall clock had run for four hours
+    while the work took six minutes.
+
+    "Done in 241.9 min" was therefore a false statement about a healthy run,
+    and the kind that is expensive: it invites somebody to go looking for a
+    performance problem that does not exist.
+
+    Both clocks are read, because neither alone is the answer. `datetime` gives
+    the wall clock. `time.monotonic()` on macOS is `mach_absolute_time()`,
+    which does not advance while the system is asleep — so it measures the time
+    the machine was actually awake and working. The difference between them is
+    the sleep.
+    """
+    wall = wall_seconds / 60
+    awake = awake_seconds / 60
+    paused = wall - awake
+    if paused < PAUSE_WORTH_MENTIONING_MINUTES:
+        return f"{wall:.1f} min"
+    return f"{awake:.1f} min of work ({wall:.1f} min wall clock, {paused:.0f} min asleep)"
+
 
 def _line(snapshot: dict[str, int]) -> str:
     return ", ".join(f"{k}={snapshot[k]}" for k in KEYS)
@@ -124,19 +155,23 @@ async def main_async(quiet: bool) -> int:
             return 1
 
         started = datetime.now(timezone.utc)
+        awake_at_start = time.monotonic()
         before = await _snapshot(db)
         log.info("Start: %s", _line(before))
 
         did_run = await run_once(db)
 
         after = await _snapshot(db)
-        minutes = (datetime.now(timezone.utc) - started).total_seconds() / 60
+        took = _duration(
+            (datetime.now(timezone.utc) - started).total_seconds(),
+            time.monotonic() - awake_at_start,
+        )
         if did_run:
-            log.info("Done in %.1f min: %s", minutes, _delta(before, after))
+            log.info("Done in %s: %s", took, _delta(before, after))
         else:
             # Normal, not a failure: another machine or an overlapping run has
             # the lease. Saying so plainly keeps it out of the error log.
-            log.info("Skipped after %.1f min — another holder has the lease.", minutes)
+            log.info("Skipped after %s — another holder has the lease.", took)
         return 0
     finally:
         client.close()
