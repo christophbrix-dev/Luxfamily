@@ -106,6 +106,15 @@ export const STRINGS: Dict = {
   showResults: { en: "Show results", de: "Ergebnisse zeigen", fr: "Voir les résultats" },
   places: { en: "Places", de: "Orte", fr: "Lieux" },
   events: { en: "Events", de: "Events", fr: "Événements" },
+  // Two notes for an entry that began before today. They are prefixes — the
+  // screen appends the formatted date, because t() takes no parameters.
+  //
+  // The difference between them is the difference between knowing and
+  // guessing. "runsUntil" is only used when the entry states an end that has
+  // not passed; "startedOn" when it states no end at all, which 299 of 1,435
+  // events do. Saying "runs until" there would be a confident wrong answer.
+  runsUntil: { en: "Runs until", de: "Läuft bis", fr: "Jusqu'au" },
+  startedOn: { en: "Started", de: "Begonnen am", fr: "Depuis le" },
   itineraries: { en: "Itineraries", de: "Routen", fr: "Itinéraires" },
   // The map's own layer switches. Named after what the reader is looking for,
   // not after the data: "Wanderwege", not "hiking_route relations".
@@ -504,6 +513,8 @@ const LB_OVERRIDES: Record<string, string> = {
   distanceNoLocation:    "D'Positioun ass aus, den Ëmkrees gëtt net ugewannt.",
   indoorOutdoor:         "Bannen / Baussen",
   showResults:           "Resultater weisen",
+  runsUntil:             "Leeft bis",
+  startedOn:             "Ugefaang den",
   itineraries:           "Wanderungen",
   thisWeekend:           "Dëst Weekend",
   next7Days:             "Nächst 7 Deeg",
