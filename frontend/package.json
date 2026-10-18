@@ -11,7 +11,7 @@
     "web": "expo start --web",
     "lint": "eslint app src --ext .ts,.tsx --max-warnings 7",
     "typecheck": "tsc --noEmit",
-    "check": "yarn typecheck && yarn lint && yarn test-hours && yarn test-photo && yarn test-api-errors && yarn test-confirm && yarn test-event-query && yarn test-map-honesty && yarn test-open-maps && yarn test-contrast && yarn test-event-dates && yarn test-viewport",
+    "check": "yarn typecheck && yarn lint && yarn test-hours && yarn test-photo && yarn test-api-errors && yarn test-confirm && yarn test-event-query && yarn test-map-honesty && yarn test-open-maps && yarn test-contrast && yarn test-event-dates && yarn test-viewport && yarn test-detail-routes",
     "lb-coverage": "node scripts/lb-coverage.mjs",
     "test-hours": "node --experimental-strip-types --no-warnings scripts/test-opening-hours.mjs",
     "test-photo": "node --experimental-strip-types --no-warnings scripts/test-photo.mjs",
@@ -22,7 +22,8 @@
     "test-open-maps": "node --experimental-strip-types --no-warnings scripts/test-open-maps.mjs",
     "test-contrast": "node --experimental-strip-types --no-warnings scripts/test-contrast.mjs",
     "test-event-dates": "node --experimental-strip-types --no-warnings scripts/test-event-dates.mjs",
-    "test-viewport": "node --experimental-strip-types --no-warnings scripts/test-viewport.mjs"
+    "test-viewport": "node --experimental-strip-types --no-warnings scripts/test-viewport.mjs",
+    "test-detail-routes": "node --experimental-strip-types --no-warnings scripts/test-detail-routes.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "6.1.2",

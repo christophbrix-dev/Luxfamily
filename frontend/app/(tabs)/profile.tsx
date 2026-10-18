@@ -124,7 +124,7 @@ export default function Profile() {
             style={styles.settingsRow}
             onPress={() => {
               resetOnboarding();
-              router.push("/onboarding" as never);
+              router.push("/onboarding");
             }}
             testID="profile-row-personalization"
           >
@@ -139,15 +139,15 @@ export default function Profile() {
             <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
           </TouchableOpacity>
           {[
-            { icon: "options-outline" as const, label: t("preferencesFilters", lang), to: "/preferences" },
-            { icon: "business-outline" as const, label: t("forBusinesses", lang), to: "/business" },
-            { icon: "information-circle-outline" as const, label: t("about", lang), to: "/about" },
+            { icon: "options-outline" as const, label: t("preferencesFilters", lang), to: "/preferences" as const },
+            { icon: "business-outline" as const, label: t("forBusinesses", lang), to: "/business" as const },
+            { icon: "information-circle-outline" as const, label: t("about", lang), to: "/about" as const },
             { icon: "card-outline" as const, label: t("subscription", lang), to: null, hint: t("comingSoon", lang) },
           ].map((row) => (
             <TouchableOpacity
               key={row.label}
               style={styles.settingsRow}
-              onPress={() => row.to && router.push(row.to as never)}
+              onPress={() => row.to && router.push(row.to)}
               disabled={!row.to}
               testID={`profile-row-${row.label.toLowerCase().replace(/\s+/g, "-")}`}
             >

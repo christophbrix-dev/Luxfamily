@@ -121,5 +121,23 @@ function hashId(id: string): number {
  * used.
  */
 export function detailHref(item: Pick<Place, "id" | "sourceId">): Href {
-  return item.sourceId ? `/event/${item.sourceId}` : `/detail/${item.id}`;
+  return item.sourceId ? eventHref(item.sourceId) : `/detail/${item.id}`;
+}
+
+/**
+ * Where a live API event leads. Its id is already the real one.
+ *
+ * Separate from detailHref because the explore screen holds ApiEventSummary
+ * rows rather than Place records, and had no way to ask — so it wrote the path
+ * out by hand as `/detail/${e.id}` and silenced the type checker with
+ * `as never`. Three call sites, every one of them dead: /detail/[id] looks the
+ * id up with Number(id) in the eight hard-coded demo records, and Number() of a
+ * uuid is NaN. Tapping anything on the map, in its cluster sheet, or in the
+ * result list answered "Not found", and had done since the screen went live.
+ *
+ * The comment above predicted precisely this ("a plain string defeats that
+ * check"). The check was right; the cast turned it off.
+ */
+export function eventHref(id: string): Href {
+  return `/event/${id}`;
 }

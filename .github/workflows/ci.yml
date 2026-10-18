@@ -103,6 +103,15 @@ jobs:
       - name: Viewport
         run: yarn test-viewport
 
+      # Tapping an event has to open that event. Every way out of the explore
+      # screen pushed /detail/{uuid}, which looks the id up with Number() in
+      # eight hard-coded demo records — so it answered "Not found" for every
+      # event, on every path, for as long as the screen has shown live data.
+      # `as never` on the route had switched off the check that would have
+      # caught it at compile time.
+      - name: Detail routes
+        run: yarn test-detail-routes
+
       # Reports how much of the app speaks Luxembourgish. Never fails the
       # build — a missing translation is work in progress, not a broken commit.
       - name: Luxembourgish coverage
