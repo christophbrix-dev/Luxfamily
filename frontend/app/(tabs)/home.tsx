@@ -130,7 +130,7 @@ export default function Home() {
 
         <TouchableOpacity
           style={styles.placesEntry}
-          onPress={() => router.push("/places" as never)}
+          onPress={() => router.push("/places")}
           testID="home-browse-places"
         >
           <Ionicons name="map-outline" size={18} color={palette.primaryDark} />

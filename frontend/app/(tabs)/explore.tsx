@@ -33,6 +33,7 @@ import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { useUserLocation } from "@/src/hooks/useUserLocation";
 import { api, type ApiEventSummary, type ApiPlace, type PlaceLabels, type PlacesMeta } from "@/src/utils/api";
 import { ageWindow, dateWindow, radiusWindow } from "@/src/utils/eventQuery";
+import { eventHref } from "@/src/utils/toPlace";
 import { followsView, withinView } from "@/src/utils/viewport";
 
 export default function Explore() {
@@ -314,7 +315,7 @@ export default function Explore() {
 
   const onMarkerTap = useCallback(
     (id: string) => {
-      router.push(`/detail/${id}` as never);
+      router.push(eventHref(id));
     },
     [router],
   );
@@ -483,7 +484,7 @@ export default function Explore() {
           filtered.slice(0, 30).map((e) => (
             <TouchableOpacity
               key={e.id}
-              onPress={() => router.push(`/detail/${e.id}` as never)}
+              onPress={() => router.push(eventHref(e.id))}
               style={styles.resultCard}
               activeOpacity={0.9}
               testID={`explore-result-${e.id}`}
@@ -541,7 +542,7 @@ export default function Explore() {
                 style={styles.spotRow}
                 onPress={() => {
                   setAtOneSpot(null);
-                  router.push(`/detail/${e.id}` as never);
+                  router.push(eventHref(e.id));
                 }}
                 testID={`same-spot-${e.id}`}
               >
