@@ -15,7 +15,8 @@ import os
 import re
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
@@ -341,6 +342,45 @@ class EventSummary(BaseModel):
 # Mongo projection matching EventSummary, so the trimming happens in the
 # database rather than after we've already paid to transfer the documents.
 SUMMARY_PROJECTION: Dict[str, Any] = {"_id": 0, **{f: 1 for f in EventSummary.model_fields}}
+
+
+# The computed sort key. Never leaves the pipeline — $project drops it.
+RELEVANT_FROM = "_relevant_from"
+
+
+def _by_relevance(query: Dict[str, Any], today: str) -> List[Dict[str, Any]]:
+    """Order events the way somebody asking "what is on" reads them.
+
+    The key is not the start date but the first day the entry is still relevant
+    seen from today: `max(start_date, today)`. Sorting by start_date alone was
+    right for as long as the list held nothing but future events. The moment
+    running ones were let in it put them all at the top, because something that
+    has been running since 31 August carries the earliest start date in the
+    database — the app opened on an August date and today's events sat nine
+    rows down.
+
+    Featured still leads. Inside a day, start_date breaks ties *descending* —
+    what begins today before what has been running for weeks. The tiebreak only
+    ever matters for today's bucket, because on any future day every entry in
+    it starts on that day; and ascending there simply reproduced the original
+    complaint, with "since 31 August" back at row one.
+
+    The cost is honest to state: this sorts in memory, where the previous
+    `find().sort()` walked pub_featured_start. With 1,435 stored events and
+    804 in the default list it sits far inside Mongo's 100 MB sort budget —
+    some fifty times over — and the index still serves every other query. If
+    the collection ever grows by that much, the fix is a stored field rather
+    than a bigger sort.
+    """
+    return [
+        {"$match": query},
+        {"$addFields": {
+            RELEVANT_FROM: {
+                "$cond": [{"$lt": ["$start_date", today]}, today, "$start_date"]
+            }
+        }},
+        {"$sort": {"featured": -1, RELEVANT_FROM: 1, "start_date": -1}},
+    ]
 
 
 def _summaries(docs: List[Dict[str, Any]]) -> List[EventSummary]:
@@ -1044,6 +1084,70 @@ async def delete_my_account(current: Dict[str, Any] = Depends(get_current_user))
 
 
 # ---- Public events ----
+# The calendar this app answers in.
+#
+# "Today" was `datetime.now(timezone.utc).date()`, which is a different day
+# from the reader's between midnight and 01:00 or 02:00 local time. For that
+# hour the list kept yesterday's events and the app, which works in the
+# device's own calendar, labelled them as having started yesterday — two
+# answers to the same question, both defensible, neither agreeing. The app is
+# for Luxembourg; its day is Luxembourg's day. The importer scheduler already
+# runs on this clock.
+LOCAL_TZ = ZoneInfo("Europe/Luxembourg")
+
+
+def today_here() -> str:
+    return datetime.now(LOCAL_TZ).date().isoformat()
+
+
+# How far back the list reaches for an event whose end nobody stated.
+#
+# Three days, and only for those. 299 of the 1,435 events carry a start date
+# and nothing else, so for them "is it over?" cannot be answered, only guessed;
+# three days is a short guess that keeps a street party visible through the
+# weekend it probably still runs in.
+#
+# It deliberately does not extend to events that state an end. There the answer
+# is known, and granting them the same three days put 106 finished events back
+# into the list — one in seven rows would have been something a parent cannot
+# go to any more. A window for uncertainty is not a window for the past.
+GRACE_DAYS = 3
+
+
+def _still_current(today: str) -> Dict[str, Any]:
+    """The filter for "this has not finished yet".
+
+    `upcoming` used to mean `start_date >= today`, which quietly says that an
+    event is over the day after it begins. For most entries that is true. For
+    135 of them it is not, and the ones it got wrong were the ones that matter
+    most to a family looking for something to do: "Mount vum Bongert" runs the
+    whole of October, the Actionbound trail in Reisdorf likewise, an exhibition
+    for six weeks. Nine events were running on the day this was written and
+    none of them was in the app — one of them had been invisible since August.
+
+    So the question is not when an event started but whether it has ended:
+
+      * it states an end, and that end has not passed, or
+      * it states no end, and it began within the last GRACE_DAYS.
+
+    The second clause is the honest half, and the grace belongs to it alone.
+    299 events carry a start and nothing else, and for those "still running?"
+    has no answer in the data — the window is a guess, and it is marked as one
+    by being a separate clause rather than hidden inside a single comparison.
+    An event that states an end needs no guess, so it gets none.
+
+    `end_date: None` also matches documents where the field is absent, which is
+    what Mongo does with a null equality and what we want here.
+    """
+    grace = (date.fromisoformat(today) - timedelta(days=GRACE_DAYS)).isoformat()
+    return {
+        "$or": [
+            {"end_date": {"$gte": today}},
+            {"end_date": None, "start_date": {"$gte": grace}},
+        ]
+    }
+
+
 def _events_query(
     *,
     canton: Optional[str],
@@ -1110,10 +1214,11 @@ def _events_query(
             query[field] = True
 
     start: Dict[str, str] = {}
-    if upcoming:
-        start["$gte"] = datetime.now(timezone.utc).date().isoformat()
+    if upcoming and not date_from:
+        # An explicit window wins over the general "not over yet" — somebody
+        # asking for last March wants last March.
+        query.update(_still_current(today_here()))
     if date_from:
-        # An explicit window wins over the general "not in the past".
         start["$gte"] = date_from
     if date_to:
         start["$lte"] = date_to
@@ -1185,17 +1290,16 @@ async def list_events(
         near=near, radius_km=radius_km,
     )
 
+    today = today_here()
+
     if near is None:
-        # Featured first, then by start date — matches pub_featured_start /
-        # pub_canton_featured_start so Mongo walks the index instead of sorting.
-        cursor = (
-            db.events.find(query, SUMMARY_PROJECTION)
-            .sort([("featured", -1), ("start_date", 1)])
-            .skip(skip)
-            .limit(limit)
-        )
+        pipeline = _by_relevance(query, today) + [
+            {"$skip": skip},
+            {"$limit": limit},
+            {"$project": SUMMARY_PROJECTION},
+        ]
         docs, total = await asyncio.gather(
-            cursor.to_list(length=limit),
+            db.events.aggregate(pipeline).to_list(length=limit),
             db.events.count_documents(query),
         )
         response.headers["X-Total-Count"] = str(total)
@@ -1209,11 +1313,9 @@ async def list_events(
     # Reading the whole filtered set is affordable here and would not be for
     # places: this collection holds 528 events, `upcoming` drops the past ones,
     # and SUMMARY_PROJECTION is already the trimmed shape.
-    candidates = await (
-        db.events.find(query, SUMMARY_PROJECTION)
-        .sort([("featured", -1), ("start_date", 1)])
-        .to_list(length=None)
-    )
+    candidates = await db.events.aggregate(
+        _by_relevance(query, today) + [{"$project": SUMMARY_PROJECTION}]
+    ).to_list(length=None)
     ranked = within_radius(candidates, near[0], near[1], radius_km, sort=False)
     response.headers["X-Total-Count"] = str(len(ranked))
     return _summaries([doc for _, doc in ranked[skip:skip + limit]])

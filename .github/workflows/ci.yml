@@ -87,6 +87,14 @@ jobs:
       - name: Contrast
         run: yarn test-contrast
 
+      # An event is over when it ends, not the day after it begins. The list
+      # read start_date and nothing else, so 135 multi-day entries vanished
+      # the morning after they opened — on 13 October nine were running in
+      # Luxembourg and the app showed none of them. This also guards the
+      # quieter half: an entry with no stated end may not claim to be running.
+      - name: Event dates
+        run: yarn test-event-dates
+
       # Reports how much of the app speaks Luxembourgish. Never fails the
       # build — a missing translation is work in progress, not a broken commit.
       - name: Luxembourgish coverage

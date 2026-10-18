@@ -18,6 +18,7 @@ import { useApp } from "@/src/contexts/AppContext";
 import { t } from "@/src/i18n/strings";
 import { DISTANCE_OPTIONS } from "@/src/data/places";
 import { needsLocation, radiusWindow } from "@/src/utils/eventQuery";
+import { boxDate, dateNote, relevantFrom, todayIso } from "@/src/utils/eventDates";
 import { baseLang, pickLang } from "@/src/i18n/pickLang";
 import { radii, type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
@@ -52,6 +53,14 @@ function monthLabel(d: Date, lang: Lang): string {
  * Groups dated events by month (chronologically) and puts always-open
  * curated venues into a single "Always open" bucket at the end.
  */
+/** "30. Okt" — the month names the app already carries, shortened. */
+function shortDate(iso: string, lang: Lang): string {
+  const d = new Date(iso);
+  const month = MONTH_NAMES[lang]?.[d.getMonth()]?.slice(0, 3)
+                ?? d.toLocaleDateString(undefined, { month: "short" });
+  return `${d.getDate()}. ${month}`;
+}
+
 function groupEvents(
   events: ApiEventSummary[],
   lang: Lang,
@@ -61,16 +70,29 @@ function groupEvents(
   const dated: ApiEventSummary[]  = [];
   for (const e of events) (isVenue(e) ? venues : dated).push(e);
 
-  // Sort dated events chronologically (ascending) with featured on top per day.
+  // Ordered and grouped by when an entry is relevant, not by when it began.
+  //
+  // Sorting on start_date was right while the list held only future events.
+  // Once running ones were let in, "Rollblitzverleih" — on since 31 August —
+  // led the list and opened an "August" heading inside a list of what is still
+  // to come. relevantFrom collapses that to today; see src/utils/eventDates.ts.
+  //
+  // Inside a day the newer start wins, so what begins today sits above what
+  // has been running for weeks. The backend sorts by the same rule, so a
+  // second page arrives in the order this one expects.
+  const today = todayIso();
   dated.sort((a, b) => {
     if (a.featured !== b.featured) return a.featured ? -1 : 1;
-    return a.start_date.localeCompare(b.start_date);
+    const ra = relevantFrom(a.start_date, today);
+    const rb = relevantFrom(b.start_date, today);
+    if (ra !== rb) return ra.localeCompare(rb);
+    return b.start_date.localeCompare(a.start_date);
   });
 
   // Group dated events by month, preserving insertion order (already sorted).
   const monthMap = new Map<string, ApiEventSummary[]>();
   for (const e of dated) {
-    const d   = new Date(e.start_date);
+    const d   = new Date(relevantFrom(e.start_date, today));
     const key = monthLabel(d, lang);
     const arr = monthMap.get(key) ?? [];
     arr.push(e);
@@ -386,7 +408,12 @@ function EventRow({
   const { palette, shadow } = useAppPalette();
   const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const venue = isVenue(event);
-  const date = new Date(event.start_date);
+  const today = todayIso();
+  // The box answers "when can I go", so a running event shows today rather
+  // than the day it began — "31 AUG" on something open this afternoon reads
+  // as a bug. The note under the title carries the real span.
+  const date = new Date(boxDate(event, today));
+  const note = dateNote(event, today);
   const day = date.getDate();
   const monthShort = MONTH_NAMES[lang]?.[date.getMonth()]?.slice(0, 3).toUpperCase()
                     ?? date.toLocaleDateString(undefined, { month: "short" });
@@ -439,6 +466,29 @@ function EventRow({
             {venue ? t("alwaysOpen", lang) : (event.time || "—")}
           </Text>
         </View>
+        {/* Only for an entry that began before today — see dateNote.
+            "Runs until" is in the accent because it is good news and we know
+            it: the entry states an end and it has not passed. "Started" stays
+            muted, because all we know is when it began. */}
+        {note.kind !== "none" ? (
+          <View style={styles.metaRow}>
+            <Ionicons
+              name={note.kind === "runsUntil" ? "hourglass-outline" : "play-outline"}
+              size={11}
+              color={note.kind === "runsUntil" ? palette.primaryDark : palette.textSecondary}
+            />
+            <Text
+              style={[
+                styles.metaTxt,
+                note.kind === "runsUntil" && { color: palette.primaryDark, fontWeight: "700" },
+              ]}
+              numberOfLines={1}
+            >
+              {t(note.kind === "runsUntil" ? "runsUntil" : "startedOn", lang)}{" "}
+              {shortDate(note.date, lang)}
+            </Text>
+          </View>
+        ) : null}
       </View>
       <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
     </TouchableOpacity>
