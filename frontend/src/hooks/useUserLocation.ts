@@ -94,21 +94,8 @@ export function useUserLocation() {
   return { ...state, request };
 }
 
-/**
- * Great-circle distance in kilometres.
- *
- * The haversine formula, which treats the earth as a sphere. Across Luxembourg
- * that is accurate to a few metres — far below the accuracy of the position it
- * is given.
- */
-export function distanceKm(a: Coords, b: Coords): number {
-  const R = 6371;
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-  const h =
-    Math.sin(dLat / 2) ** 2 + Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
+// Re-exported rather than written twice. It moved to src/utils/viewport.ts,
+// which imports nothing and can therefore be run by a test script under plain
+// node; this hook cannot. Two copies of a distance formula is exactly the
+// shape of drift this project keeps paying for.
+export { distanceKm } from "@/src/utils/viewport";

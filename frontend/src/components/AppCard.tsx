@@ -1,13 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import React from "react";
+import React, { useMemo } from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { useApp } from "@/src/contexts/AppContext";
 import { pickLang } from "@/src/i18n/pickLang";
 import { t } from "@/src/i18n/strings";
 import type { Place } from "@/src/data/places";
-import { palette, radii, shadow, spacing } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
+import { type Palette, radii, shadowFor, spacing } from "@/src/theme";
 import { categoryIcon, hasOwnPhoto } from "@/src/utils/photo";
 
 type Props = {
@@ -18,6 +19,8 @@ type Props = {
 };
 
 export function AppCard({ item, large = false, onPress, testID }: Props) {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const { lang, saved, toggleSave } = useApp();
   // A live record is addressed by its real id; the demo entries only have
   // their numeric one.
@@ -137,7 +140,8 @@ export function AppCard({ item, large = false, onPress, testID }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) =>
+  StyleSheet.create({
   card: {
     backgroundColor: palette.surface,
     borderRadius: radii.xl,

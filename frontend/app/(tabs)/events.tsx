@@ -20,7 +20,7 @@ import { DISTANCE_OPTIONS } from "@/src/data/places";
 import { needsLocation, radiusWindow } from "@/src/utils/eventQuery";
 import { boxDate, dateNote, relevantFrom, todayIso } from "@/src/utils/eventDates";
 import { baseLang, pickLang } from "@/src/i18n/pickLang";
-import { radii, type Palette, shadowFor } from "@/src/theme";
+import { activeFill, radii, type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { useUserLocation } from "@/src/hooks/useUserLocation";
 import { api, ApiEventSummary } from "@/src/utils/api";
@@ -118,8 +118,8 @@ function groupEvents(
 }
 
 export default function EventsTab() {
-  const { palette, shadow } = useAppPalette();
-  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
+  const { palette, shadow, effective } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow, effective), [palette, shadow, effective]);
   const router = useRouter();
   const { lang, userProfile } = useApp();
   const [events, setEvents] = useState<ApiEventSummary[] | null>(null);
@@ -405,8 +405,8 @@ function EventRow({
   lang: Lang;
   onPress: () => void;
 }) {
-  const { palette, shadow } = useAppPalette();
-  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
+  const { palette, shadow, effective } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow, effective), [palette, shadow, effective]);
   const venue = isVenue(event);
   const today = todayIso();
   // The box answers "when can I go", so a running event shows today rather
@@ -519,8 +519,8 @@ function FilterChip({
   active: boolean;
   onPress: () => void;
 }) {
-  const { palette, shadow } = useAppPalette();
-  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
+  const { palette, shadow, effective } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow, effective), [palette, shadow, effective]);
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -538,7 +538,7 @@ function FilterChip({
   );
 }
 
-const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>, mode: "light" | "dark") => StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.background },
   header: {
     paddingHorizontal: 20,
@@ -657,16 +657,18 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
     borderWidth: 1,
     borderColor: palette.border,
   },
+  // See activeFill in theme.ts. Filled with the bright dark-mode accent this
+  // was a glowing pill on a quiet screen, and its label was white at 1.9 : 1.
   chipActive: {
-    backgroundColor: palette.primary,
-    borderColor: palette.primary,
+    backgroundColor: activeFill(palette, mode).backgroundColor,
+    borderColor: activeFill(palette, mode).borderColor,
   },
   chipTxt: {
     fontSize: 12,
     fontWeight: "600",
     color: palette.textSecondary,
   },
-  chipTxtActive: { color: "#fff" },
+  chipTxtActive: { color: activeFill(palette, mode).color },
   clearChip: {
     flexDirection: "row",
     alignItems: "center",

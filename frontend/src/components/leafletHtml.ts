@@ -111,9 +111,29 @@ export const LEAFLET_HTML = `<!doctype html>
     /* Dark mode without a second tile provider. Only the tile pane is
        inverted: our pins, cluster bubbles and popups live in their own panes
        and keep the colours they were given. The hue rotation puts water back
-       to blue after the inversion, which otherwise turns it orange. */
+       to blue after the inversion, which otherwise turns it orange.
+
+       saturate() is the part that matters for how the map reads. OpenStreetMap
+       colours its own content: nature reserves green, motorways orange, rail
+       and borders in their own hues. Inverted and left saturated, every one of
+       those became a bright band across the screen — and most of them lay in
+       Belgium, Germany and France, where nothing in this app happens. The map
+       was shouting about somewhere else.
+
+       Pulled down to a quarter, the tiles keep their structure — roads,
+       rivers, the shape of a town — and lose the colour coding we have no use
+       for. What stays coloured is then only what we draw ourselves: the
+       accent for events, slate for places. That is the whole point of the
+       map, and before this it was competing with a nature reserve near Trier. */
     body.dark .leaflet-tile-pane {
-      filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.9);
+      filter: invert(1) hue-rotate(180deg) saturate(0.25) brightness(0.86) contrast(0.85);
+    }
+
+    /* The same thought in light mode, more gently: the tiles are the backdrop,
+       our markers are the content. Without this the accent pins compete with
+       OSM's own green for forests. */
+    body:not(.dark) .leaflet-tile-pane {
+      filter: saturate(0.55);
     }
   </style>
 </head>

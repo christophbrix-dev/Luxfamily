@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
-import React from "react";
+import React, { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp } from "@/src/contexts/AppContext";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { t } from "@/src/i18n/strings";
-import { palette } from "@/src/theme";
+import { type Palette } from "@/src/theme";
 
 type Tab = {
   key: "home" | "explore" | "events" | "saved" | "calendar" | "profile";
@@ -40,6 +41,8 @@ export function BottomTabBar() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const { lang } = useApp();
+  const { palette } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
 
   return (
     <View
@@ -73,22 +76,26 @@ export function BottomTabBar() {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.98)",
-    borderTopWidth: 1,
-    borderTopColor: palette.borderSoft,
-    paddingTop: 10,
-    paddingHorizontal: 8,
-  },
-  item: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    paddingVertical: 4,
-  },
-  label: { fontSize: 11, color: palette.textMuted, fontWeight: "500" },
-  labelActive: { color: palette.primary, fontWeight: "700" },
-});
+const makeStyles = (palette: Palette) =>
+  StyleSheet.create({
+    wrap: {
+      flexDirection: "row",
+      // Was rgba(255,255,255,0.98) — a literal white, so the bar stayed white
+      // across the bottom of every dark screen. It is the one element a reader
+      // sees on all six tabs, which is why it was the first thing noticed.
+      backgroundColor: palette.surface,
+      borderTopWidth: 1,
+      borderTopColor: palette.borderSoft,
+      paddingTop: 10,
+      paddingHorizontal: 8,
+    },
+    item: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 4,
+      paddingVertical: 4,
+    },
+    label: { fontSize: 11, color: palette.textMuted, fontWeight: "500" },
+    labelActive: { color: palette.primary, fontWeight: "700" },
+  });

@@ -1,11 +1,12 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { Chip } from "@/src/components/Chip";
 import { useApp } from "@/src/contexts/AppContext";
 import { AGE_OPTIONS, CATEGORIES, DATE_OPTIONS, DISTANCE_OPTIONS, TYPE_OPTIONS } from "@/src/data/places";
 import { t } from "@/src/i18n/strings";
-import { palette, radii, shadow, spacing } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
+import { type Palette, radii, shadowFor, spacing } from "@/src/theme";
 
 export type Filters = {
   age: string;
@@ -57,6 +58,8 @@ export function FilterSheet({
   onRequestLocation,
 }: Props) {
   const { lang } = useApp();
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   // A radius that is chosen but cannot be applied. The chip stays lit — the
   // user did choose it — and the sheet says plainly that it is not in effect,
   // with the one button that would make it work.
@@ -217,6 +220,8 @@ export function FilterSheet({
 }
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   return (
     <View style={{ marginBottom: spacing.xxl }}>
       <Text style={styles.sectionLabel}>{label}</Text>
@@ -225,7 +230,8 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) =>
+  StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.45)" },
   sheet: {
     position: "absolute",

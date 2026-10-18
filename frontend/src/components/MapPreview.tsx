@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { WebView } from "react-native-webview";
 
-import { palette, radii } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
+import { type Palette, radii } from "@/src/theme";
 
 type Props = {
   lat: number;
@@ -13,6 +14,8 @@ type Props = {
 
 // OpenStreetMap embed via iframe — no API key needed. Works on iOS, Android & Web.
 export function MapPreview({ lat, lng, label = "Place", height = 180 }: Props) {
+  const { palette } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   const bbox = `${lng - 0.005},${lat - 0.003},${lng + 0.005},${lat + 0.003}`;
   const src = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat},${lng}`;
   const html = `
@@ -51,12 +54,13 @@ export function MapPreview({ lat, lng, label = "Place", height = 180 }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    width: "100%",
-    borderRadius: radii.lg,
-    overflow: "hidden",
-    backgroundColor: palette.surfaceMuted,
-  },
-  web: { flex: 1, backgroundColor: "transparent" },
-});
+const makeStyles = (palette: Palette) =>
+  StyleSheet.create({
+    wrap: {
+      width: "100%",
+      borderRadius: radii.lg,
+      overflow: "hidden",
+      backgroundColor: palette.surfaceMuted,
+    },
+    web: { flex: 1, backgroundColor: "transparent" },
+  });

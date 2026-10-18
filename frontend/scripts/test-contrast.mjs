@@ -13,6 +13,7 @@
 //
 //   node --experimental-strip-types scripts/test-contrast.mjs
 
+import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 // accents.ts imports nothing, which is what makes it testable from plain node
@@ -254,6 +255,56 @@ for (const accent of ACCENTS) {
     new RegExp(`${accent.labelKey}:\\s*\\{`).test(strings), true);
   check(`${accent.labelKey} has Luxembourgish`,
     new RegExp(`${accent.labelKey}:\\s+"`).test(strings), true);
+}
+
+// A selected chip in dark mode.
+//
+// The light-mode recipe — fill with the accent, write white on it — goes wrong
+// twice when the accent is the bright dark-mode shade: a glowing pill on a
+// quiet screen, and about 1.9 : 1 for the label. activeFill() flips it to a
+// deep tint with the bright shade as text, which is what the map's own layer
+// chips were already doing and the one row nobody complained about.
+for (const accent of ACCENTS) {
+  const dark = shadesFor(accent.hue, "dark");
+  atLeast(`${accent.id}: selected chip label, dark mode`,
+    contrast(dark.primaryLight, dark.primaryDark), 4.5);
+  // The border only has to be seen against its own fill, not carry text.
+  // 3 : 1 is WCAG's figure for a graphical boundary that conveys meaning, and
+  // here it does: it is what marks the pill as the chosen one.
+  atLeast(`${accent.id}: selected chip border, dark mode`,
+    contrast(dark.primaryLight, dark.primary), 3.0);
+  const light = shadesFor(accent.hue, "light");
+  atLeast(`${accent.id}: selected chip label, light mode`,
+    contrast(light.primary, "#FFFFFF"), 4.5);
+}
+
+// And the decision lives in one place, not in each screen that draws a pill.
+check("the active fill is a named decision", /export function activeFill\(/.test(theme), true);
+for (const file of ["src/components/Chip.tsx", "app/(tabs)/explore.tsx"]) {
+  const text = readFileSync(file, "utf8");
+  check(`${file} uses it`, /activeFill\(palette, /.test(text), true);
+  check(`${file} does not write a literal white on the accent`,
+    /TxtActive:\s*\{\s*color:\s*"#FFFFFF"/.test(text), false);
+}
+
+// A frozen palette is the quietest way to lose both the dark mode and the
+// chosen accent at once. `theme.ts` exported `palette` as an alias for
+// LIGHT_PALETTE so unmigrated screens kept working; eight never migrated, and
+// the bottom tab bar — on all six tabs — stayed white across every dark
+// screen while the active filter chip stayed a green nobody had chosen.
+// Nothing failed, because a wrong colour compiles.
+check("theme.ts exports no frozen palette",
+  /export const palette\b/.test(theme), false);
+
+const screens = execSync('find app src -name "*.tsx" -o -name "*.ts"', { encoding: "utf8" })
+  .split("\n").filter(Boolean);
+for (const file of screens) {
+  const text = readFileSync(file, "utf8");
+  const imports = text.match(/import \{[^}]*\} from "@\/src\/theme";/g) ?? [];
+  for (const line of imports) {
+    check(`${file} does not import a frozen palette`,
+      /\bpalette\b/.test(line.replace(/\bPalette\b/g, "")), false);
+  }
 }
 
 console.log(failures === 0
