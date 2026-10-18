@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useMemo } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -10,10 +10,13 @@ import {
   View,
 } from "react-native";
 
-import { palette, radii, shadow } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
+import { type Palette, radii, shadowFor } from "@/src/theme";
 import { api, ApiEventSummary, setAdminToken } from "@/src/utils/api";
 
 export default function AdminEvents() {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const router = useRouter();
   const [events, setEvents] = useState<ApiEventSummary[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -190,7 +193,8 @@ export default function AdminEvents() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) =>
+  StyleSheet.create({
   sponsorBadge: {
     flexDirection: "row",
     alignItems: "center",

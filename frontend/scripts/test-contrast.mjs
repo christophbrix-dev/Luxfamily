@@ -13,6 +13,7 @@
 //
 //   node --experimental-strip-types scripts/test-contrast.mjs
 
+import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 // accents.ts imports nothing, which is what makes it testable from plain node
@@ -254,6 +255,26 @@ for (const accent of ACCENTS) {
     new RegExp(`${accent.labelKey}:\\s*\\{`).test(strings), true);
   check(`${accent.labelKey} has Luxembourgish`,
     new RegExp(`${accent.labelKey}:\\s+"`).test(strings), true);
+}
+
+// A frozen palette is the quietest way to lose both the dark mode and the
+// chosen accent at once. `theme.ts` exported `palette` as an alias for
+// LIGHT_PALETTE so unmigrated screens kept working; eight never migrated, and
+// the bottom tab bar — on all six tabs — stayed white across every dark
+// screen while the active filter chip stayed a green nobody had chosen.
+// Nothing failed, because a wrong colour compiles.
+check("theme.ts exports no frozen palette",
+  /export const palette\b/.test(theme), false);
+
+const screens = execSync('find app src -name "*.tsx" -o -name "*.ts"', { encoding: "utf8" })
+  .split("\n").filter(Boolean);
+for (const file of screens) {
+  const text = readFileSync(file, "utf8");
+  const imports = text.match(/import \{[^}]*\} from "@\/src\/theme";/g) ?? [];
+  for (const line of imports) {
+    check(`${file} does not import a frozen palette`,
+      /\bpalette\b/.test(line.replace(/\bPalette\b/g, "")), false);
+  }
 }
 
 console.log(failures === 0

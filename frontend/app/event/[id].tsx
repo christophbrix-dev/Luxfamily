@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   ActivityIndicator,
   Linking,
@@ -19,10 +19,13 @@ import { useApp } from "@/src/contexts/AppContext";
 import { t } from "@/src/i18n/strings";
 import { pickLang } from "@/src/i18n/pickLang";
 import { openMaps } from "@/src/utils/openMaps";
-import { palette, radii, shadow } from "@/src/theme";
+import { useAppPalette } from "@/src/hooks/useAppPalette";
+import { type Palette, radii, shadowFor } from "@/src/theme";
 import { api, ApiEvent } from "@/src/utils/api";
 
 export default function EventDetail() {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -239,6 +242,8 @@ function Stat({
   label: string;
   value: string;
 }) {
+  const { palette, shadow } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
   return (
     <View style={styles.statCard}>
       <Ionicons name={icon} size={16} color={palette.primary} />
@@ -250,7 +255,8 @@ function Stat({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) =>
+  StyleSheet.create({
   wrap: { flex: 1, backgroundColor: palette.background },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
   errTxt: { color: palette.textSecondary, marginBottom: 12 },
