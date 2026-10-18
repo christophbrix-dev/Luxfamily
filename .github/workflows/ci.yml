@@ -95,6 +95,14 @@ jobs:
       - name: Event dates
         run: yarn test-event-dates
 
+      # The list follows the map. It did not: one request for the whole
+      # country, narrowed only by canton and search box, so zooming to
+      # Esch-sur-Alzette left Vianden at the top of the list. Guards the two
+      # cases where it must *not* filter — the country view, and an entry
+      # whose coordinates we do not have.
+      - name: Viewport
+        run: yarn test-viewport
+
       # Reports how much of the app speaks Luxembourgish. Never fails the
       # build — a missing translation is work in progress, not a broken commit.
       - name: Luxembourgish coverage

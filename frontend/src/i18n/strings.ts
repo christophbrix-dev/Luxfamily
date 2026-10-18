@@ -113,6 +113,10 @@ export const STRINGS: Dict = {
   // guessing. "runsUntil" is only used when the entry states an end that has
   // not passed; "startedOn" when it states no end at all, which 299 of 1,435
   // events do. Saying "runs until" there would be a confident wrong answer.
+  // Said beside the result count whenever the list is following the map, so
+  // that a number dropping from 781 to 40 reads as the map working rather
+  // than as something having gone wrong.
+  inThisView: { en: "in this view", de: "im Kartenausschnitt", fr: "dans cette vue" },
   runsUntil: { en: "Runs until", de: "Läuft bis", fr: "Jusqu'au" },
   startedOn: { en: "Started", de: "Begonnen am", fr: "Depuis le" },
   itineraries: { en: "Itineraries", de: "Routen", fr: "Itinéraires" },
@@ -513,6 +517,7 @@ const LB_OVERRIDES: Record<string, string> = {
   distanceNoLocation:    "D'Positioun ass aus, den Ëmkrees gëtt net ugewannt.",
   indoorOutdoor:         "Bannen / Baussen",
   showResults:           "Resultater weisen",
+  inThisView:            "am Kaartenausschnitt",
   runsUntil:             "Leeft bis",
   startedOn:             "Ugefaang den",
   itineraries:           "Wanderungen",

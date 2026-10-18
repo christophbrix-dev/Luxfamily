@@ -33,6 +33,7 @@ import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { useUserLocation } from "@/src/hooks/useUserLocation";
 import { api, type ApiEventSummary, type ApiPlace, type PlaceLabels, type PlacesMeta } from "@/src/utils/api";
 import { ageWindow, dateWindow, radiusWindow } from "@/src/utils/eventQuery";
+import { followsView, withinView } from "@/src/utils/viewport";
 
 export default function Explore() {
   const { palette, shadow, effective } = useAppPalette();
@@ -58,6 +59,12 @@ export default function Explore() {
   // selection. The search box would otherwise cost a request per keystroke,
   // and it now searches a complete set rather than a truncated one, so there
   // is nothing left for the server to add.
+  // The same view again, as state. The ref is what the places fetch compares
+  // against to drop a stale answer; it cannot drive the list, because writing
+  // to a ref does not re-render and the list would keep showing the country
+  // while the map showed one town.
+  const [view, setView] = useState<MapView | null>(null);
+
   const load = useCallback(async () => {
     setLoadError(false);
     try {
@@ -99,13 +106,18 @@ export default function Explore() {
       // it — including the date chip, which used to be drawn, counted in the
       // badge, and then never applied to anything at all.
       if (canton && e.canton !== canton) return false;
+      // What the map is showing. Zooming to Esch-sur-Alzette used to leave
+      // Vianden at the top of the list — sixty kilometres away and nowhere on
+      // the screen. Below FOLLOW_FROM_ZOOM nothing is dropped; see viewport.ts
+      // for why the country view must not filter.
+      if (followsView(view) && !withinView(view, e.lat, e.lng)) return false;
       if (q) {
         const hay = `${pickLang(e.title, lang) ?? ""} ${pickLang(e.short, lang) ?? ""} ${e.town ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [events, canton, query, lang]);
+  }, [events, canton, query, lang, view]);
 
   const activeFilterCount =
     (filters.age !== "All" ? 1 : 0) +
@@ -233,6 +245,7 @@ export default function Explore() {
 
   const onViewChanged = useCallback(async (view: MapView) => {
     viewRef.current = view;
+    setView(view);
     if (view.zoom < PLACES_FROM_ZOOM) {
       mapRef.current?.setPlaces([]);
       return;
@@ -450,7 +463,11 @@ export default function Explore() {
             ? t("failedToLoad", lang)
             : events === null
               ? t("loading", lang)
-              : `${filtered.length} ${filtered.length === 1 ? t("result", lang) : t("results", lang)}`}
+              : `${filtered.length} ${filtered.length === 1 ? t("result", lang) : t("results", lang)}${
+                  // A count that drops from 781 to 40 without a word reads as
+                  // a failure. Said out loud, it reads as the map working.
+                  followsView(view) ? ` · ${t("inThisView", lang)}` : ""
+                }`}
         </Text>
 
         {events === null && !loadError ? (
