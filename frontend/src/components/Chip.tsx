@@ -14,7 +14,7 @@ import React, { useMemo } from "react";
 import { StyleSheet, Text, TouchableOpacity } from "react-native";
 
 import { type EffectiveTheme, useAppPalette } from "@/src/hooks/useAppPalette";
-import { type Palette } from "@/src/theme";
+import { activeFill, type Palette } from "@/src/theme";
 
 type Props = {
   active?: boolean;
@@ -58,13 +58,13 @@ const makeStyles = (palette: Palette, effective: EffectiveTheme) =>
       backgroundColor: palette.surface,
       borderColor: palette.border,
     },
+    // See activeFill in theme.ts: in dark mode a pill filled with the bright
+    // accent is a glowing sweet on a quiet screen, and white on it is 1.9 : 1.
     chipActive: {
-      backgroundColor: palette.primary,
-      borderColor: palette.primary,
+      backgroundColor: activeFill(palette, effective).backgroundColor,
+      borderColor: activeFill(palette, effective).borderColor,
     },
     label: { fontSize: 13, fontWeight: "600" },
     labelIdle: { color: palette.textSecondary },
-    // The accent is dark in light mode and bright in dark mode, so the label
-    // on top of it has to flip too. A fixed white fails the second case.
-    labelActive: { color: effective === "dark" ? "#0B1120" : "#FFFFFF" },
+    labelActive: { color: activeFill(palette, effective).color },
   });

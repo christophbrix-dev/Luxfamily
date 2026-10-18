@@ -28,7 +28,7 @@ import { storage } from "@/src/utils/storage";
 import { CANTONS, type Canton } from "@/src/data/places";
 import { t } from "@/src/i18n/strings";
 import { pickLang } from "@/src/i18n/pickLang";
-import { radii, type Palette, shadowFor } from "@/src/theme";
+import { activeFill, radii, type Palette, shadowFor } from "@/src/theme";
 import { useAppPalette } from "@/src/hooks/useAppPalette";
 import { useUserLocation } from "@/src/hooks/useUserLocation";
 import { api, type ApiEventSummary, type ApiPlace, type PlaceLabels, type PlacesMeta } from "@/src/utils/api";
@@ -37,7 +37,7 @@ import { followsView, withinView } from "@/src/utils/viewport";
 
 export default function Explore() {
   const { palette, shadow, effective } = useAppPalette();
-  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
+  const styles = useMemo(() => makeStyles(palette, shadow, effective), [palette, shadow, effective]);
   const router = useRouter();
   const { lang, accent } = useApp();
   // Never prompts on mount — it picks up a permission granted earlier, and the
@@ -578,8 +578,8 @@ function CantonPill({
   active: boolean;
   onPress: () => void;
 }) {
-  const { palette, shadow } = useAppPalette();
-  const styles = useMemo(() => makeStyles(palette, shadow), [palette, shadow]);
+  const { palette, shadow, effective } = useAppPalette();
+  const styles = useMemo(() => makeStyles(palette, shadow, effective), [palette, shadow, effective]);
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -599,7 +599,7 @@ function CantonPill({
   );
 }
 
-const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => StyleSheet.create({
+const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>, mode: "light" | "dark") => StyleSheet.create({
   // The map's layer switches. A dot rather than a tick: it is the colour the
   // layer draws with, so the row doubles as the map's legend.
   layerRow: { paddingHorizontal: 20, paddingBottom: 10, gap: 8 },
@@ -732,12 +732,13 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
     borderWidth: 1,
     borderColor: palette.border,
   },
+  // The selected canton. Same decision as every other pill — see activeFill.
   pillActive: {
-    backgroundColor: palette.primary,
-    borderColor: palette.primaryDark,
+    backgroundColor: activeFill(palette, mode).backgroundColor,
+    borderColor: activeFill(palette, mode).borderColor,
   },
   pillTxt: { fontSize: 13, color: palette.textPrimary, fontWeight: "600" },
-  pillTxtActive: { color: "#FFFFFF" },
+  pillTxtActive: { color: activeFill(palette, mode).color },
   pillBadge: {
     backgroundColor: palette.primaryLight,
     paddingHorizontal: 6,
@@ -746,9 +747,13 @@ const makeStyles = (palette: Palette, shadow: ReturnType<typeof shadowFor>) => S
     minWidth: 22,
     alignItems: "center",
   },
-  pillBadgeActive: { backgroundColor: "rgba(255,255,255,0.28)" },
+  // A translucent white worked on a dark fill; on the dark-mode tint it is a
+  // pale smudge. Black at the same opacity does the job on the light fill.
+  pillBadgeActive: {
+    backgroundColor: mode === "dark" ? "rgba(0,0,0,0.30)" : "rgba(255,255,255,0.28)",
+  },
   pillBadgeTxt: { fontSize: 11, fontWeight: "700", color: palette.primaryDark },
-  pillBadgeTxtActive: { color: "#FFFFFF" },
+  pillBadgeTxtActive: { color: activeFill(palette, mode).color },
 
   mapCard: {
     marginHorizontal: 20,

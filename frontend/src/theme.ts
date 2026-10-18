@@ -152,3 +152,38 @@ export function shadowFor(mode: "light" | "dark") {
   }
   return shadow;
 }
+
+/**
+ * How a selected chip or pill is painted — one decision, several call sites.
+ *
+ * In light mode the accent is a dark green and a filled pill with white text
+ * is exactly right: 4.5 : 1, and the selection reads at a glance.
+ *
+ * In dark mode the same recipe goes wrong twice. The accent there is
+ * deliberately *bright*, because it has to carry text and lines against a dark
+ * ground — so filling a pill with it produces a glowing sweet in the middle of
+ * a quiet screen, and writing white on it gives about 1.9 : 1, a label nobody
+ * can read. The map's own layer chips had already found the right answer and
+ * were the one row on that screen nobody complained about: a deep tint for the
+ * ground, the bright shade for the text.
+ *
+ * Measured across all eight accents, the dark pairing is 6.32 : 1 at its worst
+ * (orange) — scripts/test-contrast.mjs keeps it that way.
+ */
+export function activeFill(palette: Palette, mode: "light" | "dark") {
+  return mode === "dark"
+    ? {
+        backgroundColor: palette.primaryLight,
+        // The bright accent as a thin outline around the deep tint — the same
+        // shape as the map's layer chips. primaryBorder was the first choice
+        // and it measured 1.25 : 1 against the tint for violet: an edge you
+        // cannot see is not an edge.
+        borderColor: palette.primary,
+        color: palette.primaryDark,
+      }
+    : {
+        backgroundColor: palette.primary,
+        borderColor: palette.primary,
+        color: "#FFFFFF",
+      };
+}
